@@ -7,14 +7,18 @@ from utils.env_check import validate_env
 from pydantic import BaseModel, Field
 
 from auth import authenticate
-from models import ChatMessage, Consultation, Farmer, HealthLog
+from models import Animal, Appointment, ChatMessage, Consultation, Farmer, HealthLog
 from storage import (
     animals_for_farmer,
+    appointments_for_farmer,
+    append_animal,
+    append_appointment,
     append_consultation,
     append_health_log,
     consultations_for_farmer,
     farmer_accounts,
     health_logs_for_farmer,
+    update_animal,
 )
 from services.voice_agent.extractor import detect_intent, extract_health_log
 from difflib import get_close_matches
@@ -46,10 +50,53 @@ class CreateHealthLogRequest(BaseModel):
     notes: str = ""
 
 
+class CreateAnimalRequest(BaseModel):
+    tag_or_name: str
+    species: str
+    sex: str = ""
+    breed: str = ""
+    age_years: Optional[float] = None
+    feeding_details: str = ""
+
+
+class UpdateAnimalRequest(BaseModel):
+    animal_id: Optional[str] = None
+    animal_name: Optional[str] = None
+    species: Optional[str] = None
+    sex: Optional[str] = None
+    breed: Optional[str] = None
+    age_years: Optional[float] = None
+    feeding_details: Optional[str] = None
+
+
 class CreateConsultationRequest(BaseModel):
     animal_id: Optional[str] = None
     messages: list[ChatMessage]
     summary: str
+
+
+class CreateAppointmentRequest(BaseModel):
+    date: str
+    time: str
+    doctor_id: str = ""
+    notes: str = ""
+    health_log_id: Optional[str] = None
+    animal_id: Optional[str] = None
+    issue_summary: str = ""
+    triage: dict[str, Any] = Field(default_factory=dict)
+
+
+class CreatePreconsultAppointmentRequest(BaseModel):
+    animal_id: str
+    issue: str
+    date: str
+    time: str
+    duration: str = ""
+    severity: str = ""
+    current_medication: str = ""
+    temperature_c: Optional[float] = None
+    doctor_id: str = ""
+    notes: str = ""
 
 
 class VoiceHealthLogRequest(BaseModel):
@@ -98,6 +145,38 @@ def list_animals(farmer_id: str) -> list[dict[str, Any]]:
     return [a.model_dump() for a in animals_for_farmer(farmer_id)]
 
 
+@app.post("/farmers/{farmer_id}/animals", response_model=Animal)
+def create_animal(farmer_id: str, req: CreateAnimalRequest) -> Animal:
+    return append_animal(
+        farmer_id=farmer_id,
+        tag_or_name=req.tag_or_name,
+        species=req.species,
+        sex=req.sex,
+        breed=req.breed,
+        age_years=req.age_years,
+        feeding_details=req.feeding_details,
+    )
+
+
+@app.patch("/farmers/{farmer_id}/animals", response_model=Animal)
+def patch_animal(farmer_id: str, req: UpdateAnimalRequest) -> Animal:
+    try:
+        return update_animal(
+            farmer_id=farmer_id,
+            animal_id=req.animal_id,
+            animal_name=req.animal_name,
+            updates={
+                "species": req.species,
+                "sex": req.sex,
+                "breed": req.breed,
+                "age_years": req.age_years,
+                "feeding_details": req.feeding_details,
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/farmers/{farmer_id}/health-logs")
 def list_health_logs(farmer_id: str) -> list[dict[str, Any]]:
     return [x.model_dump() for x in health_logs_for_farmer(farmer_id)]
@@ -133,6 +212,69 @@ def create_consultation(farmer_id: str, req: CreateConsultationRequest) -> Consu
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/farmers/{farmer_id}/appointments")
+def list_appointments(farmer_id: str) -> list[dict[str, Any]]:
+    return [x.model_dump() for x in appointments_for_farmer(farmer_id)]
+
+
+@app.post("/farmers/{farmer_id}/appointments", response_model=Appointment)
+def create_appointment(farmer_id: str, req: CreateAppointmentRequest) -> Appointment:
+    try:
+        return append_appointment(
+            farmer_id=farmer_id,
+            date=req.date,
+            time=req.time,
+            doctor_id=req.doctor_id,
+            notes=req.notes,
+            health_log_id=req.health_log_id,
+            animal_id=req.animal_id,
+            issue_summary=req.issue_summary,
+            triage=req.triage,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/farmers/{farmer_id}/appointments/preconsult")
+def create_preconsult_appointment(
+    farmer_id: str, req: CreatePreconsultAppointmentRequest
+) -> dict[str, Any]:
+    triage = {
+        "duration": req.duration,
+        "severity": req.severity,
+        "current_medication": req.current_medication,
+        "temperature_c": req.temperature_c,
+    }
+
+    try:
+        health = append_health_log(
+            farmer_id=farmer_id,
+            animal_id=req.animal_id,
+            issue=req.issue,
+            params=triage,
+            notes=req.notes,
+        )
+        appt = append_appointment(
+            farmer_id=farmer_id,
+            date=req.date,
+            time=req.time,
+            doctor_id=req.doctor_id,
+            notes=req.notes,
+            health_log_id=health.id,
+            animal_id=req.animal_id,
+            issue_summary=req.issue,
+            triage=triage,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "status": "ok",
+        "health_log": health.model_dump(),
+        "appointment": appt.model_dump(),
+    }
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")

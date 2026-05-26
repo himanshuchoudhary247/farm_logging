@@ -9,6 +9,16 @@
         "bedrock:InvokeModelWithResponseStream"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "TranscribeVoiceTesting",
+      "Effect": "Allow",
+      "Action": [
+        "transcribe:StartTranscriptionJob",
+        "transcribe:GetTranscriptionJob",
+        "transcribe:DeleteTranscriptionJob"
+      ],
+      "Resource": "arn:aws:transcribe:*:*:transcription-job/farmer-chat-*"
     }
   ]
 }

@@ -3,6 +3,7 @@ import time
 import logging
 from typing import Optional
 from botocore.config import Config
+from botocore.exceptions import ClientError
 import boto3
 
 
@@ -19,11 +20,12 @@ class TranscribeService:
         job_name = job_name or f"farmer-chat-{int(time.time())}"
 
         self.log.info(f"Starting transcription job {job_name} for {s3_uri}")
+        language_code = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-US")
         self.client.start_transcription_job(
             TranscriptionJobName=job_name,
             Media={"MediaFileUri": s3_uri},
             MediaFormat="wav",
-            LanguageCode="en-US",
+            LanguageCode=language_code,
         )
 
         start = time.time()
@@ -51,6 +53,25 @@ class TranscribeService:
         return text
 
 
+def _transcribe_local(audio_bytes: bytes) -> str:
+    try:
+        import tempfile
+        import whisper
+
+        model_name = os.getenv("WHISPER_MODEL", "base")
+        model = whisper.load_model(model_name)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+            f.write(audio_bytes)
+            local_path = f.name
+
+        # Force English for better accuracy in dev
+        result = model.transcribe(local_path, language="en")
+        return result.get("text", "").strip()
+    except ImportError:
+        raise RuntimeError("Whisper not installed. Run: pip install openai-whisper")
+
+
 # ---- Orchestrator-friendly wrapper ----
 def transcribe_audio(audio_bytes: bytes) -> str:
     """
@@ -71,22 +92,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 
     # -------- Local (dev) mode using Whisper --------
     if mode == "local":
-        try:
-            import tempfile
-            import whisper
-
-            model_name = os.getenv("WHISPER_MODEL", "base")
-            model = whisper.load_model(model_name)
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                f.write(audio_bytes)
-                local_path = f.name
-
-            # Force English for better accuracy in dev
-            result = model.transcribe(local_path, language="en")
-            return result.get("text", "").strip()
-        except ImportError:
-            raise RuntimeError("Whisper not installed. Run: pip install openai-whisper")
+        return _transcribe_local(audio_bytes)
 
     # -------- AWS (prod) mode --------
     import tempfile
@@ -108,6 +114,27 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 
     # Step 3: transcribe
     service = TranscribeService()
-    text = service.transcribe_file(s3_uri)
+    try:
+        text = service.transcribe_file(s3_uri)
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        fallback_enabled = os.getenv("TRANSCRIBE_FALLBACK_TO_LOCAL", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        if code == "AccessDeniedException" and fallback_enabled:
+            logging.getLogger("transcribe").warning(
+                "AWS Transcribe access denied; falling back to local Whisper. "
+                "Grant transcribe:StartTranscriptionJob and transcribe:GetTranscriptionJob to disable fallback."
+            )
+            return _transcribe_local(audio_bytes)
+
+        raise RuntimeError(
+            "AWS transcription failed. Ensure IAM allows transcribe:StartTranscriptionJob and "
+            "transcribe:GetTranscriptionJob, or set TRANSCRIBE_FALLBACK_TO_LOCAL=true."
+        ) from e
 
     return text
