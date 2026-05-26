@@ -10,6 +10,7 @@ from storage import load_animals
 
 
 INTENT_TABLE_MAP = {
+    "FETCH_ANIMAL_DETAILS": ["animals"],
     "CREATE_ANIMAL": ["animals"],
     "UPDATE_ANIMAL": ["animals"],
     "LOG_HEALTH": ["health_logs", "animals_health_records"],
@@ -44,7 +45,7 @@ def _detect_intent_rule(text: str) -> Optional[str]:
     )
 
     if any(x in t for x in ["get details", "show details", "details of"]) and has_animal_context:
-        return "UPDATE_ANIMAL"
+        return "FETCH_ANIMAL_DETAILS"
     if any(x in t for x in ["update animal", "existing animal", "update details", "edit animal"]):
         return "UPDATE_ANIMAL"
     if any(x in t for x in ["appointment", "doctor", "vet"]):
@@ -544,7 +545,10 @@ def _apply_followup_answer(
 
 
 def _sync_animal_intent(intent: Optional[str], entities: Dict[str, Any]) -> Optional[str]:
-    if intent not in {"CREATE_ANIMAL", "UPDATE_ANIMAL"}:
+    if intent not in {"CREATE_ANIMAL", "UPDATE_ANIMAL", "FETCH_ANIMAL_DETAILS"}:
+        return intent
+
+    if intent == "FETCH_ANIMAL_DETAILS":
         return intent
 
     mode = entities.get("animal_record_mode")
@@ -630,6 +634,11 @@ def _starts_new_request(text: str) -> bool:
 
 
 def _animal_missing_fields(intent: str, entities: Dict[str, Any]) -> List[str]:
+    if intent == "FETCH_ANIMAL_DETAILS":
+        if not entities.get("animal_id") and not entities.get("animal_name"):
+            return ["animal_identifier"]
+        return []
+
     mode = entities.get("animal_record_mode")
     if not mode:
         return ["new_or_existing"]
@@ -718,6 +727,10 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
         missing_fields = _animal_missing_fields(intent, entities)
         if missing_fields:
             questions.append(_build_animal_followup(missing_fields))
+    elif intent == "FETCH_ANIMAL_DETAILS":
+        missing_fields = _animal_missing_fields(intent, entities)
+        if missing_fields:
+            questions.append("Please provide: animal ID or animal name/tag.")
     elif intent == "LOG_HEALTH":
         if not entities.get("symptoms"):
             questions.append("What symptoms are you observing?")
@@ -748,14 +761,26 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     llm_raw = None
     confidence = 0.0
     intent = session_intent or detected_intent
+    llm_followups: List[str] = []
+    llm_missing_fields: List[str] = []
 
     # Best-effort LLM enrichment
     try:
-        llm_response = call_bedrock(normalized_text)
+        llm_response = call_bedrock(
+            normalized_text,
+            context={
+                "intent": session_intent,
+                "entities": entities,
+                "pending_questions": pending_questions,
+            },
+        )
         llm_raw = llm_response.get("_raw")
         confidence = float(llm_response.get("confidence", 0.0) or 0.0)
-        if not intent:
-            intent = llm_response.get("intent")
+        llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
+        llm_missing_fields = [str(x).strip() for x in (llm_response.get("missing_fields") or []) if str(x).strip()]
+        llm_intent = llm_response.get("intent")
+        if llm_intent and (not intent or confidence >= 0.55):
+            intent = llm_intent
         llm_entities = llm_response.get("entities", {}) or {}
         entities.update(llm_entities)
     except Exception:
@@ -771,6 +796,12 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     entities = _canonicalize_entities(intent, entities)
 
     followups = _generate_followups(intent, entities)
+
+    # Agentic enhancement: if deterministic rules are satisfied but LLM still asks
+    # for fields, include one compact follow-up to handle free-form user phrasing.
+    if not followups and llm_followups and llm_missing_fields:
+        followups = [llm_followups[0]]
+
     complete = bool(intent) and len(followups) == 0
     tables = _resolve_tables(intent)
 

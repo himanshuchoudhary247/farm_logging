@@ -1,6 +1,7 @@
 import os
 import json
 import boto3
+from typing import Optional, Dict, Any
 
 
 class BedrockTextAdapter:
@@ -60,20 +61,35 @@ class BedrockTextAdapter:
 _SYSTEM_PROMPT = (
     "You are an information extraction system for a livestock app.\n"
     "Return ONLY valid JSON. No backticks. No markdown. No preamble. No trailing text.\n"
-    "The response MUST be a single JSON object with EXACT keys: intent, entities, confidence.\n"
-    "- intent: one of [CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT] or null\n"
+    "The response MUST be a single JSON object with EXACT keys: intent, entities, missing_fields, follow_up_questions, confidence.\n"
+    "- intent: one of [FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT] or null\n"
     "- entities: a JSON object (can be empty)\n"
+    "- missing_fields: array of strings\n"
+    "- follow_up_questions: array of strings\n"
     "- confidence: number between 0 and 1\n"
     "If information is missing, leave fields null or empty; do not invent values."
 )
 
-def build_prompt(text: str) -> str:
+def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
     # Conversational extraction with missing fields + follow-ups
+    session_intent = None
+    session_entities = {}
+    pending_questions = []
+    if context:
+        session_intent = context.get("intent")
+        session_entities = context.get("entities") or {}
+        pending_questions = context.get("pending_questions") or []
+
     return f"""
 You are an AI assistant for a livestock management system.
 
 User said:
 "{text}"
+
+Conversation context:
+- current_intent: {json.dumps(session_intent)}
+- known_entities: {json.dumps(session_entities, ensure_ascii=False)}
+- pending_questions: {json.dumps(pending_questions, ensure_ascii=False)}
 
 Your job:
 1. Identify intent
@@ -82,11 +98,17 @@ Your job:
 4. Suggest follow-up questions
 
 Intents:
+- FETCH_ANIMAL_DETAILS
 - CREATE_ANIMAL
 - UPDATE_ANIMAL
 - LOG_HEALTH
 - CREATE_APPOINTMENT
 - null
+
+Entity schema hints:
+- Animal: animal_id, animal_name, species, sex, breed, age_years, feeding_details, animal_record_mode(new|existing)
+- Health: issue, symptoms(list), duration, severity, temperature_c, current_medication
+- Appointment: date, time, animal_id/animal_name, issue, duration, severity, current_medication, temperature_c
 
 Return ONLY valid JSON (no extra text):
 {{
@@ -152,11 +174,11 @@ def _safe_json_parse(s: str):
     }
 
 
-def call_bedrock(text: str):
+def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     adapter = BedrockTextAdapter()
 
     messages = [
-        {"role": "user", "content": build_prompt(text)}
+        {"role": "user", "content": build_prompt(text, context=context)}
     ]
 
     raw = adapter.complete(messages=messages, system=_SYSTEM_PROMPT)
@@ -167,6 +189,8 @@ def call_bedrock(text: str):
     return {
         "intent": parsed.get("intent"),
         "entities": parsed.get("entities", {}),
+        "missing_fields": parsed.get("missing_fields", []) or [],
+        "follow_up_questions": parsed.get("follow_up_questions", []) or [],
         "confidence": float(parsed.get("confidence", 0.0) or 0.0),
         "_raw": raw,
     }

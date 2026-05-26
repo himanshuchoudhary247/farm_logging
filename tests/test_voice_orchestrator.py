@@ -5,7 +5,7 @@ from services.voice_agent import orchestrator
 from services.voice_agent.session_store import clear_session
 
 
-def _stub_bedrock(_: str):
+def _stub_bedrock(_: str, **kwargs):
     return {}
 
 
@@ -264,7 +264,7 @@ def test_animal_details_phrase_triggers_create_animal_intent(monkeypatch):
 
 
 def test_create_animal_canonicalizes_noisy_alias_entities(monkeypatch):
-    def _stub_noisy_llm(_: str):
+    def _stub_noisy_llm(_: str, **kwargs):
         return {
             "entities": {
                 "gender": "female",
@@ -356,3 +356,42 @@ def test_appointment_time_accepts_dotted_pm(monkeypatch):
     assert second["entities"]["time"] == "17:00"
     assert second["follow_up_questions"] == []
     assert second["complete"] is True
+
+
+def test_fetch_animal_details_intent_requires_identifier(monkeypatch):
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_bedrock)
+
+    session_id = "test-fetch-animal"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("get details of my animal", session_id=session_id)
+
+    assert out["intent"] == "FETCH_ANIMAL_DETAILS"
+    assert out["follow_up_questions"] == ["Please provide: animal ID or animal name/tag."]
+    assert out["complete"] is False
+
+
+def test_llm_high_confidence_can_override_rule_intent(monkeypatch):
+    def _stub(_: str, **kwargs):
+        return {
+            "intent": "CREATE_APPOINTMENT",
+            "entities": {
+                "animal_name": "charlie",
+                "issue": "fever",
+                "duration": "2 days",
+                "severity": "mild",
+                "current_medication": "none",
+                "date": "tomorrow",
+                "time": "5 pm",
+            },
+            "confidence": 0.95,
+            "follow_up_questions": [],
+            "missing_fields": [],
+        }
+
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub)
+
+    session_id = "test-llm-override"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("please update my animal", session_id=session_id)
+
+    assert out["intent"] == "CREATE_APPOINTMENT"
