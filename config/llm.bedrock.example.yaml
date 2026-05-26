@@ -1,0 +1,16 @@
+# Copy to llm.yaml or set LLM_CONFIG_PATH to this file.
+# Auth: IAM (task role on ECS/Lambda, instance profile on EC2, or ~/.aws/credentials locally).
+# Enable model access once in the Bedrock console for this account/region.
+
+text:
+  provider: bedrock
+  model: anthropic.claude-3-haiku-20240307-v1:0
+  api_key_env: ""
+  region: us-east-1
+  # aws_profile: default
+
+voice:
+  provider: bedrock
+  model: reserved-for-voice
+  api_key_env: ""
+  region: us-east-1
