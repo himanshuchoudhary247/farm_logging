@@ -120,3 +120,35 @@ def test_append_appointment_links_health_log(storage_mod, tmp_path: Path) -> Non
     assert appt.health_log_id == health.id
     assert appt.issue_summary == "fever"
     assert len(storage_mod.appointments_for_farmer("f-1")) == 1
+
+
+def test_farmer_weather_location_and_notifications(storage_mod, tmp_path: Path) -> None:
+    from models import Farmer
+
+    farmers = [
+        Farmer(
+            id="f-1",
+            name="A",
+            login_username="a",
+            password_hash="x",
+            phone="",
+        ).model_dump()
+    ]
+    storage_mod.atomic_write_json(tmp_path / "farmers.json", farmers)
+    storage_mod.atomic_write_json(tmp_path / "weather_notifications.json", [])
+
+    updated = storage_mod.update_farmer_weather_location("f-1", "560001")
+    assert updated.weather_location == "560001"
+    loaded = storage_mod.get_farmer_by_id("f-1")
+    assert loaded is not None
+    assert loaded.weather_location == "560001"
+
+    note = storage_mod.append_weather_notification(
+        farmer_id="f-1",
+        location_query="560001",
+        risk_level="high",
+        summary="High weather risk",
+        details={"risk_level": "high"},
+    )
+    assert note.farmer_id == "f-1"
+    assert len(storage_mod.weather_notifications_for_farmer("f-1")) == 1

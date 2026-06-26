@@ -1,15 +1,28 @@
+import os
 import re
 from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
-from services.llm_service.bedrock_adapter import call_bedrock
+from services.llm_service.bedrock_adapter import call_bedrock, translate_to_english
 from services.voice_agent.extractor import normalize_entities
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.transcribe import transcribe_audio
 from storage import load_animals
 
 
+UNAVAILABLE_TOKENS = [
+    "not available",
+    "unavailable",
+    "unknown",
+    "don't know",
+    "do not know",
+    "not sure",
+    "n/a",
+]
+
+
 INTENT_TABLE_MAP = {
+    "WEATHER_ALERT": ["weather_alerts"],
     "FETCH_ANIMAL_DETAILS": ["animals"],
     "CREATE_ANIMAL": ["animals"],
     "UPDATE_ANIMAL": ["animals"],
@@ -22,6 +35,76 @@ def _resolve_tables(intent: Optional[str]) -> List[str]:
     if not intent:
         return []
     return INTENT_TABLE_MAP.get(intent, [])
+
+
+def _is_unavailable_text(text: str) -> bool:
+    t = (text or "").lower()
+    for token in UNAVAILABLE_TOKENS:
+        if token == "n/a":
+            if re.search(r"\bn\s*/\s*a\b", t):
+                return True
+            continue
+        if token in t:
+            return True
+    return False
+
+
+def _mark_fields_unavailable(entities: Dict[str, Any], fields: List[str]) -> Dict[str, Any]:
+    unavailable = entities.get("unavailable_fields") or []
+    if not isinstance(unavailable, list):
+        unavailable = []
+    merged = set(str(x) for x in unavailable)
+    for field in fields:
+        merged.add(field)
+    entities["unavailable_fields"] = sorted(merged)
+    return entities
+
+
+def _has_value_or_unavailable(entities: Dict[str, Any], field: str) -> bool:
+    value = entities.get(field)
+    if value not in (None, "", []):
+        return True
+    unavailable = entities.get("unavailable_fields") or []
+    return field in unavailable
+
+
+def _apply_unavailable_mentions(text: str, entities: Dict[str, Any]) -> Dict[str, Any]:
+    t = (text or "").lower()
+    if not _is_unavailable_text(t):
+        return entities
+
+    field_aliases = {
+        "animal_name": ["animal name", "name", "tag"],
+        "species": ["species", "animal type", "type"],
+        "sex": ["sex", "gender", "male", "female"],
+        "breed": ["breed"],
+        "age_years": ["age", "years", "yrs"],
+        "feeding_details": ["feeding", "feed", "fodder"],
+        "issue": ["issue", "symptom", "problem", "complaint"],
+        "duration": ["duration", "since"],
+        "severity": ["severity", "mild", "moderate", "severe"],
+        "current_medication": ["medication", "medicine", "treatment"],
+        "date": ["date", "day", "tomorrow", "today"],
+        "time": ["time", "am", "pm", "o'clock"],
+    }
+
+    to_mark: List[str] = []
+    for field, aliases in field_aliases.items():
+        for alias in aliases:
+            if re.search(
+                rf"\b{re.escape(alias)}\b[^,.]*(?:not available|unavailable|unknown|don't know|do not know|not sure|n/a|\bna\b)",
+                t,
+            ) or re.search(
+                rf"(?:not available|unavailable|unknown|don't know|do not know|not sure|n/a|\bna\b)[^,.]*\b{re.escape(alias)}\b",
+                t,
+            ):
+                to_mark.append(field)
+                break
+
+    if to_mark:
+        entities = _mark_fields_unavailable(entities, list(set(to_mark)))
+
+    return entities
 
 
 def _normalize_text(text: str) -> str:
@@ -38,12 +121,41 @@ def _normalize_text(text: str) -> str:
     return t
 
 
+def _has_native_indic_script(text: str) -> bool:
+    t = text or ""
+    for ch in t:
+        code = ord(ch)
+        if 0x0900 <= code <= 0x097F:  # Devanagari
+            return True
+        if 0x0C80 <= code <= 0x0CFF:  # Kannada
+            return True
+        if 0x0C00 <= code <= 0x0C7F:  # Telugu
+            return True
+    return False
+
+
+def _to_english_working_text(text: str) -> str:
+    use_translation = os.getenv("VOICE_TRANSLATE_TO_ENGLISH", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not use_translation:
+        return text
+    if not _has_native_indic_script(text):
+        return text
+    return _normalize_text(translate_to_english(text))
+
+
 def _detect_intent_rule(text: str) -> Optional[str]:
     t = (text or "").lower()
     has_animal_context = any(
         x in t for x in ["animal", "goat", "sheep", "cow", "buffalo", "cattle", "tag"]
     )
 
+    if any(x in t for x in ["weather", "forecast", "rain alert", "temperature alert", "storm alert"]):
+        return "WEATHER_ALERT"
     if any(x in t for x in ["get details", "show details", "details of"]) and has_animal_context:
         return "FETCH_ANIMAL_DETAILS"
     if any(x in t for x in ["update animal", "existing animal", "update details", "edit animal"]):
@@ -65,6 +177,21 @@ def _detect_intent_rule(text: str) -> Optional[str]:
 
 def _extract_quick_entities(text: str, entities: Dict[str, Any]) -> Dict[str, Any]:
     t = (text or "").lower()
+
+    if not entities.get("weather_location"):
+        weather_location = _extract_weather_location(t)
+        if weather_location:
+            entities["weather_location"] = weather_location
+
+    if not entities.get("forecast_days"):
+        forecast_days = _extract_forecast_days(t)
+        if forecast_days is not None:
+            entities["forecast_days"] = forecast_days
+
+    if not entities.get("country_code"):
+        country_code = _extract_country_code(t)
+        if country_code:
+            entities["country_code"] = country_code
 
     mode = _extract_animal_record_mode(t)
     if mode:
@@ -115,6 +242,8 @@ def _extract_quick_entities(text: str, entities: Dict[str, Any]) -> Dict[str, An
         if temperature_c is not None:
             entities["temperature_c"] = temperature_c
 
+    entities = _apply_unavailable_mentions(t, entities)
+
     if not entities.get("species"):
         for species in ["goat", "sheep", "cow", "buffalo"]:
             if species in t:
@@ -153,6 +282,38 @@ def _extract_quick_entities(text: str, entities: Dict[str, Any]) -> Dict[str, An
             entities.setdefault("animal_record_mode", "existing")
 
     return entities
+
+
+def _extract_weather_location(text: str) -> Optional[str]:
+    t = (text or "").strip()
+    pin = re.search(r"\b(\d{5,8})\b", t)
+    if pin:
+        return pin.group(1)
+
+    m = re.search(r"\b(?:for|in|at|near)\s+([a-z][a-z\s-]{2,})$", t)
+    if m:
+        loc = m.group(1).strip(" .,")
+        if loc:
+            return loc
+    return None
+
+
+def _extract_forecast_days(text: str) -> Optional[int]:
+    t = (text or "").lower()
+    m = re.search(r"\bnext\s+(\d)\s*days?\b", t)
+    if m:
+        return max(1, min(7, int(m.group(1))))
+    m2 = re.search(r"\b(\d)\s*day\s*forecast\b", t)
+    if m2:
+        return max(1, min(7, int(m2.group(1))))
+    return None
+
+
+def _extract_country_code(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    if " india" in f" {t} " or " in" == t.strip():
+        return "in"
+    return None
 
 
 def _contains_exact_token(text: str, token: str) -> bool:
@@ -541,6 +702,45 @@ def _apply_followup_answer(
         if feeding_details:
             entities["feeding_details"] = feeding_details
 
+    if _is_unavailable_text(t):
+        if "type of animal" in first_q or "species" in first_q:
+            entities = _mark_fields_unavailable(entities, ["species"])
+        if "male or female" in first_q or "sex" in first_q:
+            entities = _mark_fields_unavailable(entities, ["sex"])
+        if "animal name" in first_q or "tag" in first_q:
+            entities = _mark_fields_unavailable(entities, ["animal_name"])
+        if "breed" in first_q:
+            entities = _mark_fields_unavailable(entities, ["breed"])
+        if "age" in first_q:
+            entities = _mark_fields_unavailable(entities, ["age_years"])
+        if "feeding" in first_q:
+            entities = _mark_fields_unavailable(entities, ["feeding_details"])
+        if "issue" in first_q or "symptom" in first_q:
+            entities = _mark_fields_unavailable(entities, ["issue"])
+        if "duration" in first_q:
+            entities = _mark_fields_unavailable(entities, ["duration"])
+        if "severity" in first_q:
+            entities = _mark_fields_unavailable(entities, ["severity"])
+        if "medication" in first_q or "medicine" in first_q:
+            entities = _mark_fields_unavailable(entities, ["current_medication"])
+        if "date" in first_q:
+            entities = _mark_fields_unavailable(entities, ["date"])
+        if "time" in first_q:
+            entities = _mark_fields_unavailable(entities, ["time"])
+
+        # If user answers only "not available" for a combined follow-up, mark all requested fields.
+        if len(t.split()) <= 4:
+            if "details to update" in first_q:
+                entities = _mark_fields_unavailable(
+                    entities,
+                    ["species", "sex", "breed", "age_years", "feeding_details"],
+                )
+            if "issue/symptoms" in first_q:
+                entities = _mark_fields_unavailable(
+                    entities,
+                    ["issue", "duration", "severity", "current_medication", "date", "time"],
+                )
+
     return entities
 
 
@@ -629,8 +829,17 @@ def _starts_new_request(text: str) -> bool:
         "existing animal",
         "new animal",
         "my animal",
+        "weather",
+        "forecast",
+        "rain alert",
     ]
     return any(m in t for m in markers)
+
+
+def _weather_missing_fields(entities: Dict[str, Any]) -> List[str]:
+    if entities.get("weather_location"):
+        return []
+    return ["weather_location"]
 
 
 def _animal_missing_fields(intent: str, entities: Dict[str, Any]) -> List[str]:
@@ -648,7 +857,7 @@ def _animal_missing_fields(intent: str, entities: Dict[str, Any]) -> List[str]:
         if not entities.get("animal_id") and not entities.get("animal_name"):
             missing.append("animal_identifier")
         has_update = any(
-            entities.get(k) not in (None, "")
+            _has_value_or_unavailable(entities, k)
             for k in ["species", "sex", "breed", "age_years", "feeding_details"]
         )
         if not has_update:
@@ -658,7 +867,7 @@ def _animal_missing_fields(intent: str, entities: Dict[str, Any]) -> List[str]:
     # Default to create/new flow
     missing = []
     for field in ["animal_name", "species", "sex", "breed", "age_years", "feeding_details"]:
-        if entities.get(field) in (None, ""):
+        if not _has_value_or_unavailable(entities, field):
             missing.append(field)
     return missing
 
@@ -668,17 +877,17 @@ def _appointment_missing_fields(entities: Dict[str, Any]) -> List[str]:
 
     if not entities.get("animal_id") and not entities.get("animal_name"):
         missing.append("animal_identifier")
-    if not entities.get("issue"):
+    if not _has_value_or_unavailable(entities, "issue"):
         missing.append("issue")
-    if not entities.get("duration"):
+    if not _has_value_or_unavailable(entities, "duration"):
         missing.append("duration")
-    if not entities.get("severity"):
+    if not _has_value_or_unavailable(entities, "severity"):
         missing.append("severity")
-    if entities.get("current_medication") in (None, ""):
+    if not _has_value_or_unavailable(entities, "current_medication"):
         missing.append("current_medication")
-    if not entities.get("date"):
+    if not _has_value_or_unavailable(entities, "date"):
         missing.append("date")
-    if not entities.get("time"):
+    if not _has_value_or_unavailable(entities, "time"):
         missing.append("time")
 
     return missing
@@ -727,6 +936,10 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
         missing_fields = _animal_missing_fields(intent, entities)
         if missing_fields:
             questions.append(_build_animal_followup(missing_fields))
+    elif intent == "WEATHER_ALERT":
+        missing_fields = _weather_missing_fields(entities)
+        if missing_fields:
+            questions.append("Please provide: pin code or location for weather alert.")
     elif intent == "FETCH_ANIMAL_DETAILS":
         missing_fields = _animal_missing_fields(intent, entities)
         if missing_fields:
@@ -743,18 +956,19 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
 
 def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]:
     normalized_text = _normalize_text(text)
+    working_text = _to_english_working_text(normalized_text)
 
     session = get_session(session_id)
     entities = dict(session.get("entities") or {})
     pending_questions = list(session.get("pending_questions") or [])
     session_intent = session.get("intent")
-    detected_intent = _detect_intent_rule(normalized_text)
+    detected_intent = _detect_intent_rule(working_text)
 
     if not pending_questions and detected_intent and detected_intent != session_intent:
         entities = {}
         session_intent = None
 
-    if not pending_questions and _starts_new_request(normalized_text):
+    if not pending_questions and _starts_new_request(working_text):
         entities = {}
         session_intent = None
 
@@ -767,7 +981,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     # Best-effort LLM enrichment
     try:
         llm_response = call_bedrock(
-            normalized_text,
+            working_text,
             context={
                 "intent": session_intent,
                 "entities": entities,
@@ -788,9 +1002,9 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
         pass
 
     # Merge quick entities and direct follow-up answers
-    entities = _extract_quick_entities(normalized_text, entities)
-    entities = _prefill_animal_details(normalized_text, entities)
-    entities = _apply_followup_answer(normalized_text, intent, pending_questions, entities)
+    entities = _extract_quick_entities(working_text, entities)
+    entities = _prefill_animal_details(working_text, entities)
+    entities = _apply_followup_answer(working_text, intent, pending_questions, entities)
     entities = normalize_entities(entities)
     intent = _sync_animal_intent(intent, entities)
     entities = _canonicalize_entities(intent, entities)
@@ -827,6 +1041,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
         "complete": complete,
         "meta": {
             "raw_text": normalized_text,
+            "working_text_en": working_text,
             "confidence": confidence,
             "session_id": session_id,
         },

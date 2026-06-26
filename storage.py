@@ -7,7 +7,17 @@ from typing import Any, Callable, Optional, TypeVar
 
 from filelock import FileLock
 
-from models import Appointment, Animal, ChatMessage, Consultation, Farmer, HealthLog, utc_now_iso
+from models import (
+    Appointment,
+    Animal,
+    ChatMessage,
+    Consultation,
+    Farm,
+    Farmer,
+    HealthLog,
+    WeatherNotification,
+    utc_now_iso,
+)
 
 T = TypeVar("T")
 
@@ -62,6 +72,35 @@ def get_farmer_by_username(username: str) -> Optional[Farmer]:
 
 def farmer_accounts() -> list[Farmer]:
     return [f for f in load_farmers() if f.role == "farmer"]
+
+
+def get_farmer_by_id(farmer_id: str) -> Optional[Farmer]:
+    for f in load_farmers():
+        if f.id == farmer_id:
+            return f
+    return None
+
+
+def update_farmer_weather_location(farmer_id: str, weather_location: str) -> Farmer:
+    path = _path("farmers.json")
+
+    def work() -> Farmer:
+        rows = _load_json_list(path)
+        idx = -1
+        for i, row in enumerate(rows):
+            if row.get("id") == farmer_id:
+                idx = i
+                break
+        if idx < 0:
+            raise ValueError("Farmer not found")
+
+        updated = dict(rows[idx])
+        updated["weather_location"] = (weather_location or "").strip()
+        rows[idx] = updated
+        atomic_write_json(path, rows)
+        return Farmer.model_validate(updated)
+
+    return _with_file_lock(path, work)
 
 
 def load_animals() -> list[Animal]:
@@ -161,6 +200,45 @@ def load_appointments() -> list[Appointment]:
 
 def appointments_for_farmer(farmer_id: str) -> list[Appointment]:
     return [a for a in load_appointments() if a.farmer_id == farmer_id]
+
+
+def load_weather_notifications() -> list[WeatherNotification]:
+    return [
+        WeatherNotification.model_validate(x)
+        for x in _load_json_list(_path("weather_notifications.json"))
+    ]
+
+
+def weather_notifications_for_farmer(farmer_id: str) -> list[WeatherNotification]:
+    rows = [x for x in load_weather_notifications() if x.farmer_id == farmer_id]
+    rows.sort(key=lambda x: x.created_at, reverse=True)
+    return rows
+
+
+def append_weather_notification(
+    farmer_id: str,
+    location_query: str,
+    risk_level: str,
+    summary: str,
+    details: Optional[dict[str, Any]] = None,
+) -> WeatherNotification:
+    path = _path("weather_notifications.json")
+
+    def work() -> WeatherNotification:
+        rows = _load_json_list(path)
+        row = WeatherNotification(
+            id=str(uuid.uuid4()),
+            farmer_id=farmer_id,
+            location_query=location_query,
+            risk_level=risk_level,
+            summary=summary,
+            details=details or {},
+        )
+        rows.append(row.model_dump())
+        atomic_write_json(path, rows)
+        return row
+
+    return _with_file_lock(path, work)
 
 
 def append_health_log(
@@ -273,6 +351,54 @@ def append_consultation(
         rows.append(c.model_dump())
         atomic_write_json(path, rows)
         return c
+
+    return _with_file_lock(path, work)
+
+
+def load_farms() -> list[Farm]:
+    return [Farm.model_validate(x) for x in _load_json_list(_path("farms.json"))]
+
+
+def farms_for_farmer(farmer_id: str) -> list[Farm]:
+    return [f for f in load_farms() if f.farmer_id == farmer_id]
+
+
+def save_farm(farmer_id: str, data: dict[str, Any]) -> Farm:
+    path = _path("farms.json")
+
+    def work() -> Farm:
+        rows = _load_json_list(path)
+        existing = None
+        for i, r in enumerate(rows):
+            if r.get("farmer_id") == farmer_id:
+                existing = i
+                break
+        farm = Farm(
+            id=str(uuid.uuid4()) if existing is None else rows[existing]["id"],
+            farmer_id=farmer_id,
+            name=str(data.get("name") or "").strip(),
+            email=str(data.get("email") or "").strip(),
+            phone=str(data.get("phone") or "").strip(),
+            alternate_phone=str(data.get("alternate_phone") or "").strip(),
+            address=str(data.get("address") or "").strip(),
+            city=str(data.get("city") or "").strip(),
+            district=str(data.get("district") or "").strip(),
+            pincode=data.get("pincode"),
+            state=str(data.get("state") or "").strip(),
+            country=str(data.get("country") or "India").strip(),
+            total_animal_capacity=data.get("total_animal_capacity"),
+            current_animal_count=int(data.get("current_animal_count") or 0),
+            sheep_count=int(data.get("sheep_count") or 0),
+            goat_count=int(data.get("goat_count") or 0),
+            image=str(data.get("image") or "").strip(),
+            notes=str(data.get("notes") or "").strip(),
+        )
+        if existing is not None:
+            rows[existing] = farm.model_dump()
+        else:
+            rows.append(farm.model_dump())
+        atomic_write_json(path, rows)
+        return farm
 
     return _with_file_lock(path, work)
 

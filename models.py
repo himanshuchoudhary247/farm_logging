@@ -17,6 +17,7 @@ class Farmer(BaseModel):
     password_hash: str
     phone: str = ""
     role: Literal["farmer", "admin"] = "farmer"
+    weather_location: str = ""
 
 
 class Animal(BaseModel):
@@ -68,3 +69,35 @@ class Consultation(BaseModel):
     messages: list[ChatMessage]
     status: Literal["draft", "saved"] = "draft"
     summary: str = ""
+
+
+class Farm(BaseModel):
+    id: str
+    farmer_id: str
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    alternate_phone: str = ""
+    address: str = ""
+    city: str = ""
+    district: str = ""
+    pincode: Optional[int] = None
+    state: str = ""
+    country: str = "India"
+    total_animal_capacity: Optional[int] = None
+    current_animal_count: int = 0
+    sheep_count: int = 0
+    goat_count: int = 0
+    image: str = ""
+    notes: str = ""
+    created_at: str = Field(default_factory=utc_now_iso)
+
+
+class WeatherNotification(BaseModel):
+    id: str
+    farmer_id: str
+    location_query: str
+    risk_level: Literal["low", "medium", "high"]
+    summary: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utc_now_iso)

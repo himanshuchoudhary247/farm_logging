@@ -20,12 +20,31 @@ class TranscribeService:
         job_name = job_name or f"farmer-chat-{int(time.time())}"
 
         self.log.info(f"Starting transcription job {job_name} for {s3_uri}")
-        language_code = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-US")
+        language_code = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-IN")
+        enable_multilingual = os.getenv("AWS_TRANSCRIBE_MULTILINGUAL", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        req = {
+            "TranscriptionJobName": job_name,
+            "Media": {"MediaFileUri": s3_uri},
+            "MediaFormat": "wav",
+        }
+
+        if enable_multilingual:
+            language_opts_raw = os.getenv("AWS_TRANSCRIBE_LANGUAGE_OPTIONS", "en-IN,hi-IN,kn-IN,te-IN")
+            language_options = [x.strip() for x in language_opts_raw.split(",") if x.strip()]
+            if language_options:
+                req["IdentifyLanguage"] = True
+                req["LanguageOptions"] = language_options
+        else:
+            req["LanguageCode"] = language_code
+
         self.client.start_transcription_job(
-            TranscriptionJobName=job_name,
-            Media={"MediaFileUri": s3_uri},
-            MediaFormat="wav",
-            LanguageCode=language_code,
+            **req,
         )
 
         start = time.time()
@@ -118,7 +137,8 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         text = service.transcribe_file(s3_uri)
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code", "")
-        fallback_enabled = os.getenv("TRANSCRIBE_FALLBACK_TO_LOCAL", "true").lower() in {
+        msg = e.response.get("Error", {}).get("Message", "")
+        fallback_enabled = os.getenv("TRANSCRIBE_FALLBACK_TO_LOCAL", "false").lower() in {
             "1",
             "true",
             "yes",
@@ -133,7 +153,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
             return _transcribe_local(audio_bytes)
 
         raise RuntimeError(
-            "AWS transcription failed. Ensure IAM allows transcribe:StartTranscriptionJob and "
+            f"AWS transcription failed ({code or 'unknown'}: {msg or 'no details'}). Ensure IAM allows transcribe:StartTranscriptionJob and "
             "transcribe:GetTranscriptionJob, or set TRANSCRIBE_FALLBACK_TO_LOCAL=true."
         ) from e
 

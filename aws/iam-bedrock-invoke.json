@@ -19,6 +19,14 @@
         "transcribe:DeleteTranscriptionJob"
       ],
       "Resource": "arn:aws:transcribe:*:*:transcription-job/farmer-chat-*"
+    },
+    {
+      "Sid": "PollyVoiceResponses",
+      "Effect": "Allow",
+      "Action": [
+        "polly:SynthesizeSpeech"
+      ],
+      "Resource": "*"
     }
   ]
 }

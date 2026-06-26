@@ -7,20 +7,25 @@ from utils.env_check import validate_env
 from pydantic import BaseModel, Field
 
 from auth import authenticate
-from models import Animal, Appointment, ChatMessage, Consultation, Farmer, HealthLog
+from models import Animal, Appointment, ChatMessage, Consultation, Farmer, HealthLog, WeatherNotification
 from storage import (
     animals_for_farmer,
     appointments_for_farmer,
+    append_weather_notification,
     append_animal,
     append_appointment,
     append_consultation,
     append_health_log,
     consultations_for_farmer,
+    get_farmer_by_id,
     farmer_accounts,
     health_logs_for_farmer,
+    update_farmer_weather_location,
     update_animal,
+    weather_notifications_for_farmer,
 )
 from services.voice_agent.extractor import detect_intent, extract_health_log
+from services.weather_alert.service import get_weather_alert
 from difflib import get_close_matches
 
 
@@ -108,6 +113,16 @@ class VoiceHealthLogConfirmRequest(BaseModel):
     issue: str
     params: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
+
+
+class WeatherAlertRequest(BaseModel):
+    location_or_pin: str
+    country_code: str = "in"
+    days: int = 3
+
+
+class WeatherPreferenceRequest(BaseModel):
+    weather_location: str
 
 
 def to_public_farmer(f: Farmer) -> FarmerPublic:
@@ -323,6 +338,59 @@ def confirm_voice_health_log(farmer_id: str, req: VoiceHealthLogConfirmRequest) 
             issue=req.issue,
             params=req.params,
             notes=req.notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/weather/alert")
+def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
+    try:
+        return get_weather_alert(
+            location_or_pin=req.location_or_pin,
+            country_code=req.country_code,
+            days=req.days,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/farmers/{farmer_id}/weather-preference")
+def get_weather_preference(farmer_id: str) -> dict[str, Any]:
+    farmer = get_farmer_by_id(farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    return {"farmer_id": farmer_id, "weather_location": farmer.weather_location}
+
+
+@app.patch("/farmers/{farmer_id}/weather-preference")
+def patch_weather_preference(farmer_id: str, req: WeatherPreferenceRequest) -> dict[str, Any]:
+    try:
+        farmer = update_farmer_weather_location(farmer_id, req.weather_location)
+        return {"farmer_id": farmer_id, "weather_location": farmer.weather_location}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/farmers/{farmer_id}/weather-notifications")
+def list_weather_notifications(farmer_id: str) -> list[dict[str, Any]]:
+    return [x.model_dump() for x in weather_notifications_for_farmer(farmer_id)]
+
+
+@app.post("/farmers/{farmer_id}/weather-notifications", response_model=WeatherNotification)
+def create_weather_notification(farmer_id: str, req: WeatherAlertRequest) -> WeatherNotification:
+    try:
+        alert = get_weather_alert(
+            location_or_pin=req.location_or_pin,
+            country_code=req.country_code,
+            days=req.days,
+        )
+        return append_weather_notification(
+            farmer_id=farmer_id,
+            location_query=req.location_or_pin,
+            risk_level=str(alert.get("risk_level") or "low"),
+            summary=str(alert.get("summary") or ""),
+            details=alert,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

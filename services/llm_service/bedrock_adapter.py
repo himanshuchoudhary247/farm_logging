@@ -62,7 +62,7 @@ _SYSTEM_PROMPT = (
     "You are an information extraction system for a livestock app.\n"
     "Return ONLY valid JSON. No backticks. No markdown. No preamble. No trailing text.\n"
     "The response MUST be a single JSON object with EXACT keys: intent, entities, missing_fields, follow_up_questions, confidence.\n"
-    "- intent: one of [FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT] or null\n"
+    "- intent: one of [WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT] or null\n"
     "- entities: a JSON object (can be empty)\n"
     "- missing_fields: array of strings\n"
     "- follow_up_questions: array of strings\n"
@@ -98,6 +98,7 @@ Your job:
 4. Suggest follow-up questions
 
 Intents:
+- WEATHER_ALERT
 - FETCH_ANIMAL_DETAILS
 - CREATE_ANIMAL
 - UPDATE_ANIMAL
@@ -109,6 +110,7 @@ Entity schema hints:
 - Animal: animal_id, animal_name, species, sex, breed, age_years, feeding_details, animal_record_mode(new|existing)
 - Health: issue, symptoms(list), duration, severity, temperature_c, current_medication
 - Appointment: date, time, animal_id/animal_name, issue, duration, severity, current_medication, temperature_c
+- Weather: weather_location(pin or place), country_code, forecast_days
 
 Return ONLY valid JSON (no extra text):
 {{
@@ -194,3 +196,153 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
         "confidence": float(parsed.get("confidence", 0.0) or 0.0),
         "_raw": raw,
     }
+
+
+FARM_FIELDS = [
+    "name", "email", "phone", "alternate_phone", "address", "city",
+    "district", "pincode", "state", "country", "total_animal_capacity",
+    "current_animal_count", "sheep_count", "goat_count", "notes",
+]
+
+_FIELD_QUESTIONS = {
+    "name": "What's the name of your farm?",
+    "email": "What's your email address?",
+    "phone": "What's your phone number?",
+    "alternate_phone": "Do you have an alternate phone number?",
+    "address": "What's your farm's full address?",
+    "city": "Which city is your farm located in?",
+    "district": "Which district is your farm in?",
+    "pincode": "What's the pincode for your farm?",
+    "state": "Which state is your farm located in?",
+    "country": "What country is your farm in?",
+    "total_animal_capacity": "How many animals can your farm hold in total?",
+    "current_animal_count": "How many animals do you currently have?",
+    "sheep_count": "How many sheep do you have?",
+    "goat_count": "How many goats do you have?",
+    "notes": "Any special notes about your farm?",
+}
+
+
+def _has_value(v) -> bool:
+    return v not in (None, "", 0, "0", 0.0)
+
+
+def _next_missing_field(data: dict):
+    for f in FARM_FIELDS:
+        if not _has_value(data.get(f)):
+            return f
+    return None
+
+
+def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None) -> dict:
+    import json as _json
+    adapter = BedrockTextAdapter()
+    existing = existing_data or {}
+    filled = {k: v for k, v in existing.items() if _has_value(v)}
+    missing = [f for f in FARM_FIELDS if not _has_value(filled.get(f))]
+
+    next_field = _next_missing_field(filled)
+
+    prompt = f"""You are an onboarding assistant for a livestock farm management system.
+
+The farmer said: "{text}"
+
+Already collected: {_json.dumps(filled, ensure_ascii=False)}
+Still needed (ask one at a time in this order): {_json.dumps(missing, ensure_ascii=False)}
+
+Extract farm details from the farmer's message. Return ONLY a JSON object with these fields:
+- extracted_fields: an object with any fields you can extract from the message (use snake_case keys: name, email, phone, alternate_phone, address, city, district, pincode, state, country, total_animal_capacity, current_animal_count, sheep_count, goat_count, notes)
+
+Rules:
+- total_animal_capacity, current_animal_count, sheep_count, goat_count should be numbers
+- pincode should be a number
+- Extract ONLY what the farmer explicitly states. Do not guess or invent.
+- Do NOT ask for fields already collected.
+- Return ONLY valid JSON, no markdown, no backticks."""
+
+    try:
+        raw = adapter.complete(
+            messages=[{"role": "user", "content": prompt}],
+            system="You are a farm onboarding assistant. Extract fields the farmer mentions. Return only JSON."
+        )
+        parsed = _json.loads(raw.strip())
+        extracted = parsed.get("extracted_fields", {})
+    except Exception:
+        extracted = {}
+
+    merged = dict(filled)
+    for k, v in extracted.items():
+        if _has_value(v):
+            merged[k] = v
+
+    next_field = _next_missing_field(merged)
+
+    if next_field is None:
+        return {
+            "data": merged,
+            "missing_fields": [],
+            "follow_up_question": None,
+            "complete": True,
+        }
+
+    return {
+        "data": merged,
+        "missing_fields": [f for f in FARM_FIELDS if not _has_value(merged.get(f))],
+        "follow_up_question": _FIELD_QUESTIONS.get(next_field, f"Please provide: {next_field}"),
+        "complete": False,
+    }
+
+
+def get_weather_recommendation(weather_data: dict, location_display: str = "") -> str:
+    import json as _json
+    adapter = BedrockTextAdapter()
+    forecast = _json.dumps(weather_data.get("forecast_days") or [], indent=2, default=str)
+    alerts = _json.dumps(weather_data.get("alerts") or [], indent=2, default=str)
+    risk = weather_data.get("risk_level", "low")
+    summary = weather_data.get("summary", "")
+
+    loc = location_display or weather_data.get("resolved_location", {}).get("display_name", "your area")
+
+    prompt = f"""You are a practical livestock farming weather advisor for {loc}.
+
+Weather Summary: {summary}
+Risk Level: {risk}
+
+Forecast (next few days):
+{forecast}
+
+Alerts:
+{alerts}
+
+Give the farmer short, actionable recommendations for protecting their animals and farm.
+
+- If the weather is normal (low risk, no extreme conditions), just say: "All good, no need to worry about the weather."
+- If there are any concerns, mention practical steps (e.g. provide shade, move animals to shelter, ensure ventilation, check water supply, secure loose objects).
+- Keep it concise, under 5 sentences.
+- Use simple language. Do NOT use markdown formatting."""
+    try:
+        out = adapter.complete(
+            messages=[{"role": "user", "content": prompt}],
+            system="You are a helpful livestock farming weather advisor. Keep recommendations practical and concise. If weather is normal, reassure the farmer."
+        )
+        return (out or "").strip() or "All good, no need to worry about the weather."
+    except Exception:
+        return "All good, no need to worry about the weather."
+
+
+def translate_to_english(text: str) -> str:
+    src = (text or "").strip()
+    if not src:
+        return src
+
+    adapter = BedrockTextAdapter()
+    system = (
+        "You are a translation assistant for a livestock operations system. "
+        "Translate user message to concise English. Preserve names, IDs, time, date, medicine names, and quantities exactly. "
+        "Return ONLY translated text."
+    )
+    try:
+        out = adapter.complete(messages=[{"role": "user", "content": src}], system=system)
+        return (out or "").strip() or src
+    except Exception:
+        return src

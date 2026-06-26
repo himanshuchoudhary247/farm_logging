@@ -395,3 +395,136 @@ def test_llm_high_confidence_can_override_rule_intent(monkeypatch):
     out = orchestrator.process_text_input("please update my animal", session_id=session_id)
 
     assert out["intent"] == "CREATE_APPOINTMENT"
+
+
+def test_not_available_skips_remaining_new_animal_fields(monkeypatch):
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_bedrock)
+
+    session_id = "test-not-available-new-animal"
+    clear_session(session_id)
+
+    orchestrator.process_text_input("i want to add details about my animal", session_id=session_id)
+    orchestrator.process_text_input("new", session_id=session_id)
+    third = orchestrator.process_text_input(
+        "animal name is anshul, species goat, sex female", session_id=session_id
+    )
+    assert third["follow_up_questions"] == [
+        "Please provide: breed, age in years, feeding details."
+    ]
+
+    final = orchestrator.process_text_input("not available", session_id=session_id)
+    assert final["complete"] is True
+    assert final["follow_up_questions"] == []
+    assert "breed" in (final["entities"].get("unavailable_fields") or [])
+    assert "age_years" in (final["entities"].get("unavailable_fields") or [])
+    assert "feeding_details" in (final["entities"].get("unavailable_fields") or [])
+
+
+def test_not_available_skips_severity_in_appointment(monkeypatch):
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_bedrock)
+
+    session_id = "test-not-available-appointment"
+    clear_session(session_id)
+
+    out = orchestrator.process_text_input(
+        "book appointment for animal name charlie, issue fever, duration 2 days, severity not available, no medicine, tomorrow at 5 pm",
+        session_id=session_id,
+    )
+    assert out["intent"] == "CREATE_APPOINTMENT"
+    assert out["complete"] is True
+    assert out["follow_up_questions"] == []
+    assert "severity" in (out["entities"].get("unavailable_fields") or [])
+
+
+def test_hindi_script_uses_english_working_text(monkeypatch):
+    seen = {"text": None}
+
+    def _stub_llm(text: str, **kwargs):
+        seen["text"] = text
+        return {}
+
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setattr(
+        orchestrator,
+        "translate_to_english",
+        lambda text: "book appointment for animal name charlie tomorrow at 5 pm",
+    )
+
+    session_id = "test-hi-working-text"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("कल शाम 5 बजे चार्ली के लिए अपॉइंटमेंट बुक करो", session_id=session_id)
+
+    assert out["meta"]["working_text_en"] == "book appointment for animal name charlie tomorrow at 5 pm"
+    assert seen["text"] == "book appointment for animal name charlie tomorrow at 5 pm"
+    assert out["intent"] == "CREATE_APPOINTMENT"
+
+
+def test_kannada_script_uses_english_working_text(monkeypatch):
+    seen = {"text": None}
+
+    def _stub_llm(text: str, **kwargs):
+        seen["text"] = text
+        return {}
+
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setattr(
+        orchestrator,
+        "translate_to_english",
+        lambda text: "add details about my animal new animal name gauri goat female",
+    )
+
+    session_id = "test-kn-working-text"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("ನನ್ನ ಪ್ರಾಣಿಯ ವಿವರಗಳನ್ನು ಸೇರಿಸಿ", session_id=session_id)
+
+    assert out["meta"]["working_text_en"] == "add details about my animal new animal name gauri goat female"
+    assert seen["text"] == "add details about my animal new animal name gauri goat female"
+    assert out["intent"] == "CREATE_ANIMAL"
+
+
+def test_telugu_script_uses_english_working_text(monkeypatch):
+    seen = {"text": None}
+
+    def _stub_llm(text: str, **kwargs):
+        seen["text"] = text
+        return {}
+
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setattr(
+        orchestrator,
+        "translate_to_english",
+        lambda text: "existing animal id a-f-001-99 update breed to jamunapari",
+    )
+
+    session_id = "test-te-working-text"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("ఇప్పటికే ఉన్న జంతువు వివరాలు మార్చాలి", session_id=session_id)
+
+    assert out["meta"]["working_text_en"] == "existing animal id a-f-001-99 update breed to jamunapari"
+    assert seen["text"] == "existing animal id a-f-001-99 update breed to jamunapari"
+    assert out["intent"] == "UPDATE_ANIMAL"
+
+
+def test_weather_alert_intent_requires_location(monkeypatch):
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_bedrock)
+
+    session_id = "test-weather-followup"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("give me weather alert", session_id=session_id)
+
+    assert out["intent"] == "WEATHER_ALERT"
+    assert out["follow_up_questions"] == ["Please provide: pin code or location for weather alert."]
+    assert out["complete"] is False
+
+
+def test_weather_alert_with_pin_completes(monkeypatch):
+    monkeypatch.setattr(orchestrator, "call_bedrock", _stub_bedrock)
+
+    session_id = "test-weather-complete"
+    clear_session(session_id)
+    out = orchestrator.process_text_input("weather alert for 560001 next 3 days", session_id=session_id)
+
+    assert out["intent"] == "WEATHER_ALERT"
+    assert out["entities"]["weather_location"] == "560001"
+    assert out["entities"]["forecast_days"] == 3
+    assert out["complete"] is True

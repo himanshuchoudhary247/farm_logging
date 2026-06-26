@@ -18,10 +18,12 @@ os.environ.setdefault("VOICE_S3_BUCKET", "farmer-chat-audio-bucket-198799425726"
 os.environ.setdefault("TRANSCRIBE_MODE", "aws")
 os.environ["BEDROCK_MODEL_ID"] = "deepseek.v3-v1:0"
 os.environ.setdefault("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-IN")
-os.environ.setdefault("TRANSCRIBE_FALLBACK_TO_LOCAL", "true")
+os.environ.setdefault("AWS_TRANSCRIBE_MULTILINGUAL", "true")
+os.environ.setdefault("AWS_TRANSCRIBE_LANGUAGE_OPTIONS", "en-IN,hi-IN,kn-IN,te-IN")
+os.environ.setdefault("TRANSCRIBE_FALLBACK_TO_LOCAL", "false")
 
 st.caption(
-    f"Using stt=amazon-transcribe mode={os.getenv('TRANSCRIBE_MODE')} lang={os.getenv('AWS_TRANSCRIBE_LANGUAGE_CODE')} fallback_local={os.getenv('TRANSCRIBE_FALLBACK_TO_LOCAL')} bucket={os.getenv('VOICE_S3_BUCKET')} region={os.getenv('AWS_REGION')} model={os.getenv('BEDROCK_MODEL_ID')}"
+    f"Using stt=amazon-transcribe mode={os.getenv('TRANSCRIBE_MODE')} multi={os.getenv('AWS_TRANSCRIBE_MULTILINGUAL')} lang_opts={os.getenv('AWS_TRANSCRIBE_LANGUAGE_OPTIONS')} fallback_local={os.getenv('TRANSCRIBE_FALLBACK_TO_LOCAL')} bucket={os.getenv('VOICE_S3_BUCKET')} region={os.getenv('AWS_REGION')} model={os.getenv('BEDROCK_MODEL_ID')}"
 )
 
 session_id = st.text_input("Session ID", value="demo-user-1")

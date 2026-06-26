@@ -7,7 +7,8 @@ import requests
 
 from auth import authenticate
 from llm.adapters import get_text_adapter
-from models import Animal, Appointment, Farmer, HealthLog
+from models import Animal, Appointment, Farm, Farmer, HealthLog
+from services.weather_alert.service import get_weather_alert
 from storage import (
     animals_for_farmer,
     appointments_for_farmer,
@@ -17,7 +18,13 @@ from storage import (
     append_health_log,
     consultations_for_farmer,
     farmer_accounts,
+    farms_for_farmer,
+    get_farmer_by_id,
     health_logs_for_farmer,
+    append_weather_notification,
+    save_farm,
+    update_farmer_weather_location,
+    weather_notifications_for_farmer,
     update_animal,
 )
 
@@ -287,3 +294,108 @@ def complete_text(messages: list[dict[str, str]], system: str) -> str:
     )
     resp.raise_for_status()
     return str(resp.json().get("content", ""))
+
+
+def fetch_weather_alert(location_or_pin: str, country_code: str = "in", days: int = 3) -> dict[str, Any]:
+    if not is_remote_mode():
+        return get_weather_alert(location_or_pin=location_or_pin, country_code=country_code, days=days)
+
+    resp = requests.post(
+        f"{_api_base()}/weather/alert",
+        json={
+            "location_or_pin": location_or_pin,
+            "country_code": country_code,
+            "days": days,
+        },
+        timeout=20,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_farmer_weather_location(farmer_id: str) -> str:
+    if not is_remote_mode():
+        farmer = get_farmer_by_id(farmer_id)
+        return "" if farmer is None else farmer.weather_location
+
+    resp = requests.get(f"{_api_base()}/farmers/{farmer_id}/weather-preference", timeout=20)
+    if resp.status_code == 404:
+        return ""
+    resp.raise_for_status()
+    return str(resp.json().get("weather_location") or "")
+
+
+def set_farmer_weather_location(farmer_id: str, weather_location: str) -> str:
+    if not is_remote_mode():
+        row = update_farmer_weather_location(farmer_id, weather_location)
+        return row.weather_location
+
+    resp = requests.patch(
+        f"{_api_base()}/farmers/{farmer_id}/weather-preference",
+        json={"weather_location": weather_location},
+        timeout=20,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return str(resp.json().get("weather_location") or "")
+
+
+def list_farms_for_farmer(farmer_id: str) -> list[Farm]:
+    if not is_remote_mode():
+        return farms_for_farmer(farmer_id)
+    resp = requests.get(f"{_api_base()}/farmers/{farmer_id}/farms", timeout=20)
+    resp.raise_for_status()
+    return [Farm.model_validate(x) for x in resp.json()]
+
+
+def save_farm_onboarding(farmer_id: str, data: dict[str, Any]) -> Farm:
+    if not is_remote_mode():
+        return save_farm(farmer_id, data)
+    resp = requests.post(
+        f"{_api_base()}/farmers/{farmer_id}/farms",
+        json=data,
+        timeout=20,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return Farm.model_validate(resp.json())
+
+
+def create_farmer_weather_notification(
+    farmer_id: str,
+    location_or_pin: str,
+    country_code: str = "in",
+    days: int = 3,
+) -> dict[str, Any]:
+    if not is_remote_mode():
+        alert = get_weather_alert(location_or_pin=location_or_pin, country_code=country_code, days=days)
+        row = append_weather_notification(
+            farmer_id=farmer_id,
+            location_query=location_or_pin,
+            risk_level=str(alert.get("risk_level") or "low"),
+            summary=str(alert.get("summary") or ""),
+            details=alert,
+        )
+        return row.model_dump()
+
+    resp = requests.post(
+        f"{_api_base()}/farmers/{farmer_id}/weather-notifications",
+        json={"location_or_pin": location_or_pin, "country_code": country_code, "days": days},
+        timeout=20,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return resp.json()
+
+
+def list_farmer_weather_notifications(farmer_id: str) -> list[dict[str, Any]]:
+    if not is_remote_mode():
+        return [x.model_dump() for x in weather_notifications_for_farmer(farmer_id)]
+    resp = requests.get(f"{_api_base()}/farmers/{farmer_id}/weather-notifications", timeout=20)
+    resp.raise_for_status()
+    return resp.json()
