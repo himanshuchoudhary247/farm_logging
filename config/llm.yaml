@@ -1,8 +1,8 @@
 text:
-  provider: gemini
-  model: gemini-flash-latest
-  api_key_env: GEMINI_API_KEY
+  provider: bedrock
+  model: mistral.mistral-large-3-675b-instruct
+  region: ap-south-1
 voice:
-  provider: gemini
-  model: gemini-2.0-flash
-  api_key_env: GEMINI_API_KEY
+  provider: bedrock
+  model: mistral.mistral-large-3-675b-instruct
+  region: ap-south-1
