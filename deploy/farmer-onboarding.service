@@ -1,0 +1,17 @@
+[Unit]
+Description=Farmer Onboarding Service (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/farmer_chat
+Environment=AWS_REGION=ap-south-1
+Environment=LLM_MODEL_ID=mistral.mistral-large-2402-v1:0
+ExecStart=/usr/bin/python3 -m uvicorn services.farmer_onboarding_service.api:app \
+    --host 0.0.0.0 --port 8004 --workers 2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

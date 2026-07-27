@@ -234,41 +234,61 @@ def _next_missing_field(data: dict):
     return None
 
 
-def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None) -> dict:
+_LANG_INSTRUCTIONS = {
+    "hi": "Ask the next question in Hindi (हिंदी). Use the Hindi script (Devanagari).",
+    "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use the Kannada script.",
+    "te": "Ask the next question in Telugu (తెలుగు). Use the Telugu script.",
+    "en": "Ask the next question in English.",
+    "mix": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
+    "mix-hi": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
+    "mix-kn": "Ask the next question mixing Kannada and English (using Kannada + Latin script).",
+    "mix-te": "Ask the next question mixing Telugu and English (using Telugu + Latin script).",
+}
+
+
+def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, language: str = "en") -> dict:
     import json as _json
     adapter = BedrockTextAdapter()
     existing = existing_data or {}
     filled = {k: v for k, v in existing.items() if _has_value(v)}
     missing = [f for f in FARM_FIELDS if not _has_value(filled.get(f))]
 
-    next_field = _next_missing_field(filled)
+    lang_code = language or "en"
+    lang_instruction = _LANG_INSTRUCTIONS.get(
+        lang_code, _LANG_INSTRUCTIONS.get(lang_code.replace("mix-", "mix"), "Ask the next question in English.")
+    )
 
     prompt = f"""You are an onboarding assistant for a livestock farm management system.
 
 The farmer said: "{text}"
 
-Already collected: {_json.dumps(filled, ensure_ascii=False)}
-Still needed (ask one at a time in this order): {_json.dumps(missing, ensure_ascii=False)}
+Already collected (store in English/numeric only): {_json.dumps(filled, ensure_ascii=False)}
+Still needed: {_json.dumps(missing, ensure_ascii=False)}
 
-Extract farm details from the farmer's message. Return ONLY a JSON object with these fields:
-- extracted_fields: an object with any fields you can extract from the message (use snake_case keys: name, email, phone, alternate_phone, address, city, district, pincode, state, country, total_animal_capacity, current_animal_count, sheep_count, goat_count, notes)
+Extract farm details from the farmer's message. Return ONLY a JSON object:
+- extracted_fields: object with any new fields found (keys: name, email, phone, alternate_phone, address, city, district, pincode, state, country, total_animal_capacity, current_animal_count, sheep_count, goat_count, notes)
+- follow_up_question: a friendly question to ask next for the most important missing field (or null if all done)
 
 Rules:
-- total_animal_capacity, current_animal_count, sheep_count, goat_count should be numbers
-- pincode should be a number
-- Extract ONLY what the farmer explicitly states. Do not guess or invent.
-- Do NOT ask for fields already collected.
+- Store ALL field values in English or numeric only (e.g. phone numbers, counts as numbers, pincode as number)
+- total_animal_capacity, current_animal_count, sheep_count, goat_count must be numbers
+- pincode must be a number
+- Extract ONLY what the farmer explicitly says. Do not guess.
+- {lang_instruction}
+- Ask ONE question at a time. Keep it conversational and friendly.
 - Return ONLY valid JSON, no markdown, no backticks."""
 
     try:
         raw = adapter.complete(
             messages=[{"role": "user", "content": prompt}],
-            system="You are a farm onboarding assistant. Extract fields the farmer mentions. Return only JSON."
+            system="You are a farm onboarding assistant. Extract fields in English/numeric. Ask follow-ups in user's language. Return only JSON."
         )
         parsed = _json.loads(raw.strip())
         extracted = parsed.get("extracted_fields", {})
+        llm_fq = parsed.get("follow_up_question")
     except Exception:
         extracted = {}
+        llm_fq = None
 
     merged = dict(filled)
     for k, v in extracted.items():
@@ -285,12 +305,78 @@ Rules:
             "complete": True,
         }
 
+    question = llm_fq if llm_fq else _FIELD_QUESTIONS.get(next_field, f"Please provide: {next_field}")
     return {
         "data": merged,
         "missing_fields": [f for f in FARM_FIELDS if not _has_value(merged.get(f))],
-        "follow_up_question": _FIELD_QUESTIONS.get(next_field, f"Please provide: {next_field}"),
+        "follow_up_question": question,
         "complete": False,
     }
+
+
+def generate_seasonal_advisory(
+    district: str,
+    location: str,
+    forecast: dict,
+    historical: dict,
+) -> str:
+    import json as _json
+    adapter = BedrockTextAdapter()
+
+    daily = forecast.get("daily") or {}
+    dates = daily.get("time") or []
+    codes = daily.get("weather_code") or []
+    rain = daily.get("precipitation_sum") or []
+    wind = daily.get("wind_speed_10m_max") or []
+    tmax = daily.get("temperature_2m_max") or []
+    tmin = daily.get("temperature_2m_min") or []
+
+    forecast_lines = []
+    for i, d in enumerate(dates):
+        forecast_lines.append(
+            f"  {d}: high {tmax[i] if i < len(tmax) else '?'}C, low {tmin[i] if i < len(tmin) else '?'}C, "
+            f"rain {rain[i] if i < len(rain) else 0}mm, wind {wind[i] if i < len(wind) else 0}km/h"
+        )
+
+    forecast_text = "\n".join(forecast_lines) if forecast_lines else "No forecast data"
+
+    hist_years = _json.dumps(historical.get("years") or [], indent=2, default=str)
+    hist_summary = _json.dumps(historical.get("summary") or {}, indent=2, default=str)
+
+    prompt = f"""You are an expert veterinary epidemiologist assessing weather risk for livestock.
+
+LOCATION: {district} ({location})
+
+CURRENT WEEK FORECAST:
+{forecast_text}
+
+HISTORICAL DATA (same week, past 5 years):
+{hist_summary}
+
+Year-by-year:
+{hist_years}
+
+Write an SMS-style weather alert and advisory for sheep and goat farmers in {district}.
+
+Requirements:
+1. Compare this week's forecast against the 5-year historical average.
+2. If weather is near normal, say "No major deviation from historical pattern. Routine management advised."
+3. If unusual (heat wave, heavy rain, cold spell, strong wind), give specific precautions.
+4. SEPARATE advisory for:
+   - Nomadic farmers (lambs vs adults)
+   - Organized/settled farmers (lambs vs adults)
+5. Reference ICAR or Department of Animal Husbandry guidelines where relevant.
+6. Keep SMS-style: short sentences, bullet points with * prefix, max ~600 characters.
+7. Write in clear English suitable for translation.
+8. End with: "-- {district} Veterinary Warning"."""
+    try:
+        out = adapter.complete(
+            messages=[{"role": "user", "content": prompt}],
+            system="You are an expert veterinary epidemiologist. Write SMS-style livestock weather advisories."
+        )
+        return (out or "").strip() or "Advisory generation failed."
+    except Exception:
+        return "Advisory generation failed. Please try again."
 
 
 def get_weather_recommendation(weather_data: dict, location_display: str = "") -> str:

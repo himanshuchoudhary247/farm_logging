@@ -4,11 +4,13 @@ import streamlit as st
 
 from gateways import (
     get_farmer_weather_location,
+    process_data_query,
     set_farmer_weather_location,
     create_animal_for_farmer,
     create_farmer_weather_notification,
     create_health_log,
     create_preconsult_appointment,
+    fetch_seasonal_advisory,
     fetch_weather_alert,
     list_animals_for_farmer,
     list_farms_for_farmer,
@@ -18,7 +20,7 @@ from gateways import (
 from services.voice_agent.orchestrator import process_text_input, process_voice
 from services.voice_agent.session_store import clear_session, get_session
 from services.voice_agent.tts import synthesize_speech
-from services.llm_service.bedrock_adapter import get_weather_recommendation, extract_farm_onboarding, FARM_FIELDS
+from services.llm_service.bedrock_adapter import get_weather_recommendation, extract_farm_onboarding, FARM_FIELDS, _next_missing_field
 
 
 st.set_page_config(page_title="Farm Assistant", layout="wide", page_icon="🐄")
@@ -60,6 +62,8 @@ _DEFAULTS = {
     "onboarding_messages": [],
     "onboarding_complete": False,
     "onboarding_saved_id": None,
+    "last_dq_result": None,
+    "last_dq_query": "",
 }
 for k, v in _DEFAULTS.items():
     if k not in st.session_state:
@@ -84,6 +88,8 @@ with st.sidebar:
             st.session_state.onboarding_messages = []
             st.session_state.onboarding_complete = False
             st.session_state.onboarding_saved_id = None
+            st.session_state.last_dq_result = None
+            st.session_state.last_dq_query = ""
             st.rerun()
 
         cfg = f"🌐 {os.getenv('AWS_TRANSCRIBE_LANGUAGE_OPTIONS')}"
@@ -636,6 +642,38 @@ with tab_chat:
         else:
             st.info("No turns yet.")
 
+    # ── Data Query ──────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 🔍 Data Query")
+    st.caption("Ask questions about your animals in plain language.")
+    dq_input = st.text_input(
+        "e.g. How many goats do I have? Which animals have health issues?",
+        key="data_query_input",
+    )
+    if st.button("Ask", key="data_query_btn", type="primary"):
+        if dq_input.strip():
+            with st.spinner("Querying your data..."):
+                try:
+                    dq_result = process_data_query(farmer_id, dq_input.strip())
+                    st.session_state.last_dq_result = dq_result
+                    st.session_state.last_dq_query = dq_input.strip()
+                except Exception as e:
+                    st.session_state.last_dq_result = {"answer": f"Error: {e}", "sql": None, "data": None}
+                    st.session_state.last_dq_query = dq_input.strip()
+
+    if st.session_state.get("last_dq_result"):
+        dq_r = st.session_state.last_dq_result
+        st.success(dq_r.get("answer", ""))
+        if dq_r.get("sql"):
+            with st.expander("🔎 SQL Query Used"):
+                st.code(dq_r["sql"], language="sql")
+        if dq_r.get("data") and dq_r["data"].get("rows"):
+            with st.expander("📊 Raw Results"):
+                st.dataframe(
+                    [dict(zip(dq_r["data"]["columns"], r)) for r in dq_r["data"]["rows"]],
+                    use_container_width=True,
+                )
+
 # ── TAB 2: WEATHER ─────────────────────────────────────────────────
 
 with tab_weather:
@@ -750,6 +788,36 @@ with tab_weather:
         st.markdown(f"*Based on weather for {loc_for_rec}*")
         st.success(st.session_state["last_ai_rec"])
 
+    # Seasonal Advisory
+    st.markdown("---")
+    st.markdown("### 📅 Seasonal Advisory (Historical + Forecast)")
+    st.caption("Compares current forecast against 5-year historical data for the same week. Generates SMS-style advisory for sheep/goat farmers.")
+
+    if st.button("📋 Generate Seasonal Advisory", type="primary", use_container_width=True):
+        loc = st.session_state.get("weather_location_input", weather_location)
+        country = st.session_state.get("improved_weather_country", weather_country)
+        with st.spinner("Fetching historical data and generating advisory..."):
+            try:
+                advisory = fetch_seasonal_advisory(
+                    location_or_pin=loc,
+                    country_code=country,
+                    days=7,
+                )
+                st.session_state.last_seasonal_advisory = advisory
+                st.session_state.last_seasonal_location = loc
+            except Exception as e:
+                st.error(f"Failed to generate advisory: {e}")
+
+    if st.session_state.get("last_seasonal_advisory"):
+        loc_sa = st.session_state.get("last_seasonal_location", "")
+        st.markdown(f"**Advisory for {loc_sa}**")
+        st.text_area(
+            "📟 SMS Advisory",
+            value=st.session_state.last_seasonal_advisory,
+            height=350,
+            key="seasonal_advisory_output",
+        )
+
 # ── TAB 3: MY ANIMALS ─────────────────────────────────────────────
 
 with tab_animals:
@@ -802,8 +870,14 @@ with tab_animals:
 # ── TAB 4: ONBOARDING ─────────────────────────────────────────────
 
 with tab_onboard:
+    onboard_pinned = _resolve_pinned_lang()
+    onboard_lang_label = {
+        "auto": "auto-detect", "hi": "हिन्दी", "kn": "ಕನ್ನಡ",
+        "te": "తెలుగు", "en": "English", "mix": "Hinglish",
+    }.get(onboard_pinned, "auto-detect")
+
     st.subheader("📋 Farm Onboarding")
-    st.caption("Tell me about your farm and I'll fill in the details. You can provide info in any language.")
+    st.caption(f"💬 Questions will be in: **{onboard_lang_label}** — your answers are stored in English.")
 
     onboard_msgs = st.session_state.onboarding_messages
 
@@ -839,12 +913,14 @@ with tab_onboard:
                 st.session_state.onboarding_saved_id = None
                 st.rerun()
 
-        with st.expander("📄 Collected Data"):
+        with st.expander("📄 Collected Data (English)"):
             st.json(st.session_state.onboarding_data)
     else:
         if not onboard_msgs:
             with st.chat_message("assistant"):
-                welcome = "Hello! I'll help you register your farm. What's the name of your farm?"
+                default_lang = onboard_pinned if onboard_pinned != "auto" else "en"
+                first_q = extract_farm_onboarding("", existing_data={}, language=default_lang)
+                welcome = first_q.get("follow_up_question") or "Hello! I'll help you register your farm. What's the name of your farm?"
                 st.write(welcome)
                 onboard_msgs.append({"role": "assistant", "content": welcome})
 
@@ -854,11 +930,16 @@ with tab_onboard:
             with chat_cont:
                 with st.chat_message("user"):
                     st.write(onboard_input)
+                    detected = _response_language(onboard_input)
+                    st.caption(render_language_badge(onboard_input))
+
+            effective_lang = onboard_pinned if onboard_pinned != "auto" else detected
 
             with st.spinner("Processing..."):
                 result = extract_farm_onboarding(
                     onboard_input,
                     existing_data=st.session_state.onboarding_data,
+                    language=effective_lang,
                 )
                 st.session_state.onboarding_data = result["data"]
                 st.session_state.onboarding_complete = result["complete"]
@@ -867,9 +948,10 @@ with tab_onboard:
                 if fq:
                     onboard_msgs.append({"role": "assistant", "content": fq})
                 elif not result["complete"]:
-                    onboard_msgs.append({"role": "assistant", "content": "What else can you tell me about your farm?"})
+                    onboard_msgs.append({"role": "assistant", "content": f"Please provide: {_next_missing_field(result['data'])}" if result.get('data') else "What else can you tell me about your farm?"})
                 else:
-                    onboard_msgs.append({"role": "assistant", "content": "I have all the details! Click 'Save Farm Details' to save."})
+                    done_msg = "I have all the details! Click 'Save Farm Details' to save."
+                    onboard_msgs.append({"role": "assistant", "content": done_msg})
                 st.rerun()
 
     with st.expander("View Existing Farm Records"):

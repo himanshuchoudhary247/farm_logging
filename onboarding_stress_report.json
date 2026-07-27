@@ -1,0 +1,253 @@
+{
+  "timestamp": "2026-07-18T18:32:01.429027",
+  "total": 100,
+  "passed": 25,
+  "failed": 75,
+  "pass_rate_pct": 25.0,
+  "overall_field_accuracy_pct": 95.8,
+  "field_accuracy": {
+    "name": 85.0,
+    "fatherOrSpouseName": 100.0,
+    "gender": 100.0,
+    "dob": 100.0,
+    "phone": 100.0,
+    "email": 100.0,
+    "address_1": 100.0,
+    "city": 100.0,
+    "state": 100.0,
+    "pincode": 96.0,
+    "aadharNo": 100.0,
+    "hasPanCard": 100.0,
+    "panNo": 100.0,
+    "education": 100.0,
+    "occupation": 100.0,
+    "religion": 64.0,
+    "caste": 51.0,
+    "farmingExperience": 100.0,
+    "landHolding": 100.0,
+    "farmName": 100.0,
+    "farmPhone": 100.0,
+    "address": 100.0,
+    "farmCity": 100.0,
+    "district": 93.0,
+    "farmState": 94.0,
+    "farmPincode": 96.0,
+    "totalAnimalCapacity": 100.0,
+    "sheepCount": 100.0,
+    "goatCount": 100.0
+  },
+  "field_coverage": {
+    "aadharNo": 100,
+    "address": 100,
+    "address_1": 100,
+    "alternateMobile": 0,
+    "caste": 51,
+    "city": 100,
+    "district": 94,
+    "dob": 100,
+    "education": 100,
+    "email": 100,
+    "farmCity": 100,
+    "farmName": 100,
+    "farmPhone": 100,
+    "farmPincode": 96,
+    "farmState": 94,
+    "farmingExperience": 100,
+    "fatherOrSpouseName": 100,
+    "gender": 100,
+    "goatCount": 100,
+    "hasPanCard": 100,
+    "landHolding": 100,
+    "name": 100,
+    "occupation": 100,
+    "panNo": 48,
+    "phone": 100,
+    "pincode": 100,
+    "religion": 64,
+    "sheepCount": 96,
+    "state": 100,
+    "totalAnimalCapacity": 100
+  },
+  "language_stats": {
+    "mix": {
+      "count": 20,
+      "passed": 8
+    },
+    "en": {
+      "count": 18,
+      "passed": 4
+    },
+    "te": {
+      "count": 26,
+      "passed": 5
+    },
+    "kn": {
+      "count": 19,
+      "passed": 3
+    },
+    "hi": {
+      "count": 17,
+      "passed": 5
+    }
+  },
+  "latency_ms": {
+    "mean": 18024.0,
+    "median": 17615.0,
+    "p95": 23049.0,
+    "max": 25310.0
+  },
+  "errors": [
+    {
+      "index": 2,
+      "lang": "te",
+      "errors": [
+        "  Field 'name': expected='దినేశ్' got='దಿవేాన'"
+      ]
+    },
+    {
+      "index": 3,
+      "lang": "kn",
+      "errors": [
+        "  Field 'religion': expected='Muslim' got=''"
+      ]
+    },
+    {
+      "index": 4,
+      "lang": "hi",
+      "errors": [
+        "  Field 'caste': expected='SC' got=''"
+      ]
+    },
+    {
+      "index": 5,
+      "lang": "mix",
+      "errors": [
+        "  Field 'caste': expected='General' got=''"
+      ]
+    },
+    {
+      "index": 6,
+      "lang": "hi",
+      "errors": [
+        "  Field 'caste': expected='General' got=''"
+      ]
+    },
+    {
+      "index": 7,
+      "lang": "te",
+      "errors": [
+        "  Field 'religion': expected='Muslim' got=''",
+        "  Field 'caste': expected='OBC' got=''"
+      ]
+    },
+    {
+      "index": 9,
+      "lang": "kn",
+      "errors": [
+        "  Field 'name': expected='ದಿನೇಶ್' got='ಟೆನ್ನ್'",
+        "  Field 'religion': expected='Muslim' got=''",
+        "  Field 'caste': expected='General' got=''"
+      ]
+    },
+    {
+      "index": 11,
+      "lang": "en",
+      "errors": [
+        "  Field 'caste': expected='OBC' got=''"
+      ]
+    },
+    {
+      "index": 12,
+      "lang": "mix",
+      "errors": [
+        "  Field 'religion': expected='Jain' got=''"
+      ]
+    },
+    {
+      "index": 13,
+      "lang": "kn",
+      "errors": [
+        "  Field 'caste': expected='ST' got=''"
+      ]
+    },
+    {
+      "index": 15,
+      "lang": "en",
+      "errors": [
+        "  Field 'pincode': expected='468300' got='129346'",
+        "  Field 'farmPincode': expected='129346' got=''"
+      ]
+    },
+    {
+      "index": 16,
+      "lang": "mix",
+      "errors": [
+        "  Field 'pincode': expected='441551' got='458142'",
+        "  Field 'farmPincode': expected='458142' got=''"
+      ]
+    },
+    {
+      "index": 17,
+      "lang": "te",
+      "errors": [
+        "  Field 'religion': expected='Sikh' got=''"
+      ]
+    },
+    {
+      "index": 18,
+      "lang": "hi",
+      "errors": [
+        "  Field 'religion': expected='Jain' got=''",
+        "  Field 'caste': expected='SC' got=''"
+      ]
+    },
+    {
+      "index": 19,
+      "lang": "te",
+      "errors": [
+        "  Field 'caste': expected='ST' got=''"
+      ]
+    },
+    {
+      "index": 20,
+      "lang": "kn",
+      "errors": [
+        "  Field 'caste': expected='OBC' got=''"
+      ]
+    },
+    {
+      "index": 21,
+      "lang": "kn",
+      "errors": [
+        "  Field 'religion': expected='Christian' got=''",
+        "  Field 'caste': expected='ST' got=''",
+        "  Field 'farmState': expected='Delhi' got=''"
+      ]
+    },
+    {
+      "index": 22,
+      "lang": "te",
+      "errors": [
+        "  Field 'name': expected='మహేశ్' got='మహేవಿ'",
+        "  Field 'religion': expected='Christian' got=''",
+        "  Field 'caste': expected='OBC' got=''"
+      ]
+    },
+    {
+      "index": 23,
+      "lang": "mix",
+      "errors": [
+        "  Field 'caste': expected='ST' got=''"
+      ]
+    },
+    {
+      "index": 24,
+      "lang": "te",
+      "errors": [
+        "  Field 'name': expected='దినేశ్' got='దిేా్'",
+        "  Field 'religion': expected='Sikh' got=''",
+        "  Field 'caste': expected='OBC' got=''"
+      ]
+    }
+  ]
+}

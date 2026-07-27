@@ -403,6 +403,39 @@ def save_farm(farmer_id: str, data: dict[str, Any]) -> Farm:
     return _with_file_lock(path, work)
 
 
+def save_farmer(
+    name: str,
+    phone: str = "",
+    login_username: str = "",
+    password_hash: str = "",
+    onboarding_data: Optional[dict[str, Any]] = None,
+) -> Farmer:
+    """Append a new farmer to farmers.json. Returns the created Farmer."""
+    path = _path("farmers.json")
+
+    def work() -> Farmer:
+        rows = _load_json_list(path)
+        fid = str(uuid.uuid4())
+        uname = login_username or f"farmer_{fid[:8]}"
+        phash = password_hash or ""
+        row = Farmer(
+            id=fid,
+            name=name.strip(),
+            login_username=uname,
+            password_hash=phash,
+            phone=phone.strip(),
+            role="farmer",
+        )
+        d = row.model_dump()
+        if onboarding_data:
+            d["onboarding_data"] = onboarding_data
+        rows.append(d)
+        atomic_write_json(path, rows)
+        return row
+
+    return _with_file_lock(path, work)
+
+
 def ensure_farmer_animal(farmer_id: str, animal_id: str) -> bool:
     for a in animals_for_farmer(farmer_id):
         if a.id == animal_id:

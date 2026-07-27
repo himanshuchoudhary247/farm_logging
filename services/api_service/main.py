@@ -7,7 +7,7 @@ from utils.env_check import validate_env
 from pydantic import BaseModel, Field
 
 from auth import authenticate
-from models import Animal, Appointment, ChatMessage, Consultation, Farmer, HealthLog, WeatherNotification
+from models import Animal, Appointment, ChatMessage, Consultation, Farm, Farmer, HealthLog, WeatherNotification
 from storage import (
     animals_for_farmer,
     appointments_for_farmer,
@@ -17,15 +17,22 @@ from storage import (
     append_consultation,
     append_health_log,
     consultations_for_farmer,
+    farms_for_farmer,
     get_farmer_by_id,
     farmer_accounts,
     health_logs_for_farmer,
+    save_farm,
     update_farmer_weather_location,
     update_animal,
     weather_notifications_for_farmer,
 )
 from services.voice_agent.extractor import detect_intent, extract_health_log
-from services.weather_alert.service import get_weather_alert
+from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
+from services.llm_service.bedrock_adapter import (
+    extract_farm_onboarding,
+    generate_seasonal_advisory,
+)
+from services.query_agent.agent import process_query
 from difflib import get_close_matches
 
 
@@ -121,6 +128,41 @@ class WeatherAlertRequest(BaseModel):
     days: int = 3
 
 
+class SeasonalAdvisoryRequest(BaseModel):
+    location_or_pin: str
+    country_code: str = "in"
+    days: int = 7
+
+
+class FarmSaveRequest(BaseModel):
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    alternate_phone: str = ""
+    address: str = ""
+    city: str = ""
+    district: str = ""
+    pincode: Optional[int] = None
+    state: str = ""
+    country: str = "India"
+    total_animal_capacity: Optional[int] = None
+    current_animal_count: int = 0
+    sheep_count: int = 0
+    goat_count: int = 0
+    image: str = ""
+    notes: str = ""
+
+
+class ExtractFarmRequest(BaseModel):
+    text: str
+    existing_data: dict[str, Any] = Field(default_factory=dict)
+    language: str = "en"
+
+
+class DataQueryRequest(BaseModel):
+    query: str
+
+
 class WeatherPreferenceRequest(BaseModel):
     weather_location: str
 
@@ -192,23 +234,57 @@ def patch_animal(farmer_id: str, req: UpdateAnimalRequest) -> Animal:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/farmers/{farmer_id}/health-logs")
-def list_health_logs(farmer_id: str) -> list[dict[str, Any]]:
-    return [x.model_dump() for x in health_logs_for_farmer(farmer_id)]
+# ── Natural Language Data Query ────────────────────────────────────
 
 
-@app.post("/farmers/{farmer_id}/health-logs", response_model=HealthLog)
-def create_health_log(farmer_id: str, req: CreateHealthLogRequest) -> HealthLog:
+@app.post("/farmers/{farmer_id}/query")
+def data_query(farmer_id: str, req: DataQueryRequest) -> dict[str, Any]:
     try:
-        return append_health_log(
-            farmer_id=farmer_id,
-            animal_id=req.animal_id,
-            issue=req.issue,
-            params=req.params,
-            notes=req.notes,
+        return process_query(query=req.query, farmer_id=farmer_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.post("/llm/extract-farm")
+def extract_farm(req: ExtractFarmRequest) -> dict[str, Any]:
+    try:
+        return extract_farm_onboarding(
+            text=req.text,
+            existing_data=req.existing_data,
+            language=req.language,
         )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Seasonal Advisory ──────────────────────────────────────────────
+
+
+@app.post("/weather/seasonal-advisory")
+def seasonal_advisory(req: SeasonalAdvisoryRequest) -> dict[str, Any]:
+    try:
+        data = get_seasonal_advisory_data(
+            location_or_pin=req.location_or_pin,
+            country_code=req.country_code,
+            days=req.days,
+        )
+        advisory = generate_seasonal_advisory(
+            district=data["district"],
+            location=data["location"],
+            forecast=data["forecast"],
+            historical=data["historical"],
+        )
+        return {
+            "district": data["district"],
+            "location": data["location"],
+            "advisory": advisory,
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/farmers/{farmer_id}/consultations")

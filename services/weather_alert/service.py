@@ -9,6 +9,7 @@ import requests
 
 GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 _CACHE_TTL_SEC = 15 * 60
 _cache: dict[str, tuple[float, Any]] = {}
@@ -179,6 +180,105 @@ def _advisories_for_level(level: str) -> list[str]:
         "Continue routine care and hydration.",
         "Re-check forecast tomorrow for changes.",
     ]
+
+
+HISTORICAL_YEARS = 5
+
+
+def _parse_district(display_name: str) -> str:
+    parts = [p.strip() for p in display_name.split(",")]
+    if len(parts) >= 3:
+        return parts[-3]
+    return parts[0] if parts else display_name
+
+
+def _same_dates_past_years(years_back: int = 5) -> list[tuple[str, str]]:
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    start = today - timedelta(days=6)
+    ranges: list[tuple[str, str]] = []
+    for y in range(1, years_back + 1):
+        sy = start.replace(year=start.year - y)
+        ey = today.replace(year=today.year - y)
+        ranges.append((sy.strftime("%Y-%m-%d"), ey.strftime("%Y-%m-%d")))
+    return ranges
+
+
+def get_historical_weather(lat: float, lon: float) -> dict[str, Any]:
+    cache_key = f"hist:{lat:.4f}:{lon:.4f}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+
+    date_ranges = _same_dates_past_years(HISTORICAL_YEARS)
+    all_years: list[dict[str, Any]] = []
+
+    for start_date, end_date in date_ranges:
+        try:
+            data = _request_json(
+                ARCHIVE_URL,
+                params={
+                    "latitude": lat,
+                    "longitude": lon,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "timezone": "auto",
+                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+                },
+            )
+            daily = data.get("daily") or {}
+            temps_max = [x for x in (daily.get("temperature_2m_max") or []) if x is not None]
+            temps_min = [x for x in (daily.get("temperature_2m_min") or []) if x is not None]
+            rain = [x for x in (daily.get("precipitation_sum") or []) if x is not None]
+            wind = [x for x in (daily.get("wind_speed_10m_max") or []) if x is not None]
+
+            all_years.append({
+                "year": start_date[:4],
+                "period": f"{start_date} / {end_date}",
+                "avg_temp_max": round(sum(temps_max) / len(temps_max), 1) if temps_max else None,
+                "avg_temp_min": round(sum(temps_min) / len(temps_min), 1) if temps_min else None,
+                "total_rainfall_mm": round(sum(rain), 1) if rain else 0.0,
+                "avg_wind_kph": round(sum(wind) / len(wind), 1) if wind else 0.0,
+                "extreme_rain_days": sum(1 for r in rain if r >= 15),
+                "extreme_wind_days": sum(1 for w in wind if w >= 30),
+            })
+        except Exception:
+            all_years.append({"year": start_date[:4], "period": f"{start_date} / {end_date}", "error": "data unavailable"})
+
+    result = {
+        "period_label": f"Same week, past {HISTORICAL_YEARS} years",
+        "years": all_years,
+    }
+
+    temps_max_all = [y["avg_temp_max"] for y in all_years if y.get("avg_temp_max") is not None]
+    temps_min_all = [y["avg_temp_min"] for y in all_years if y.get("avg_temp_min") is not None]
+    rains_all = [y["total_rainfall_mm"] for y in all_years if y.get("total_rainfall_mm") is not None]
+    winds_all = [y["avg_wind_kph"] for y in all_years if y.get("avg_wind_kph") is not None]
+
+    result["summary"] = {
+        "avg_high_temp": round(sum(temps_max_all) / len(temps_max_all), 1) if temps_max_all else None,
+        "avg_low_temp": round(sum(temps_min_all) / len(temps_min_all), 1) if temps_min_all else None,
+        "avg_rainfall_mm": round(sum(rains_all) / len(rains_all), 1) if rains_all else 0.0,
+        "avg_wind_kph": round(sum(winds_all) / len(winds_all), 1) if winds_all else 0.0,
+    }
+
+    _cache_set(cache_key, result)
+    return result
+
+
+def get_seasonal_advisory_data(location_or_pin: str, country_code: str = "in", days: int = 7) -> dict[str, Any]:
+    loc = resolve_location(location_or_pin, country_code=country_code)
+    forecast = _fetch_forecast(loc.lat, loc.lon, days=days)
+    historical = get_historical_weather(loc.lat, loc.lon)
+    district = _parse_district(loc.display_name)
+    return {
+        "district": district,
+        "location": loc.display_name,
+        "lat": loc.lat,
+        "lon": loc.lon,
+        "forecast": forecast,
+        "historical": historical,
+    }
 
 
 def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int = 3) -> dict[str, Any]:

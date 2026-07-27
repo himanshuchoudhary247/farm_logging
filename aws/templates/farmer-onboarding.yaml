@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Farmer Onboarding Service — LLM-powered form filling
+
+Parameters:
+  ModelId:
+    Type: String
+    Default: mistral.mistral-large-2402-v1:0
+    Description: Bedrock model ID for extraction
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 60
+    MemorySize: 512
+    Environment:
+      Variables:
+        AWS_REGION: !Ref AWS::Region
+        LLM_MODEL_ID: !Ref ModelId
+
+Resources:
+  OnboardingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../services/farmer_onboarding_service/
+      Handler: handler.handler
+      Policies:
+        - Statement:
+            - Sid: BedrockInvoke
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${ModelId}"
+      Events:
+        HealthCheck:
+          Type: HttpApi
+          Properties:
+            Path: /onboarding/health
+            Method: GET
+        ProcessTurn:
+          Type: HttpApi
+          Properties:
+            Path: /onboarding
+            Method: POST
+
+  OnboardingApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - OPTIONS
+          - POST
+          - GET
+        AllowHeaders:
+          - Content-Type
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${OnboardingApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/"
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt OnboardingFunction.Arn

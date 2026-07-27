@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://unpkg.com/streamlit-component-lib@2.0.0/umd/streamlit-component-lib.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 4px;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #lang-select {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      background: white;
+    }
+    #mic-btn {
+      padding: 8px 20px;
+      border-radius: 20px;
+      border: 2px solid #ff4b4b;
+      background: white;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    #mic-btn:hover { background: #fff5f5; }
+    #mic-btn.recording {
+      background: #ff4b4b;
+      color: white;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(255, 75, 75, 0); }
+    }
+    #status {
+      font-size: 13px;
+      color: #666;
+    }
+    #transcript {
+      min-height: 36px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      color: #333;
+      background: #fafafa;
+      line-height: 1.4;
+    }
+    #transcript .final { color: #111; font-weight: 500; }
+    #transcript .interim { color: #999; font-style: italic; }
+    .unsupported {
+      color: #cc0000;
+      font-size: 13px;
+      padding: 8px;
+      background: #fff5f5;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <select id="lang-select">
+      <option value="en-US">English</option>
+      <option value="hi-IN">Hindi</option>
+      <option value="kn-IN">Kannada</option>
+      <option value="te-IN">Telugu</option>
+      <option value="ta-IN">Tamil</option>
+      <option value="mr-IN">Marathi</option>
+      <option value="pa-IN">Punjabi</option>
+    </select>
+    <button id="mic-btn">🎤 Speak</button>
+    <span id="status"></span>
+  </div>
+  <div id="transcript"></div>
+
+  <script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const micBtn = document.getElementById('mic-btn');
+    const statusEl = document.getElementById('status');
+    const transcriptEl = document.getElementById('transcript');
+    const langSelect = document.getElementById('lang-select');
+
+    let recognition = null;
+    let finalTranscript = '';
+
+    if (!SpeechRecognition) {
+      micBtn.style.display = 'none';
+      langSelect.style.display = 'none';
+      transcriptEl.innerHTML = '<div class="unsupported">⚠️ Voice input not supported in this browser. Use Chrome, Edge, or Safari.</div>';
+      Streamlit.setFrameHeight(150);
+    } else {
+      Streamlit.setFrameHeight(150);
+    }
+
+    function toggleMic() {
+      if (recognition) {
+        recognition.stop();
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = langSelect.value;
+      recognition.interimResults = true;
+      recognition.continuous = true;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = function() {
+        micBtn.textContent = '🔴 Stop';
+        micBtn.classList.add('recording');
+        statusEl.textContent = 'Listening...';
+        finalTranscript = '';
+        transcriptEl.innerHTML = '';
+      };
+
+      recognition.onresult = function(event) {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += text + ' ';
+          } else {
+            interim += text;
+          }
+        }
+        transcriptEl.innerHTML =
+          '<span class="final">' + finalTranscript + '</span>' +
+          '<span class="interim">' + interim + '</span>';
+      };
+
+      recognition.onend = function() {
+        micBtn.textContent = '🎤 Speak';
+        micBtn.classList.remove('recording');
+        recognition = null;
+
+        if (finalTranscript.trim()) {
+          statusEl.textContent = '✓ Captured!';
+          // Send to Streamlit
+          Streamlit.setComponentValue(finalTranscript.trim());
+        } else {
+          statusEl.textContent = 'No speech detected. Try again.';
+        }
+      };
+
+      recognition.onerror = function(event) {
+        micBtn.textContent = '🎤 Speak';
+        micBtn.classList.remove('recording');
+        recognition = null;
+        if (event.error === 'not-allowed') {
+          statusEl.textContent = '⚠️ Microphone access denied. Allow mic in browser settings.';
+        } else if (event.error === 'no-speech') {
+          statusEl.textContent = 'No speech detected. Try again.';
+        } else {
+          statusEl.textContent = 'Error: ' + event.error;
+        }
+      };
+
+      recognition.start();
+    }
+
+    micBtn.addEventListener('click', toggleMic);
+  </script>
+</body>
+</html>

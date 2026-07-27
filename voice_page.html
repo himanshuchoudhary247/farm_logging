@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎤 Voice Capture - Farmer Onboarding</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f0f2f6; min-height:100vh; display:flex; justify-content:center; padding:20px; }
+  .card { background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.08); padding:32px; max-width:500px; width:100%; }
+  h1 { font-size:24px; margin-bottom:4px; }
+  .subtitle { color:#666; font-size:14px; margin-bottom:24px; }
+  .row { display:flex; gap:10px; align-items:center; margin-bottom:16px; }
+  select { padding:10px 14px; border-radius:10px; border:2px solid #ddd; font-size:15px; background:#fff; }
+  #mic-btn { padding:12px 28px; border-radius:24px; border:2px solid #ff4b4b; background:#fff; cursor:pointer; font-size:16px; font-weight:600; transition:all 0.2s; white-space:nowrap; }
+  #mic-btn:hover { background:#fff0f0; }
+  #mic-btn.recording { background:#ff4b4b; color:#fff; animation:pulse 1.2s infinite; border-color:#cc0000; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 10px rgba(255,75,75,0)} }
+  #status { font-size:14px; color:#666; margin-bottom:12px; min-height:20px; }
+  #status.error { color:#cc0000; }
+  #status.success { color:#28a745; }
+  textarea { width:100%; min-height:140px; border:2px solid #e0e0e0; border-radius:12px; padding:14px; font-size:16px; resize:vertical; font-family:inherit; line-height:1.5; }
+  textarea:focus { outline:none; border-color:#ff4b4b; }
+  #send-btn { width:100%; padding:16px; background:#28a745; color:#fff; border:none; border-radius:12px; font-size:18px; font-weight:600; cursor:pointer; margin-top:16px; transition:background 0.2s; }
+  #send-btn:hover { background:#218838; }
+  #send-btn:disabled { background:#ccc; cursor:not-allowed; }
+  .back-link { display:block; text-align:center; margin-top:16px; color:#666; font-size:13px; text-decoration:none; }
+  .back-link:hover { color:#333; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎤 Voice Capture</h1>
+  <p class="subtitle">Speak clearly in your language, then send to the form.</p>
+
+  <div class="row">
+    <select id="lang">
+      <option value="en-US">English</option>
+      <option value="hi-IN">हिन्दी</option>
+      <option value="kn-IN">ಕನ್ನಡ</option>
+      <option value="te-IN">తెలుగు</option>
+      <option value="ta-IN">தமிழ்</option>
+      <option value="mr-IN">मराठी</option>
+      <option value="pa-IN">ਪੰਜਾਬੀ</option>
+    </select>
+    <button id="mic-btn" onclick="toggleMic()">🎤 Start Recording</button>
+  </div>
+  <div id="status"></div>
+  <textarea id="transcript" placeholder="Your speech will appear here... You can also type directly."></textarea>
+  <button id="send-btn" onclick="sendText()">✅ Send to Onboarding Form</button>
+  <a class="back-link" href="javascript:history.back()">← Back to form</a>
+</div>
+
+<script>
+var rec = null, finalT = '';
+
+function toggleMic() {
+  if (rec) { rec.stop(); return; }
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('status').className = 'error';
+    document.getElementById('status').textContent = '⚠️ Voice not supported in this browser. Please type your message.';
+    return;
+  }
+
+  rec = new SR();
+  rec.lang = document.getElementById('lang').value;
+  rec.interimResults = true;
+  rec.continuous = true;
+
+  rec.onstart = function() {
+    document.getElementById('mic-btn').textContent = '🔴 Stop';
+    document.getElementById('mic-btn').classList.add('recording');
+    document.getElementById('status').className = '';
+    document.getElementById('status').textContent = '🎧 Listening... Speak now';
+    finalT = '';
+  };
+
+  rec.onresult = function(e) {
+    var interim = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      var t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) { finalT += t + ' '; } else { interim += t; }
+    }
+    document.getElementById('transcript').value = finalT + interim;
+  };
+
+  rec.onend = function() {
+    document.getElementById('mic-btn').textContent = '🎤 Start Recording';
+    document.getElementById('mic-btn').classList.remove('recording');
+    rec = null;
+    var cleanText = finalT.trim();
+    document.getElementById('transcript').value = cleanText;
+    if (cleanText) {
+      document.getElementById('status').className = 'success';
+      document.getElementById('status').textContent = '✅ Captured! Edit if needed, then click Send.';
+    } else {
+      document.getElementById('status').className = 'error';
+      document.getElementById('status').textContent = 'No speech detected. Try again or type below.';
+    }
+  };
+
+  rec.onerror = function(e) {
+    document.getElementById('mic-btn').textContent = '🎤 Start Recording';
+    document.getElementById('mic-btn').classList.remove('recording');
+    rec = null;
+    document.getElementById('status').className = 'error';
+    if (e.error === 'not-allowed') {
+      document.getElementById('status').textContent = '⚠️ Microphone access denied. Allow mic in browser settings.';
+    } else if (e.error === 'no-speech') {
+      document.getElementById('status').textContent = 'No speech detected. Try again.';
+    } else {
+      document.getElementById('status').textContent = 'Error: ' + e.error;
+    }
+  };
+
+  rec.start();
+}
+
+function sendText() {
+  var text = document.getElementById('transcript').value.trim();
+  if (!text) { alert('Please speak or type something first!'); return; }
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('send-btn').textContent = '⏳ Sending...';
+  window.location.href = '/voice_done?text=' + encodeURIComponent(text);
+}
+</script>
+</body>
+</html>

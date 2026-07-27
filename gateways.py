@@ -8,7 +8,11 @@ import requests
 from auth import authenticate
 from llm.adapters import get_text_adapter
 from models import Animal, Appointment, Farm, Farmer, HealthLog
-from services.weather_alert.service import get_weather_alert
+from services.farmer_onboarding_service.models import OnboardingRequest
+from services.farmer_onboarding_service.service import process_turn as _process_onboarding_turn
+from services.llm_service.bedrock_adapter import generate_seasonal_advisory
+from services.query_agent.agent import process_query
+from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
 from storage import (
     animals_for_farmer,
     appointments_for_farmer,
@@ -296,6 +300,21 @@ def complete_text(messages: list[dict[str, str]], system: str) -> str:
     return str(resp.json().get("content", ""))
 
 
+def process_data_query(farmer_id: str, query: str) -> dict[str, Any]:
+    if not is_remote_mode():
+        return process_query(query=query, farmer_id=farmer_id)
+
+    resp = requests.post(
+        f"{_api_base()}/farmers/{farmer_id}/query",
+        json={"query": query},
+        timeout=45,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return resp.json()
+
+
 def fetch_weather_alert(location_or_pin: str, country_code: str = "in", days: int = 3) -> dict[str, Any]:
     if not is_remote_mode():
         return get_weather_alert(location_or_pin=location_or_pin, country_code=country_code, days=days)
@@ -313,6 +332,33 @@ def fetch_weather_alert(location_or_pin: str, country_code: str = "in", days: in
         raise ValueError(resp.json().get("detail", "Invalid request"))
     resp.raise_for_status()
     return resp.json()
+
+
+def fetch_seasonal_advisory(location_or_pin: str, country_code: str = "in", days: int = 7) -> str:
+    if not is_remote_mode():
+        data = get_seasonal_advisory_data(
+            location_or_pin=location_or_pin, country_code=country_code, days=days
+        )
+        return generate_seasonal_advisory(
+            district=data["district"],
+            location=data["location"],
+            forecast=data["forecast"],
+            historical=data["historical"],
+        )
+
+    resp = requests.post(
+        f"{_api_base()}/weather/seasonal-advisory",
+        json={
+            "location_or_pin": location_or_pin,
+            "country_code": country_code,
+            "days": days,
+        },
+        timeout=45,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return str(resp.json().get("advisory", ""))
 
 
 def get_farmer_weather_location(farmer_id: str) -> str:
@@ -341,6 +387,52 @@ def set_farmer_weather_location(farmer_id: str, weather_location: str) -> str:
         raise ValueError(resp.json().get("detail", "Invalid request"))
     resp.raise_for_status()
     return str(resp.json().get("weather_location") or "")
+
+
+_ONBOARDING_API_URL: Optional[str] = None
+
+
+def _onboarding_url() -> str:
+    global _ONBOARDING_API_URL
+    if _ONBOARDING_API_URL is None:
+        _ONBOARDING_API_URL = os.environ.get(
+            "FARMER_ONBOARDING_API_URL",
+            "http://localhost:8004",
+        )
+    return _ONBOARDING_API_URL
+
+
+def process_farmer_onboarding(
+    text: str,
+    existing: Optional[dict[str, Any]] = None,
+    language: str = "en",
+) -> dict[str, Any]:
+    if not is_remote_mode():
+        req = OnboardingRequest(text=text, existing=existing, language=language)
+        resp = _process_onboarding_turn(req)
+        return resp.model_dump(exclude_none=True)
+    resp = requests.post(
+        f"{_onboarding_url()}/onboarding",
+        json={"text": text, "existing": existing, "language": language},
+        timeout=30,
+    )
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("error", "Invalid request"))
+    resp.raise_for_status()
+    return resp.json()
+
+
+def finalize_onboarding(farmer: dict[str, Any], farm: dict[str, Any]) -> dict[str, Any]:
+    if not is_remote_mode():
+        from services.farmer_onboarding_service.service import build_final_output
+        return build_final_output(farmer, farm)
+    resp = requests.post(
+        f"{_onboarding_url()}/onboarding/finalize",
+        json={"farmer": farmer, "farm": farm},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 
 def list_farms_for_farmer(farmer_id: str) -> list[Farm]:
