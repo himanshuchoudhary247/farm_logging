@@ -1,6 +1,8 @@
 """Farmer Onboarding Streamlit App."""
 import os
 import json
+import hashlib
+import subprocess
 import tempfile
 from typing import Any
 import streamlit as st
@@ -19,6 +21,14 @@ def api_call(endpoint: str, payload: dict) -> dict | None:
     except Exception as e:
         return {"error": str(e)}
 
+def api_call_raw(endpoint: str, params: dict) -> bytes | None:
+    try:
+        r = http.get(f"{API_BASE}{endpoint}", params=params, timeout=30, verify=False)
+        r.raise_for_status()
+        return r.content
+    except Exception:
+        return None
+
 def transcribe_audio(audio_bytes, language="en-US"):
     recognizer = sr.Recognizer()
     lang_map = {
@@ -27,12 +37,21 @@ def transcribe_audio(audio_bytes, language="en-US"):
     }
     sr_lang = lang_map.get(language, "en-US")
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+    wav_path = None
+    with tempfile.NamedTemporaryFile(suffix=".rec", delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
 
     try:
-        with sr.AudioFile(tmp_path) as source:
+        if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+            wav_path = tmp_path
+        else:
+            wav_path = tmp_path + ".wav"
+            subprocess.run(["ffmpeg", "-y", "-i", tmp_path, "-ar", "16000", "-ac", "1", wav_path],
+                           capture_output=True, timeout=30)
+            if not os.path.exists(wav_path) or os.path.getsize(wav_path) < 100:
+                return None
+        with sr.AudioFile(wav_path) as source:
             audio = recognizer.record(source)
         text = recognizer.recognize_google(audio, language=sr_lang)
         return text
@@ -40,10 +59,14 @@ def transcribe_audio(audio_bytes, language="en-US"):
         return None
     except sr.RequestError as e:
         return f"ERROR: Speech service unavailable: {e}"
+    except Exception as e:
+        return f"ERROR: {e}"
     finally:
         os.unlink(tmp_path)
+        if wav_path and wav_path != tmp_path and os.path.exists(wav_path):
+            os.unlink(wav_path)
 
-def process_text(text: str):
+def process_text(text: str, language: str = "en-US"):
     if not text.strip():
         return
     st.session_state.chat_history.append({"role": "user", "content": text})
@@ -56,6 +79,7 @@ def process_text(text: str):
             },
             "current_field": st.session_state.get("current_field"),
             "conversation_history": st.session_state.chat_history[-6:],
+            "language": language,
         })
     if result and not result.get("error"):
         st.session_state.farmer_data = result.get("farmer", {})
@@ -65,6 +89,11 @@ def process_text(text: str):
         st.session_state.current_field = result.get("current_field")
         response = result.get("follow_up_question", "All details collected!")
         st.session_state.chat_history.append({"role": "assistant", "content": response})
+        try:
+            tts = api_call_raw("/tts", params={"text": response, "language": language})
+            st.session_state["pending_tts"] = tts if tts else None
+        except Exception:
+            st.session_state["pending_tts"] = None
     else:
         error_msg = result.get("error", "Unknown error") if result else "No response"
         st.error(f"Error: {error_msg}")
@@ -93,39 +122,52 @@ with tab1:
     st.subheader("Chat-based Registration")
     st.caption("Type naturally or use voice — the system will extract your details.")
 
-    st.markdown("##### 🎤 Voice Input")
-
     lang = st.selectbox("Language", ["en-US", "hi-IN", "kn-IN", "te-IN", "ta-IN", "mr-IN", "pa-IN"],
-                        format_func=lambda x: {"en-US":"English","hi-IN":"Hindi","kn-IN":"Kannada",
-                                               "te-IN":"Telugu","ta-IN":"Tamil","mr-IN":"Marathi",
-                                               "pa-IN":"Punjabi"}[x], key="voice_lang")
-
-    audio_data = st.audio_input("🎙️ Record your voice", key="audio_recorder")
-
-    if audio_data is not None:
-        audio_id = id(audio_data)
-        if audio_id != st.session_state.last_audio_id:
-            st.session_state.last_audio_id = audio_id
-            st.audio(audio_data, format="audio/wav")
-            with st.spinner("Transcribing your speech..."):
-                text = transcribe_audio(audio_data.read(), lang)
-            if text and not str(text).startswith("ERROR:"):
-                st.success(f"✓ Transcribed: **{text}**")
-                process_text(text)
-            elif str(text).startswith("ERROR:"):
-                st.error(str(text))
-            else:
-                st.warning("Could not understand the audio. Please try again or type below.")
-
-    st.divider()
+                        format_func=lambda x: {"en-US":"English","hi-IN":"हिन्दी","kn-IN":"ಕನ್ನಡ",
+                                               "te-IN":"తెలుగు","ta-IN":"தமிழ்","mr-IN":"मराठी",
+                                               "pa-IN":"ਪੰਜਾਬੀ"}[x], key="voice_lang")
 
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    if prompt := st.chat_input("Tell me about yourself and your farm..."):
-        process_text(prompt)
+    if st.session_state.get("pending_tts"):
+        st.audio(st.session_state.pop("pending_tts"), format="audio/mpeg", autoplay=True)
+
+    input_col, voice_col = st.columns([5, 1])
+    with input_col:
+        text_input = st.text_input("Message", placeholder="Tell me about yourself and your farm...",
+                                   label_visibility="collapsed", key="chat_text_input")
+    with voice_col:
+        audio_data = st.audio_input("Mic", key="audio_recorder")
+    st.caption("Allow microphone access when prompted.")
+
+    if text_input:
+        process_text(text_input, lang)
         st.rerun()
+
+    if audio_data is not None:
+        try:
+            audio_data.seek(0)
+            audio_bytes = audio_data.read()
+        except Exception:
+            audio_bytes = None
+        if not audio_bytes or len(audio_bytes) < 100:
+            st.warning("Recording too short. Try again.")
+        else:
+            audio_hash = hashlib.md5(audio_bytes).hexdigest()
+            if audio_hash != st.session_state.get("last_audio_hash"):
+                st.session_state.last_audio_hash = audio_hash
+                with st.spinner("Transcribing..."):
+                    text = transcribe_audio(audio_bytes, lang)
+                if text and not str(text).startswith("ERROR:"):
+                    st.success(f"Transcribed: {text}")
+                    process_text(text, lang)
+                elif str(text).startswith("ERROR:"):
+                    st.error(str(text))
+                else:
+                    st.warning("Could not understand. Try again or type below.")
+                st.rerun()
 
 with tab2:
     st.subheader("Manual Form Entry")
