@@ -19,6 +19,15 @@ from weather_service import (
     resolve_location,
 )
 
+try:
+    from emergency_alerts.api import fetch_alert_feed as _fetch_alert_feed
+except ImportError:
+    from services.emergency_alerts.api import fetch_alert_feed as _fetch_alert_feed
+
+
+def fetch_alert_feed(pin=None):
+    return _fetch_alert_feed(pin=pin) or {"pins": [], "records": [], "last_run": None}
+
 API_BASE = os.environ.get("API_BASE_URL", "").rstrip("/")
 
 
@@ -107,7 +116,7 @@ with st.sidebar:
     else:
         st.caption("No LLM SMS — set API_BASE_URL for Bedrock-powered advisories.")
 
-tab1, tab2, tab3, tab4 = st.tabs(["⚠️ Risk Alert", "🧑‍⚕️ SMS Advisory", "📜 Historical Data", "📊 Weekly Insight"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["⚠️ Risk Alert", "🧑‍⚕️ SMS Advisory", "📜 Historical Data", "📊 Weekly Insight", "🚨 Emergency Alerts"])
 
 with tab1:
     with st.form("f1"):
@@ -257,5 +266,51 @@ with tab4:
                             st.write(f"**{d_info_name}:**")
                             for p in d_info.get("prevention", []):
                                 st.write(f"  - {p}")
+
+with tab5:
+    st.markdown("### 🚨 Async Emergency Alerts (10 demo PINs)")
+    st.caption("Daily feed generated from Open-Meteo forecasts + ICAR/Kisan Suvidha district advisories, with Bedrock-powered actionable insights in the farmer's language.")
+
+    feed = fetch_alert_feed()
+    pins = feed.get("pins", [])
+    records = feed.get("records", [])
+    last_run = feed.get("last_run") or {}
+
+    st.write(f"**Last scan:** {last_run.get('finished_at') or 'never'} — {last_run.get('pins_processed', 0)} pins, {last_run.get('new_alerts', 0)} new alerts")
+
+    if not pins:
+        st.info("No demo PIN codes configured.")
+        st.stop()
+
+    selected = st.selectbox(
+        "Select demo PIN code",
+        options=[p["pin"] for p in pins],
+        format_func=lambda p: next((f"{x['pin']} — {x['district']} ({x['state']})" for x in pins if x["pin"] == p), p),
+    )
+
+    for r in [x for x in records if x.get("pin") == selected]:
+        level = r.get("level", "low")
+        cm = {"high": "red", "medium": "orange", "low": "green"}
+        st.markdown(
+            f"### :{cm.get(level, 'green')}[{level.upper()}] · {r.get('date', '')} · {r.get('type', '')}"
+        )
+        st.write(" | ".join(r.get("reasons", [])))
+        if r.get("insight"):
+            st.info(r["insight"])
+        st.caption(f"🌐 {r.get('source')} · Language: {r.get('language_name', 'English')}")
+        st.markdown("---")
+
+    if not [x for x in records if x.get("pin") == selected]:
+        st.info("No alerts recorded yet for this PIN. Feed is refreshed by the nightly scan.")
+
+    digest_rows = [x for x in records if x.get("pin") == selected and x.get("digest")]
+    if digest_rows:
+        with st.expander("ICAR district advisory digest"):
+            for r in digest_rows[:1]:
+                d = r.get("digest") or {}
+                if d.get("advisory"):
+                    st.write(d["advisory"])
+                else:
+                    st.write(d.get("note", "No advisory published yet this week."))
 
 st.caption("Powered by Open-Meteo + AWS Bedrock Mistral + ICAR-NIVEDI NADRES + OpenStreetMap.")

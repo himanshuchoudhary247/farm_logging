@@ -11,6 +11,7 @@ from models import Animal, Appointment, Farm, Farmer, HealthLog
 from services.farmer_onboarding_service.models import OnboardingRequest
 from services.farmer_onboarding_service.service import process_turn as _process_onboarding_turn
 from services.llm_service.bedrock_adapter import generate_seasonal_advisory
+from services.emergency_alerts.storage import last_run, load_feed
 from services.query_agent.agent import process_query
 from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
 from storage import (
@@ -489,5 +490,19 @@ def list_farmer_weather_notifications(farmer_id: str) -> list[dict[str, Any]]:
     if not is_remote_mode():
         return [x.model_dump() for x in weather_notifications_for_farmer(farmer_id)]
     resp = requests.get(f"{_api_base()}/farmers/{farmer_id}/weather-notifications", timeout=20)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_alert_feed(pin: Optional[str] = None) -> dict[str, Any]:
+    """Read the async emergency-alert feed (10 demo PINs)."""
+    if not is_remote_mode():
+        from services.emergency_alerts.api import fetch_alert_feed as _feed
+        return _feed(pin=pin)
+    resp = requests.get(
+        f"{_api_base()}/weather/alerts",
+        params={"pin": pin} if pin else {},
+        timeout=20,
+    )
     resp.raise_for_status()
     return resp.json()

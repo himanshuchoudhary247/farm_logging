@@ -32,6 +32,7 @@ from services.llm_service.bedrock_adapter import (
     extract_farm_onboarding,
     generate_seasonal_advisory,
 )
+from services.emergency_alerts.api import fetch_alert_feed
 from services.query_agent.agent import process_query
 from difflib import get_close_matches
 
@@ -429,6 +430,12 @@ def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/weather/alerts")
+def emergency_alert_feed(pin: Optional[str] = None) -> dict[str, Any]:
+    """Return the async emergency-alert feed for the 10 demo PIN codes."""
+    return fetch_alert_feed(pin=pin)
 
 
 @app.get("/farmers/{farmer_id}/weather-preference")

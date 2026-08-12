@@ -16,6 +16,22 @@ from services.farmer_onboarding_service.models import (
 
 log = logging.getLogger("onboarding.extraction")
 
+# Fields whose values are PII / sensitive and must be masked in logs.
+_PII_FIELDS = {
+    "aadharNo", "aadharPhoto", "phone", "alternateMobile", "alternatePhone",
+    "farmPhone", "panNo", "governmentIdPhoto", "dob",
+}
+
+
+def _mask_value(field: str, value: Any) -> Any:
+    """Mask sensitive field values before they reach logs."""
+    if field not in _PII_FIELDS or value is None or value == "":
+        return value
+    s = str(value)
+    if len(s) <= 4:
+        return "***"
+    return s[:2] + "***" + s[-2:]
+
 _FIELD_QUESTIONS: dict[str, str] = {
     "aadharNo": "What is your Aadhar number?",
     "gender": "What is your gender?",
@@ -122,7 +138,7 @@ def _validate_merged(farmer: dict, farm: dict) -> tuple[dict, dict, list[str]]:
         for fname, val in list(fields.items()):
             err = _validate(fname, val)
             if err:
-                log.info("VALIDATION_FAIL field=%s value=%r reason=%s", fname, val, err)
+                log.info("VALIDATION_FAIL field=%s value=%r reason=%s", fname, _mask_value(fname, val), err)
                 error_fields.append(fname)
                 if section == "farmer":
                     farmer[fname] = ""
@@ -275,12 +291,13 @@ Return JSON only:
 - follow_up_question: next question string, or null if all done"""
 
     t_llm = time.time()
+    raw = ""
     try:
         raw = llm.complete(messages=[{"role": "user", "content": prompt}], system=_LLM_SYSTEM)
         parsed = _json.loads(raw.strip())
         llm_ok = True
     except Exception as e:
-        log.warning("LLM_PARSE_FAIL error=%s raw=%r", e, raw if 'raw' in dir() else "N/A")
+        log.warning("LLM_PARSE_FAIL error=%s raw=%r", e, raw)
         parsed = {}
         llm_ok = False
     t_llm_elapsed = time.time() - t_llm
@@ -289,14 +306,15 @@ Return JSON only:
     extracted_farm = parsed.get("farm", {})
     llm_fq = parsed.get("follow_up_question")
 
-    # Remap common LLM mistakes: unprefixed farm fields and prefixed farmer fields
+    # Remap common LLM mistakes: unprefixed farm fields placed in the farm
+    # section (e.g. "name" -> "farmName"), and prefixed farmer fields placed
+    # in the farmer section (e.g. "farmName" -> dropped, belongs in farm).
     _FARM_PREFIX_REMAP = {"name": "farmName", "city": "farmCity", "state": "farmState", "pincode": "farmPincode", "phone": "farmPhone"}
     for old_k, new_k in list(_FARM_PREFIX_REMAP.items()):
-        if old_k in extracted_farm and old_k not in FARMER_FIELDS:
+        if old_k in extracted_farm and old_k not in FARM_FIELDS and new_k not in extracted_farm:
             extracted_farm[new_k] = extracted_farm.pop(old_k)
             log.info("REMAP_FARM_FIELD %s -> %s", old_k, new_k)
         if new_k in extracted_farmer:
-            extracted_farmer[new_k.replace("farm", "farm ")]  # drop silently
             del extracted_farmer[new_k]
             log.info("REMAP_FARMER_DROP %s", new_k)
 
@@ -307,13 +325,13 @@ Return JSON only:
     for k, v in extracted_farmer.items():
         if _has_value(v):
             merged_farmer[k] = v
-            log.info("MERGE_LLM section=farmer field=%s value=%r", k, v)
+            log.info("MERGE_LLM section=farmer field=%s value=%r", k, _mask_value(k, v))
 
     merged_farm = dict(filled_farm)
     for k, v in extracted_farm.items():
         if _has_value(v):
             merged_farm[k] = v
-            log.info("MERGE_LLM section=farm field=%s value=%r", k, v)
+            log.info("MERGE_LLM section=farm field=%s value=%r", k, _mask_value(k, v))
 
     # ── Fallback: if current_field is still missing after LLM, fill it from raw text ──
     text_stripped = text.strip()
@@ -345,7 +363,7 @@ Return JSON only:
             merged_farmer[target] = cleaned
         else:
             merged_farm[target] = cleaned
-        log.info("FALLBACK_CURRENT_FIELD section=%s field=%s value=%r raw=%r", sec, target, cleaned, text_stripped)
+        log.info("FALLBACK_CURRENT_FIELD section=%s field=%s value=%r raw=%r", sec, target, _mask_value(target, cleaned), text_stripped)
     elif not extracted_farmer and not extracted_farm:
         # Full LLM miss — assign to first missing field
         if _has_value(text_stripped):
@@ -367,7 +385,7 @@ Return JSON only:
                     merged_farmer[target] = cleaned
                 else:
                     merged_farm[target] = cleaned
-                log.info("FALLBACK_FIRST_MISSING section=%s field=%s value=%r", sec, target, cleaned)
+                log.info("FALLBACK_FIRST_MISSING section=%s field=%s value=%r", sec, target, _mask_value(target, cleaned))
 
     # ── Pre-clean certain fields before validation ──
     for section, fields in [("farmer", merged_farmer), ("farm", merged_farm)]:

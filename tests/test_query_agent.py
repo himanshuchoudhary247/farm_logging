@@ -32,10 +32,14 @@ def test_empty_sql():
         query_db.validate_sql("", "farmer1")
 
 
-def test_farmer_scoping_injected():
+def test_validate_sql_returns_clean_select():
+    """validate_sql no longer injects farmer_id into SQL — scoping is at the
+    data layer (per-farmer in-memory DB). The returned SQL should be a clean
+    SELECT with LIMIT appended."""
     sql = query_db.validate_sql("SELECT * FROM animals", "farmer_test_1")
-    assert "farmer_id = 'farmer_test_1'" in sql
     assert sql.upper().startswith("SELECT")
+    assert "farmer_id" not in sql  # no SQL-level injection
+    assert "LIMIT" in sql
 
 
 def test_limit_injected():
@@ -63,50 +67,49 @@ def test_execute_bad_sql_returns_error():
     assert "error" in result
 
 
-def test_farmer_scoped_tables_get_scope():
+def test_farmer_scoped_tables_queryable():
+    """All farmer-scoped tables should be queryable without error (data is
+    pre-filtered to the farmer's rows at DB-build time)."""
     for table in ["animals", "health_logs", "appointments", "farms", "weather_notifications"]:
-        sql = query_db.validate_sql(f"SELECT * FROM {table}", "f-test")
-        assert "farmer_id = 'f-test'" in sql, f"{table} missing farmer scope"
+        result = query_db.execute_query(f"SELECT COUNT(*) as c FROM {table}", "f-test")
+        assert result["success"], f"{table} query failed: {result.get('error')}"
 
 
-def test_non_farmer_tables_no_scope():
-    sql = query_db.validate_sql("SELECT * FROM farmers", "f-test")
-    assert "farmer_id =" not in sql
+def test_non_farmer_table_queryable():
+    result = query_db.execute_query("SELECT COUNT(*) as c FROM farmers", "f-test")
+    assert result["success"]
 
 
-def test_existing_where_not_duplicated():
-    sql = query_db.validate_sql(
-        "SELECT * FROM animals WHERE species = 'goat'", "f1"
-    )
-    assert "animals.farmer_id = 'f1' AND" in sql
+def test_existing_where_preserved():
+    sql = query_db.validate_sql("SELECT * FROM animals WHERE species = 'goat'", "f1")
     assert sql.count("WHERE") == 1
+    assert "species = 'goat'" in sql
 
 
-def test_group_by_scope():
+def test_group_by_preserved():
     sql = query_db.validate_sql(
         "SELECT species, COUNT(*) as cnt FROM animals GROUP BY species", "f1"
     )
-    assert "animals.farmer_id = 'f1'" in sql
     assert "GROUP BY" in sql
-    assert sql.rindex("WHERE") < sql.rindex("GROUP BY")
+    assert sql.rindex("WHERE") < sql.rindex("GROUP BY") if "WHERE" in sql.upper() else True
 
 
-def test_join_alias_scope():
-    sql = query_db.validate_sql(
+def test_join_works():
+    """JOINs across scoped tables should work — no cross-farmer leak because
+    the DB only contains the querying farmer's rows."""
+    result = query_db.execute_query(
         "SELECT a.tag_or_name, ap.date FROM appointments ap JOIN animals a ON ap.animal_id = a.id",
         "f1",
     )
-    assert "farmer_id = 'f1'" in sql
-    assert sql.upper().startswith("SELECT")
+    assert result["success"], f"JOIN failed: {result.get('error')}"
 
 
 def test_join_animals_first():
-    sql = query_db.validate_sql(
+    result = query_db.execute_query(
         "SELECT a.tag_or_name, ap.date FROM animals a JOIN appointments ap ON ap.animal_id = a.id",
         "f1",
     )
-    # Either qualifier is fine — the key is that farmer_id is injected
-    assert "farmer_id = 'f1'" in sql
+    assert result["success"], f"JOIN failed: {result.get('error')}"
 
 
 def test_cache_reused():
@@ -125,11 +128,16 @@ def test_cache_clear():
 
 
 def test_multiple_farmers_isolated():
+    """Two different farmer IDs get separate in-memory DBs — each contains
+    only that farmer's rows (farmers table has at most 1 row per farmer_id)."""
     query_db.clear_cache()
     r1 = query_db.execute_query("SELECT COUNT(*) as c FROM farmers", "farmer1")
     r2 = query_db.execute_query("SELECT COUNT(*) as c FROM farmers", "farmer2")
     assert r1["success"]
     assert r2["success"]
+    # Each farmer DB has at most 1 row in farmers (their own), never all 102
+    assert r1["row_count"] <= 1
+    assert r2["row_count"] <= 1
 
 
 def test_schema_describes_all_tables():

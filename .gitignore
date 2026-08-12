@@ -8,3 +8,8 @@ data/
 *.lock
 .env
 .DS_Store
+*.pem
+*.key
+*.keystore
+*.p12
+*.pfx
