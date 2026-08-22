@@ -2,12 +2,17 @@
 import json
 import io
 import os
+import time
+import logging
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 import boto3
+
+log = logging.getLogger("onboarding_api")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 
 app = FastAPI(title="Farmer Onboarding API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -372,6 +377,7 @@ def _validate_value(field: str, value, lang_code: str):
 
 def extract_fields_llm(text: str, existing: dict, language: str,
                        current_field: str = None, conversation_history: list = None) -> dict:
+    t_total_start = time.time()
     prev_farmer = existing.get("farmer", {})
     prev_farm = existing.get("farm", {})
     filled_farmer = {k: v for k, v in prev_farmer.items() if v}
@@ -386,6 +392,8 @@ def extract_fields_llm(text: str, existing: dict, language: str,
     if _is_greeting(text, lang_code):
         ask_field = current_field or (all_missing[0] if all_missing else None)
         question = lang_questions.get(ask_field, FIELD_QUESTIONS.get(ask_field, "What can I help you with?"))
+        elapsed_total = (time.time() - t_total_start) * 1000
+        log.info("LATENCY greeting_check total=%.0fms", elapsed_total)
         return {
             "farmer": filled_farmer,
             "farm": filled_farm,
@@ -393,6 +401,7 @@ def extract_fields_llm(text: str, existing: dict, language: str,
             "follow_up_question": f"{GREETING_ACK.get(lang_code, 'Hello!')} {POLITE_OPENER.get(lang_code, '')}{question.lower() if lang_code == 'en' else question}",
             "current_field": ask_field,
             "complete": False,
+            "timing": {"total_ms": round(elapsed_total, 1), "model_ms": 0, "pre_model_ms": round(elapsed_total, 1), "post_model_ms": 0},
         }
 
     # Build conversation context string
@@ -494,10 +503,12 @@ OUTPUT: Return ONLY valid JSON (no markdown, no explanation):
         "temperature": 0,
         "top_p": 0.9
     })
+    t_model_start = time.time()
     resp = client.invoke_model(modelId="mistral.mistral-large-3-675b-instruct", body=body)
+    model_elapsed = (time.time() - t_model_start) * 1000
     result = json.loads(resp["body"].read())
     raw_text = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-
+    t_parse_start = time.time()
     try:
         parsed = json.loads(raw_text)
     except Exception:
@@ -511,6 +522,8 @@ OUTPUT: Return ONLY valid JSON (no markdown, no explanation):
                 parsed = {}
         else:
             parsed = {}
+    parse_elapsed = (time.time() - t_parse_start) * 1000
+    log.info("LATENCY model_invoke=%.0fms json_parse=%.1fms", model_elapsed, parse_elapsed)
 
     merged_farmer = dict(filled_farmer)
     merged_farm = dict(filled_farm)
@@ -591,6 +604,19 @@ OUTPUT: Return ONLY valid JSON (no markdown, no explanation):
                      "pa": "ਸਾਰੀ ਜਾਣਕਾਰੀ ਦਰਜ ਹੋ ਗਈ!"}
         follow_up = CONFIRM_PREFIX.get(lang_code, "Got it! ") + "(" + ", ".join(unique_parts) + ") " + done_msgs.get(lang_code, "All details collected!")
 
+    total_elapsed = (time.time() - t_total_start) * 1000
+    pre_model_elapsed = (t_model_start - t_total_start) * 1000
+    post_model_elapsed = (time.time() - t_model_start - model_elapsed / 1000) * 1000
+    timing_info = {
+        "total_ms": round(total_elapsed, 1),
+        "model_ms": round(model_elapsed, 1),
+        "pre_model_ms": round(pre_model_elapsed, 1),
+        "post_model_ms": round(post_model_elapsed, 1),
+        "json_parse_ms": round(parse_elapsed, 1),
+    }
+    log.info("LATENCY total=%.0fms model=%.0fms pre_model=%.0fms post_model=%.0fms",
+             total_elapsed, model_elapsed, pre_model_elapsed, post_model_elapsed)
+
     return {
         "farmer": merged_farmer,
         "farm": merged_farm,
@@ -598,6 +624,7 @@ OUTPUT: Return ONLY valid JSON (no markdown, no explanation):
         "follow_up_question": follow_up,
         "current_field": field_hint,
         "complete": len(still_missing) == 0,
+        "timing": timing_info,
     }
 
 @app.post("/onboarding")

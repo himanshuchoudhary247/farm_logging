@@ -27,8 +27,8 @@ REQUIRED_FIELDS = ("animal_identifier", "issue", "date", "time")
 _TEXT = {
     "en": {
         "welcome": "Hello. Please tell me the animal name or tag, the issue and symptoms, and your preferred appointment date and time.",
-        "correct": "I understood {summary}. Is that correct?",
-        "updated": "I updated the details. {summary} Is that correct?",
+        "correct": "I understood: {summary}",
+        "updated": "Updated: {summary}",
         "yes_missing": "Thank you. Please provide {field}.",
         "ready": "All required details are complete. Would you like to submit this appointment?",
         "submit_yes": "Please say submit when you are ready to save the appointment.",
@@ -42,8 +42,8 @@ _TEXT = {
     },
     "hi": {
         "welcome": "नमस्ते। कृपया पशु का नाम या टैग, समस्या और लक्षण, तथा अपॉइंटमेंट की पसंदीदा तारीख और समय बताएं।",
-        "correct": "मैंने समझा: {summary}। क्या यह सही है?",
-        "updated": "मैंने जानकारी अपडेट कर दी है। {summary} क्या यह सही है?",
+        "correct": "मैंने समझा: {summary}",
+        "updated": "अपडेट किया गया: {summary}",
         "yes_missing": "धन्यवाद। कृपया {field} बताएं।",
         "ready": "सभी जरूरी जानकारी पूरी है। क्या आप अपॉइंटमेंट जमा करना चाहते हैं?",
         "submit_yes": "सेव करने के लिए कृपया सबमिट कहें।",
@@ -57,8 +57,8 @@ _TEXT = {
     },
     "ta": {
         "welcome": "வணக்கம். விலங்கின் பெயர் அல்லது குறிச்சொல், பிரச்சினை மற்றும் அறிகுறிகள், விருப்பமான சந்திப்பு தேதி மற்றும் நேரத்தைச் சொல்லுங்கள்.",
-        "correct": "நான் புரிந்துகொண்டது: {summary}. இது சரியா?",
-        "updated": "தகவல்கள் புதுப்பிக்கப்பட்டன. {summary} இது சரியா?",
+        "correct": "நான் புரிந்துகொண்டது: {summary}",
+        "updated": "புதுப்பிக்கப்பட்டது: {summary}",
         "yes_missing": "நன்றி. தயவுசெய்து {field} தெரிவிக்கவும்.",
         "ready": "தேவையான தகவல்கள் அனைத்தும் உள்ளன. இந்த சந்திப்பை சமர்ப்பிக்கவா?",
         "submit_yes": "சேமிக்க தயாரானதும் சமர்ப்பிக்கவும் என்று சொல்லுங்கள்.",

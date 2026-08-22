@@ -1,6 +1,7 @@
 """Farmer Onboarding Streamlit App."""
 import os
 import json
+import time
 import hashlib
 import subprocess
 import tempfile
@@ -70,6 +71,7 @@ def process_text(text: str, language: str = "en-US"):
     if not text.strip():
         return
     st.session_state.chat_history.append({"role": "user", "content": text})
+    t0 = time.time()
     with st.spinner("Processing with AI..."):
         result = api_call("/onboarding", {
             "text": text,
@@ -81,19 +83,34 @@ def process_text(text: str, language: str = "en-US"):
             "conversation_history": st.session_state.chat_history[-6:],
             "language": language,
         })
+    api_elapsed = (time.time() - t0) * 1000
+
     if result and not result.get("error"):
+        prev_field = st.session_state.get("current_field")
         st.session_state.farmer_data = result.get("farmer", {})
         st.session_state.farm_data = result.get("farm", {})
         st.session_state.missing_fields = result.get("missing_fields", [])
         st.session_state.complete = result.get("complete", False)
-        st.session_state.current_field = result.get("current_field")
+        new_field = result.get("current_field")
+        st.session_state.current_field = new_field
         response = result.get("follow_up_question", "All details collected!")
         st.session_state.chat_history.append({"role": "assistant", "content": response})
-        try:
-            tts = api_call_raw("/tts", params={"text": response, "language": language})
-            st.session_state["pending_tts"] = tts if tts else None
-        except Exception:
-            st.session_state["pending_tts"] = None
+
+        timing = result.get("timing", {})
+        st.session_state.last_timing = {
+            "api_total_ms": round(api_elapsed, 1),
+            "model_ms": timing.get("model_ms", 0),
+            "pre_model_ms": timing.get("pre_model_ms", 0),
+            "post_model_ms": timing.get("post_model_ms", 0),
+            "json_parse_ms": timing.get("json_parse_ms", 0),
+        }
+
+        if prev_field and new_field != prev_field:
+            st.session_state.awaiting_feedback = True
+            st.session_state.feedback_field = prev_field
+        else:
+            st.session_state.awaiting_feedback = False
+            st.session_state.feedback_field = None
     else:
         error_msg = result.get("error", "Unknown error") if result else "No response"
         st.error(f"Error: {error_msg}")
@@ -115,6 +132,12 @@ if "last_audio_id" not in st.session_state:
     st.session_state.last_audio_id = None
 if "current_field" not in st.session_state:
     st.session_state.current_field = None
+if "awaiting_feedback" not in st.session_state:
+    st.session_state.awaiting_feedback = False
+if "feedback_field" not in st.session_state:
+    st.session_state.feedback_field = None
+if "last_timing" not in st.session_state:
+    st.session_state.last_timing = None
 
 tab1, tab2 = st.tabs(["💬 Chat Mode", "📝 Manual Form"])
 
@@ -131,8 +154,58 @@ with tab1:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    if st.session_state.get("pending_tts"):
-        st.audio(st.session_state.pop("pending_tts"), format="audio/mpeg", autoplay=True)
+    if st.session_state.get("awaiting_feedback") and not st.session_state.get("complete"):
+        fb_field = st.session_state.get("feedback_field")
+        st.markdown(f"**Was the detected value for `{fb_field}` correct?**")
+        fb_col1, fb_col2 = st.columns([1, 1])
+        with fb_col1:
+            if st.button("👍 Thumbs Up", key="thumbs_up", use_container_width=True):
+                st.session_state.awaiting_feedback = False
+                st.session_state.feedback_field = None
+                st.rerun()
+        with fb_col2:
+            if st.button("👎 Thumbs Down", key="thumbs_down", use_container_width=True):
+                lang_code = lang.split("-")[0] if lang else "en"
+                lang_questions = {
+                    "en": {"name": "What is your name?", "phone": "What is your phone number?",
+                           "city": "Which city do you live in?", "state": "Which state are you from?",
+                           "pincode": "What is your pincode?", "gender": "What is your gender?",
+                           "aadharNo": "What is your Aadhar number?", "fatherOrSpouseName": "What is your father's or spouse's name?",
+                           "education": "What is your education level?", "occupation": "What is your occupation?",
+                           "farmName": "What is your farm name?", "sheepCount": "How many sheep do you have?",
+                           "goatCount": "How many goats do you have?", "totalAnimalCapacity": "What is your total animal capacity?",
+                           "farmCity": "In which city is your farm?", "farmState": "Which state is your farm in?"},
+                }
+                questions = lang_questions.get(lang_code, lang_questions["en"])
+                reask_q = questions.get(fb_field, f"Please re-enter: {fb_field}")
+
+                if fb_field in st.session_state.farmer_data:
+                    st.session_state.farmer_data[fb_field] = ""
+                elif fb_field in st.session_state.farm_data:
+                    st.session_state.farm_data[fb_field] = ""
+
+                if fb_field in st.session_state.missing_fields:
+                    pass
+                else:
+                    st.session_state.missing_fields = [fb_field] + st.session_state.missing_fields
+
+                st.session_state.current_field = fb_field
+                st.session_state.chat_history.append({"role": "assistant", "content": reask_q})
+                st.session_state.awaiting_feedback = False
+                st.session_state.feedback_field = None
+                st.rerun()
+
+    if st.session_state.get("last_timing"):
+        t = st.session_state.last_timing
+        with st.expander("⏱️ Last Request Latency"):
+            st.write(f"**API total:** {t['api_total_ms']:.0f}ms")
+            st.write(f"**Model inference:** {t['model_ms']:.0f}ms")
+            st.write(f"**Pre-model (prompt build + network):** {t['pre_model_ms']:.0f}ms")
+            st.write(f"**Post-model (parse + merge + validate):** {t['post_model_ms']:.0f}ms")
+            if t.get("json_parse_ms"):
+                st.write(f"**JSON parse:** {t['json_parse_ms']:.1f}ms")
+            network_est = t['api_total_ms'] - t['model_ms'] - t['pre_model_ms'] - t['post_model_ms']
+            st.write(f"**Network overhead (est):** {network_est:.0f}ms")
 
     input_col, voice_col = st.columns([5, 1])
     with input_col:
