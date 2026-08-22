@@ -63,6 +63,18 @@ export function App() {
   const [page, setPage] = useState<Page>(() =>
     pageFromPath(window.location.pathname),
   );
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("fh-theme");
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("fh-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const onPopState = () => setPage(pageFromPath(window.location.pathname));
@@ -94,6 +106,13 @@ export function App() {
             </button>
           ))}
         </nav>
+        <button
+          className="theme-toggle"
+          onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
         <button className="about-link" onClick={() => navigate("/about")}>
           About us
         </button>
