@@ -7,7 +7,7 @@ Two modes:
 
 import os
 import datetime
-from typing import Any
+from typing import Any, Optional
 
 import streamlit as st
 import requests as http
@@ -18,6 +18,14 @@ from weather_service import (
     get_historical_weather as _get_hist,
     resolve_location,
 )
+
+try:
+    from market_prices.mandi import get_feed_price_snapshot as _get_feed_snapshot
+except ImportError:
+    try:
+        from services.market_prices.mandi import get_feed_price_snapshot as _get_feed_snapshot
+    except ImportError:
+        _get_feed_snapshot = None
 
 try:
     from emergency_alerts.api import fetch_alert_feed as _fetch_alert_feed
@@ -137,12 +145,30 @@ with tab1:
                     st.warning(f"**{a['date']}** — {' | '.join(a['reasons'])}")
             with st.expander("Forecast"):
                 for d in r["forecast_days"]:
-                    st.write(
-                        f"- {d['date']}: {d.get('temperature_2m_max', '')}°C / "
-                        f"{d.get('temperature_2m_min', '')}°C  🌧️ "
-                        f"{d.get('precipitation_sum', 0)}mm  💨 "
-                        f"{d.get('wind_speed_10m_max', 0)}km/h"
-                    )
+                    max_t = d.get("temperature_2m_max")
+                    min_t = d.get("temperature_2m_min")
+                    max_display = f"{max_t}°C" if max_t is not None else "--"
+                    min_display = f"{min_t}°C" if min_t is not None else "--"
+                    rain = d.get("precipitation_sum", 0)
+                    wind = d.get("wind_speed_10m_max", 0)
+                    rh = d.get("relative_humidity_2m_mean")
+                    thi = d.get("thi")
+
+                    parts = [
+                        f"- {d['date']}: {max_display} / {min_display}",
+                        f"🌧️ {rain}mm",
+                        f"💨 {wind}km/h",
+                    ]
+                    if rh is not None:
+                        parts.append(f"💧 RH {round(rh)}%")
+                    if thi is not None:
+                        parts.append(f"🔺 THI {thi}")
+                    if d.get("heat_stress_level"):
+                        parts.append(f"🔥 {d['heat_stress_level'].upper()} heat")
+
+                    st.write("  ".join(parts))
+                    if d.get("heat_stress_reason"):
+                        st.caption(f"↳ {d['heat_stress_reason']}")
 
 with tab2:
     with st.form("f2"):
@@ -184,11 +210,20 @@ with tab4:
         loc4 = st.text_input("Location", "Bellary", key="wi")
         days4 = st.slider("Forecast days", 3, 14, 7, key="wld")
         if st.form_submit_button("Generate Weekly Insight"):
+            feed_snapshot = None
+            feed_error: Optional[str] = None
+            state_name: Optional[str] = None
             with st.spinner("Analyzing weather + disease risk..."):
                 alert = get_alert(loc4, days4)
                 advisory = get_advisory(loc4, days4)
                 lo = resolve_location(loc4)
                 hist = _get_hist(lo.lat, lo.lon)
+                state_name = alert.get("resolved_location", {}).get("state") if isinstance(alert, dict) else None
+                if _get_feed_snapshot and state_name:
+                    try:
+                        feed_snapshot = _get_feed_snapshot(state_name)
+                    except Exception as exc:  # pragma: no cover - network variability
+                        feed_error = str(exc)
 
             st.subheader(f"Weekly Deep Insight: {loc4}")
             st.caption(f"Location: {alert['resolved_location']['display_name']}")
@@ -255,6 +290,31 @@ with tab4:
                     st.write(f"**Risk:** {w.get('risk_level', 'N/A')}")
                     for a in w.get("advisories", []):
                         st.write(f"- {a}")
+
+            st.markdown("---")
+            st.markdown("### Feed Market Snapshot")
+            if not _get_feed_snapshot:
+                st.caption("Feed market snapshot unavailable in offline mode.")
+            elif feed_error:
+                st.warning(f"Could not load mandi prices for {state_name}: {feed_error}")
+            elif feed_snapshot and feed_snapshot.get("commodities"):
+                st.caption(f"Source: Mandi Price API — latest sync {feed_snapshot.get('latest_fetched_at') or 'recent'}")
+                for item in feed_snapshot["commodities"]:
+                    avg_price = item.get("modal_price_avg")
+                    min_price = item.get("modal_price_min")
+                    max_price = item.get("modal_price_max")
+                    sample_market = item.get("sample_market") or "multiple markets"
+                    arrival = item.get("arrival_date") or "latest"
+                    st.write(
+                        "- "
+                        f"{item['commodity']}: ₹{avg_price:.0f}/qtl (range ₹{min_price}-₹{max_price}) — "
+                        f"{sample_market} [{arrival}]"
+                    )
+            else:
+                if state_name:
+                    st.info(f"No feed commodity records found today for {state_name}.")
+                else:
+                    st.info("Could not determine state for this location.")
 
             if disease_ctx:
                 st.markdown("---")

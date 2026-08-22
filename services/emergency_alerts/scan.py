@@ -1,12 +1,11 @@
 """Async emergency-alert nightly scanner for the 10 demo PIN codes.
 
-Flow per PIN (4 sources blended):
-  1. Open-Meteo forecast → classified alerts (thunderstorm / heavy rain / wind)
-  2. ICAR-NIVEDI disease catalogue → seasonal disease advisory digest
-  3. IMD public warnings → best-effort weather warnings (often unavailable)
-  4. wttr.in → current conditions, classified if severe
-  For every alert: Bedrock Mistral generates an actionable insight in the
-  farmer's language. Dedupe by {pin, date, type + reasons fingerprint}.
+Flow per PIN:
+  1. resolve_location(pin) -> Open-Meteo forecast (via weather_alert service)
+  2. classify alerts (thunderstorm / heavy rain / strong wind)
+  3. pull ICAR/Kisan Suvidha district advisory digest (best-effort)
+  4. generate Bedrock actionable insight in the farmer's language
+  5. dedupe by {pin, date, type} and persist to data/alert_feed.json
 
 Runs standalone (`python -m services.emergency_alerts.scan`) for cron.
 """
@@ -18,9 +17,7 @@ import time
 from typing import Any
 
 from .config import DEMO_PINS, LANG_NAMES, SCAN_HORIZON_DAYS
-from .fetch_icar import advisory_digest as _icar_digest
-from .fetch_imd import fetch_imd_warnings as _fetch_imd
-from .fetch_wttr import fetch_wttr as _fetch_wttr
+from .fetch_kisansuvidha import advisory_digest
 from .insight import generate_alert_insight, generate_digest_insight
 from .storage import (
     append_run,
@@ -42,17 +39,6 @@ def _run_id() -> str:
     return utc_today()
 
 
-def _base_record(pin: str, district: str, state: str, display_name: str, language: str) -> dict[str, Any]:
-    return {
-        "pin": pin,
-        "district": district,
-        "state": state,
-        "location": display_name,
-        "language": language,
-        "language_name": LANG_NAMES.get(language, "English"),
-    }
-
-
 def scan_pin(pin_info: dict[str, str], *, generate: bool = True) -> dict[str, Any]:
     pin = pin_info["pin"]
     district = pin_info["district"]
@@ -63,14 +49,22 @@ def scan_pin(pin_info: dict[str, str], *, generate: bool = True) -> dict[str, An
     resolved = weather.get("resolved_location", {}) or {}
     display_name = resolved.get("display_name", district)
 
-    alerts: list[dict[str, Any]] = []
+    digest = advisory_digest(district, state)
+    digest_insight = None
+    if generate and digest.get("advisory"):
+        digest_insight = generate_digest_insight(digest["advisory"], district, language)
 
-    # ── Source 1: Open-Meteo forecast alerts ──
+    alerts: list[dict[str, Any]] = []
     for a in weather.get("alerts", []):
         reasons = a.get("reasons") or []
         alert_type = reasons[0] if reasons else "weather"
-        record = _base_record(pin, district, state, display_name, language)
-        record.update({
+        record = {
+            "pin": pin,
+            "district": district,
+            "state": state,
+            "location": display_name,
+            "language": language,
+            "language_name": LANG_NAMES.get(language, "English"),
             "date": a.get("date"),
             "level": a.get("level", "low"),
             "type": alert_type,
@@ -81,71 +75,27 @@ def scan_pin(pin_info: dict[str, str], *, generate: bool = True) -> dict[str, An
             "source": "Open-Meteo forecast",
             "insight": None,
             "digest": None,
-        })
+        }
         if generate:
             record["insight"] = generate_alert_insight(alert=a, district=district, language=language)
         alerts.append(record)
 
-    # ── Source 2: ICAR-NIVEDI disease catalogue advisory ──
-    icar = _icar_digest(district, state, language)
-    if icar.get("advisory"):
-        icar_insight = None
-        if generate:
-            icar_insight = generate_digest_insight(icar["advisory"], district, language)
-        record = _base_record(pin, district, state, display_name, language)
-        record.update({
+    if digest.get("advisory"):
+        alerts.append({
+            "pin": pin,
+            "district": district,
+            "state": state,
+            "location": display_name,
+            "language": language,
+            "language_name": LANG_NAMES.get(language, "English"),
             "date": utc_today(),
-            "level": "medium",
-            "type": "ICAR disease advisory",
-            "reasons": [f"Active diseases: {', '.join(icar.get('active_diseases', []))}"],
-            "source": "ICAR-NIVEDI NADRES",
-            "insight": icar_insight,
-            "digest": icar,
+            "level": "low",
+            "type": "district advisory digest",
+            "reasons": [],
+            "source": "ICAR / Kisan Suvidha",
+            "insight": digest_insight,
+            "digest": digest,
         })
-        alerts.append(record)
-
-    # ── Source 3: IMD public warnings (best-effort, often unavailable) ──
-    imd = _fetch_imd(district, state)
-    if imd.get("status") == "ok" and imd.get("warnings"):
-        for w in imd["warnings"][:3]:
-            record = _base_record(pin, district, state, display_name, language)
-            record.update({
-                "date": utc_today(),
-                "level": "high",
-                "type": "IMD weather warning",
-                "reasons": [w.get("title", "IMD warning")],
-                "source": "IMD",
-                "insight": None,
-                "digest": None,
-            })
-            if generate:
-                record["insight"] = generate_alert_insight(
-                    alert={"level": "high", "reasons": record["reasons"]},
-                    district=district, language=language,
-                )
-            alerts.append(record)
-
-    # ── Source 4: wttr.in current conditions ──
-    wttr = _fetch_wttr(pin, district, state)
-    if wttr.get("alert"):
-        wa = wttr["alert"]
-        record = _base_record(pin, district, state, display_name, language)
-        record.update({
-            "date": utc_today(),
-            "level": wa.get("level", "medium"),
-            "type": f"wttr.in: {wa.get('type', 'severe weather')}",
-            "reasons": [f"Current condition: {wa.get('type', 'severe weather')}"],
-            "weather_code": wa.get("weather_code"),
-            "source": "wttr.in",
-            "insight": None,
-            "digest": None,
-        })
-        if generate:
-            record["insight"] = generate_alert_insight(
-                alert={"level": record["level"], "reasons": record["reasons"]},
-                district=district, language=language,
-            )
-        alerts.append(record)
 
     return {
         "pin": pin,
@@ -154,15 +104,8 @@ def scan_pin(pin_info: dict[str, str], *, generate: bool = True) -> dict[str, An
         "resolved_location": display_name,
         "risk_level": weather.get("risk_level", "low"),
         "alerts": alerts,
-        "sources": {
-            "open_meteo": weather.get("risk_level", "low") != "low",
-            "icar": icar.get("status", "ok"),
-            "imd": imd.get("status", "unavailable"),
-            "wttr_in": wttr.get("status", "unavailable"),
-        },
-        "icar_digest": icar,
-        "imd_status": imd,
-        "wttr_status": wttr,
+        "digest": digest,
+        "digest_insight": digest_insight,
     }
 
 

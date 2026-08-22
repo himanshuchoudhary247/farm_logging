@@ -14,6 +14,13 @@ from services.llm_service.bedrock_adapter import generate_seasonal_advisory
 from services.emergency_alerts.storage import last_run, load_feed
 from services.query_agent.agent import process_query
 from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
+from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
+try:
+    from services.cache_refresh import ensure_general_alert, load_cache_settings, load_pin_profiles
+except ImportError:  # pragma: no cover - service mode only
+    ensure_general_alert = None
+    load_cache_settings = None
+    load_pin_profiles = None
 from storage import (
     animals_for_farmer,
     appointments_for_farmer,
@@ -48,6 +55,24 @@ def _api_base() -> str:
 
 def _llm_base() -> str:
     return os.environ.get(LLM_BASE_ENV, "http://localhost:8002").rstrip("/")
+
+
+_CACHE_SETTINGS: Optional[dict[str, Any]] = None
+_CACHE_PROFILES: Optional[list[Any]] = None
+
+
+def _load_cache_inputs() -> tuple[dict[str, Any], list[Any]]:
+    global _CACHE_SETTINGS, _CACHE_PROFILES
+    settings: dict[str, Any] = {}
+    profiles: list[Any] = []
+    if load_cache_settings and load_pin_profiles:
+        if _CACHE_SETTINGS is None:
+            _CACHE_SETTINGS = load_cache_settings()
+        if _CACHE_PROFILES is None:
+            _CACHE_PROFILES = load_pin_profiles()
+        settings = _CACHE_SETTINGS or {}
+        profiles = _CACHE_PROFILES or []
+    return settings, profiles
 
 
 def login(username: str, password: str) -> Optional[Farmer]:
@@ -335,6 +360,29 @@ def fetch_weather_alert(location_or_pin: str, country_code: str = "in", days: in
     return resp.json()
 
 
+def fetch_general_alert(pin: str, force_refresh: bool = False) -> dict[str, Any]:
+    pin_clean = (pin or "").strip()
+    if not pin_clean:
+        raise ValueError("pin is required")
+
+    if not is_remote_mode():
+        if ensure_general_alert is None:
+            raise RuntimeError("General alert caching is unavailable in local mode")
+        settings, profiles = _load_cache_inputs()
+        return ensure_general_alert(pin_clean, settings, profiles, force_refresh=force_refresh)
+
+    params = {"force_refresh": str(force_refresh).lower()} if force_refresh else None
+    resp = requests.get(
+        f"{_api_base()}/alerts/general/{pin_clean}",
+        params=params,
+        timeout=30,
+    )
+    if resp.status_code == 404:
+        raise ValueError(resp.json().get("detail", "PIN not configured"))
+    resp.raise_for_status()
+    return resp.json()
+
+
 def fetch_seasonal_advisory(location_or_pin: str, country_code: str = "in", days: int = 7) -> str:
     if not is_remote_mode():
         data = get_seasonal_advisory_data(
@@ -360,6 +408,52 @@ def fetch_seasonal_advisory(location_or_pin: str, country_code: str = "in", days
         raise ValueError(resp.json().get("detail", "Invalid request"))
     resp.raise_for_status()
     return str(resp.json().get("advisory", ""))
+
+
+def fetch_personalized_advisory(
+    farmer_id: str,
+    pin: Optional[str] = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    if not is_remote_mode():
+        farmer = get_farmer_by_id(farmer_id)
+        if farmer is None:
+            raise ValueError("Farmer not found")
+
+        farms = farms_for_farmer(farmer_id)
+        resolved_pin = infer_pin_code(pin, farmer, farms)
+        if not resolved_pin:
+            raise ValueError("Unable to determine PIN code")
+
+        animals = animals_for_farmer(farmer_id)
+        logs = health_logs_for_farmer(farmer_id)
+        appointments = appointments_for_farmer(farmer_id)
+
+        if ensure_general_alert is None:
+            raise RuntimeError("General alert caching is unavailable in local mode")
+        settings, profiles = _load_cache_inputs()
+        general = ensure_general_alert(resolved_pin, settings, profiles, force_refresh=force_refresh)
+
+        farmer_profile = build_farmer_profile(farmer, resolved_pin, animals, logs, appointments, farms)
+        personalized = generate_personalized_recommendation(farmer_profile, general)
+        return {
+            "pin": resolved_pin,
+            "general_alert": general,
+            "personalized": personalized,
+        }
+
+    payload = {"pin": pin, "force_refresh": force_refresh}
+    resp = requests.post(
+        f"{_api_base()}/farmers/{farmer_id}/advisory/personalized",
+        json=payload,
+        timeout=45,
+    )
+    if resp.status_code == 404:
+        raise ValueError(resp.json().get("detail", "Not found"))
+    if resp.status_code == 400:
+        raise ValueError(resp.json().get("detail", "Invalid request"))
+    resp.raise_for_status()
+    return resp.json()
 
 
 def get_farmer_weather_location(farmer_id: str) -> str:

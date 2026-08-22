@@ -43,6 +43,29 @@ def _cache_set(key: str, value: Any) -> None:
     _cache[key] = (time.time(), value)
 
 
+def _compute_heat_stress(
+    temp_max: float | None,
+    temp_min: float | None,
+    humidity_mean: float | None,
+) -> tuple[float | None, str | None, str | None]:
+    temps = [t for t in (temp_max, temp_min) if t is not None]
+    if not temps or humidity_mean is None:
+        return None, None, None
+
+    avg_temp = sum(temps) / len(temps)
+    thi = avg_temp - ((0.55 - 0.55 * (humidity_mean / 100.0)) * (avg_temp - 14.5))
+    thi = round(thi, 1)
+
+    if thi >= 84:
+        return thi, "high", f"Severe heat stress expected (THI {thi:.0f})"
+    if thi >= 79:
+        return thi, "high", f"Heat stress likely for livestock (THI {thi:.0f})"
+    if thi >= 74:
+        return thi, "medium", f"Mild heat stress risk (THI {thi:.0f})"
+
+    return thi, None, None
+
+
 def _request_json(url: str, *, params: dict[str, Any], headers: dict[str, str] | None = None) -> Any:
     last_error: Exception | None = None
     for attempt in range(3):
@@ -128,6 +151,16 @@ def _classify_weather_alert(day: dict[str, Any]) -> dict[str, Any] | None:
         level = "medium" if level != "high" else level
         reasons.append(f"Windy conditions ({wind_kph:.1f} km/h)")
 
+    heat_level = day.get("heat_stress_level")
+    heat_reason = day.get("heat_stress_reason")
+    if heat_level:
+        if heat_level == "high":
+            level = "high"
+        elif heat_level == "medium" and level != "high":
+            level = "medium"
+        if heat_reason:
+            reasons.append(heat_reason)
+
     if not reasons:
         return None
 
@@ -138,6 +171,8 @@ def _classify_weather_alert(day: dict[str, Any]) -> dict[str, Any] | None:
         "weather_code": code,
         "rain_mm": rain_mm,
         "wind_kph": wind_kph,
+        "thi": day.get("thi"),
+        "heat_stress_level": heat_level,
     }
 
 
@@ -155,7 +190,7 @@ def _fetch_forecast(lat: float, lon: float, days: int = 3) -> dict[str, Any]:
             "longitude": lon,
             "timezone": "auto",
             "forecast_days": horizon,
-            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,relative_humidity_2m_mean",
         },
     )
     _cache_set(cache_key, data)
@@ -190,6 +225,13 @@ def _parse_district(display_name: str) -> str:
     if len(parts) >= 3:
         return parts[-3]
     return parts[0] if parts else display_name
+
+
+def _parse_state(display_name: str) -> str:
+    parts = [p.strip() for p in display_name.split(",") if p.strip()]
+    if len(parts) >= 2:
+        return parts[-2]
+    return parts[-1] if parts else display_name
 
 
 def _same_dates_past_years(years_back: int = 5) -> list[tuple[str, str]]:
@@ -276,6 +318,7 @@ def get_seasonal_advisory_data(location_or_pin: str, country_code: str = "in", d
         "location": loc.display_name,
         "lat": loc.lat,
         "lon": loc.lon,
+        "state": _parse_state(loc.display_name),
         "forecast": forecast,
         "historical": historical,
     }
@@ -292,6 +335,7 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
     wind = daily.get("wind_speed_10m_max") or []
     tmax = daily.get("temperature_2m_max") or []
     tmin = daily.get("temperature_2m_min") or []
+    rh_mean = daily.get("relative_humidity_2m_mean") or []
 
     days_payload: list[dict[str, Any]] = []
     alerts: list[dict[str, Any]] = []
@@ -303,7 +347,16 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
             "wind_speed_10m_max": wind[i] if i < len(wind) else None,
             "temperature_2m_max": tmax[i] if i < len(tmax) else None,
             "temperature_2m_min": tmin[i] if i < len(tmin) else None,
+            "relative_humidity_2m_mean": rh_mean[i] if i < len(rh_mean) else None,
         }
+        thi, heat_level, heat_reason = _compute_heat_stress(
+            day["temperature_2m_max"], day["temperature_2m_min"], day["relative_humidity_2m_mean"]
+        )
+        day["thi"] = thi
+        if heat_level:
+            day["heat_stress_level"] = heat_level
+        if heat_reason:
+            day["heat_stress_reason"] = heat_reason
         days_payload.append(day)
         alert = _classify_weather_alert(day)
         if alert:
@@ -316,7 +369,11 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
         top_level = "medium"
 
     summary = "No significant weather risk in next days."
-    if top_level == "high":
+    if any(a.get("heat_stress_level") == "high" for a in alerts):
+        summary = "Severe heat stress expected. Provide shade, electrolytes, and restrict afternoon grazing."
+    elif any(a.get("heat_stress_level") == "medium" for a in alerts):
+        summary = "Heat stress likely. Increase water availability and observe breathing rate in sheds."
+    elif top_level == "high":
         summary = "High weather risk detected. Take protective action for livestock and fodder."
     elif top_level == "medium":
         summary = "Moderate weather risk detected. Monitor animals and shelter arrangements."
@@ -327,6 +384,7 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
             "display_name": loc.display_name,
             "lat": loc.lat,
             "lon": loc.lon,
+            "state": _parse_state(loc.display_name),
         },
         "risk_level": top_level,
         "summary": summary,

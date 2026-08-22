@@ -1,0 +1,23 @@
+[
+  {
+    "id": "c282ebdf-f370-4c4b-bd98-78a00f71ce57",
+    "farmer_id": "9e95446d-c317-4074-b698-c8cc35325de6",
+    "name": "Green Farm",
+    "email": "",
+    "phone": "",
+    "alternate_phone": "",
+    "address": "",
+    "city": "Jaipur",
+    "district": "",
+    "pincode": null,
+    "state": "Rajasthan",
+    "country": "India",
+    "total_animal_capacity": 50,
+    "current_animal_count": 0,
+    "sheep_count": 0,
+    "goat_count": 0,
+    "image": "",
+    "notes": "",
+    "created_at": "2026-07-04T20:37:24.479992+00:00"
+  }
+]

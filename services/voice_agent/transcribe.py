@@ -16,7 +16,7 @@ class TranscribeService:
         )
         self.log = logging.getLogger("transcribe")
 
-    def transcribe_file(self, s3_uri: str, job_name: Optional[str] = None) -> str:
+    def transcribe_file(self, s3_uri: str, job_name: Optional[str] = None, media_format: str = "wav") -> str:
         job_name = job_name or f"farmer-chat-{int(time.time())}"
 
         self.log.info(f"Starting transcription job {job_name} for {s3_uri}")
@@ -31,7 +31,7 @@ class TranscribeService:
         req = {
             "TranscriptionJobName": job_name,
             "Media": {"MediaFileUri": s3_uri},
-            "MediaFormat": "wav",
+            "MediaFormat": media_format,
         }
 
         if enable_multilingual:
@@ -92,7 +92,7 @@ def _transcribe_local(audio_bytes: bytes) -> str:
 
 
 # ---- Orchestrator-friendly wrapper ----
-def transcribe_audio(audio_bytes: bytes) -> str:
+def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
     """
     End-to-end transcription using AWS:
     1. Save temp file
@@ -123,18 +123,20 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         raise ValueError("VOICE_S3_BUCKET not set for AWS mode")
 
     # Step 1: save temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+    suffix = "." + (media_format if media_format != "mpeg" else "mp3")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
         f.write(audio_bytes)
         local_path = f.name
 
     # Step 2: upload to S3
-    key = f"voice-input/{uuid.uuid4()}.wav"
+    extension = media_format if media_format != "mpeg" else "mp3"
+    key = f"voice-input/{uuid.uuid4()}.{extension}"
     s3_uri = upload_file_to_s3(local_path, bucket, key)
 
     # Step 3: transcribe
     service = TranscribeService()
     try:
-        text = service.transcribe_file(s3_uri)
+        text = service.transcribe_file(s3_uri, media_format=media_format)
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code", "")
         msg = e.response.get("Error", {}).get("Message", "")

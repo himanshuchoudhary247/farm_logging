@@ -1,0 +1,30 @@
+[
+  {
+    "id": "9d49c99d-69e7-4536-bb59-95f9e8c7e950",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-1",
+    "recorded_at": "2026-04-22T20:14:17.147916+00:00",
+    "issue": "Reduced feed intake and mild fever since yesterday",
+    "params": {
+      "appetite": "reduced",
+      "temperature_c": 39.8,
+      "duration": "1 day",
+      "feces": "normal"
+    },
+    "notes": "Separated from herd for observation."
+  },
+  {
+    "id": "4b64eff4-cad3-4f6b-9f4b-a857a5fd6f36",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-2",
+    "recorded_at": "2026-04-22T20:14:17.152047+00:00",
+    "issue": "Loose stool and low activity",
+    "params": {
+      "appetite": "reduced",
+      "temperature_c": 39.2,
+      "duration": "2 days",
+      "feces": "loose"
+    },
+    "notes": "Given oral rehydration and clean water."
+  }
+]

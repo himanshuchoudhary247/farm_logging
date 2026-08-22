@@ -1,0 +1,8 @@
+weather:
+  refresh_hours: 3
+  alert_days: 3
+  seasonal_days: 7
+
+market:
+  refresh_hours: 12
+  commodity: null

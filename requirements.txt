@@ -10,4 +10,5 @@ filelock>=3.13.0
 fastapi>=0.111.0
 uvicorn>=0.30.0
 requests>=2.32.0
+python-multipart>=0.0.9
 pytest>=7.4.0

@@ -14,6 +14,48 @@ Streamlit app for farmers: general livestock Q&A, structured health logging, con
 **Instance:** `i-017b9a61a29f8c1e0` (Ubuntu, ap-south-1)
 **Key pair:** `temp-weather-key` (PEM at `~/.ssh/temp-weather-key.pem`)
 
+### Unified Public Portal
+
+The intended public entry point is `https://65.0.181.84`. Nginx routes the portal
+and services by path, so users do not need to know service ports:
+
+- `/` — FarmHerd project portal
+- `/assistant/` — authenticated farmer assistant
+- `/weather/` — weather and livestock advisory
+- `/onboarding/` — conversational onboarding
+- `/api-docs` — endpoint reference with request/response examples
+- `/api/` — backend API
+
+Deployment templates are provided in `deploy/nginx-farmer-chat.conf`,
+`deploy/farmer-portal.service`, and `deploy/farmer-assistant.service`. Streamlit
+services behind a path must be started with the matching `--server.baseUrlPath`
+value.
+
+The new React website lives in `frontend/` and is built with:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+The compiled `frontend/dist/` directory is served by Nginx. Existing Streamlit
+pages remain available under `/legacy/` during the migration.
+
+### Showcase Demo
+
+The project includes one clearly labeled synthetic showcase account. It is safe
+for demonstrations and contains no real farmer data:
+
+- Username: `demo`
+- Password: `farmherd-demo`
+- Farmer ID: `demo-farmer`
+- Demo PIN: `583101`
+
+Run `python scripts/seed_demo_user.py` to create or refresh the account in a
+configured data directory. The website's **Live Showcase** card opens the
+personalized advisory flow with the demo PIN prefilled.
+
 ## Architecture
 
 ```
@@ -197,6 +239,32 @@ The codebase supports lightweight multi-service split:
 - `app.py` — Streamlit UI (calls services via `gateways.py`)
 
 Set `APP_MODE=services` to enable service mode.
+
+## PIN Alert Cache
+
+Configured PIN codes are listed in `config/pincode_profiles.yaml`. Refresh intervals
+are configured independently in `config/cache_settings.yaml`; the refresh job reuses
+each API's existing file until that API's interval expires, then rebuilds the PIN's
+`general_alert.json`.
+
+Run a refresh manually or from cron:
+
+```bash
+python3 scripts/refresh_caches.py
+python3 scripts/refresh_caches.py --pin 583101
+python3 scripts/refresh_caches.py --service feed_prices
+```
+
+Example cron entry (from the repository root):
+
+```cron
+*/30 * * * * cd /path/to/farmer_chat && /path/to/.venv/bin/python scripts/refresh_caches.py >> data/cache-refresh.log 2>&1
+```
+
+Cached files are written under `data/cache/<pin>/`. The API serves
+`GET /alerts/general/{pin}` and `POST /farmers/{farmer_id}/advisory/personalized`.
+The per-service cron template is in `deploy/cache-refresh.cron`; it schedules
+forecast/THI, seasonal advisory, and feed-price refreshes independently.
 
 ## Single-worker Note
 

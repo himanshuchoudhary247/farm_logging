@@ -1,0 +1,38 @@
+pins:
+  - pin: "583101"
+    name: "Ballari Rural Cluster"
+    district: "Ballari"
+    state: "Karnataka"
+    default_animals:
+      - type: "sheep"
+        count: 220
+      - type: "goat"
+        count: 60
+    farm_notes:
+      - "Heat stress hotspot during pre-monsoon months"
+      - "Frequent foot-rot cases in rainy season"
+
+  - pin: "411001"
+    name: "Pune Market Belt"
+    district: "Pune"
+    state: "Maharashtra"
+    default_animals:
+      - type: "dairy_cattle"
+        count: 45
+      - type: "buffalo"
+        count: 18
+    farm_notes:
+      - "Commercial feed purchases spike before summer"
+      - "Udder health programs active with local co-op"
+
+  - pin: "560001"
+    name: "Bengaluru Urban Fringe"
+    district: "Bengaluru Urban"
+    state: "Karnataka"
+    default_animals:
+      - type: "backyard_poultry"
+        count: 150
+      - type: "goat"
+        count: 35
+    farm_notes:
+      - "High rainfall variability and feed price sensitivity"

@@ -1,0 +1,14 @@
+# Install with: crontab deploy/cache-refresh.cron
+# Replace both paths with the deployed repository and virtualenv paths.
+SHELL=/bin/sh
+FARMER_CHAT_ROOT=/path/to/farmer_chat
+FARMER_CHAT_PYTHON=/path/to/farmer_chat/.venv/bin/python
+
+# Open-Meteo forecast and THI cache. Matches cache_settings.yaml weather TTL.
+0 */3 * * * cd $FARMER_CHAT_ROOT && $FARMER_CHAT_PYTHON scripts/refresh_caches.py --service weather_alert >> data/cache-refresh.log 2>&1
+
+# Historical/seasonal weather cache.
+15 */3 * * * cd $FARMER_CHAT_ROOT && $FARMER_CHAT_PYTHON scripts/refresh_caches.py --service seasonal_advisory >> data/cache-refresh.log 2>&1
+
+# Livestock feed market cache. Matches cache_settings.yaml market TTL.
+30 */12 * * * cd $FARMER_CHAT_ROOT && $FARMER_CHAT_PYTHON scripts/refresh_caches.py --service feed_prices >> data/cache-refresh.log 2>&1

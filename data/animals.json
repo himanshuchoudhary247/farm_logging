@@ -1,0 +1,1611 @@
+[
+  {
+    "id": "a-f-001-1",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-1",
+    "breed": "Gir",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-001-2",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-2",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-001-99",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "GAURI",
+    "breed": "Sirohi",
+    "age_years": 2.5,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-002-1",
+    "farmer_id": "f-002",
+    "species": "goat",
+    "tag_or_name": "TAG-002-1",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-002-2",
+    "farmer_id": "f-002",
+    "species": "sheep",
+    "tag_or_name": "TAG-002-2",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-002-3",
+    "farmer_id": "f-002",
+    "species": "poultry",
+    "tag_or_name": "TAG-002-3",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-003-1",
+    "farmer_id": "f-003",
+    "species": "sheep",
+    "tag_or_name": "TAG-003-1",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-004-1",
+    "farmer_id": "f-004",
+    "species": "poultry",
+    "tag_or_name": "TAG-004-1",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-004-2",
+    "farmer_id": "f-004",
+    "species": "cattle",
+    "tag_or_name": "TAG-004-2",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-005-1",
+    "farmer_id": "f-005",
+    "species": "cattle",
+    "tag_or_name": "TAG-005-1",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-005-2",
+    "farmer_id": "f-005",
+    "species": "buffalo",
+    "tag_or_name": "TAG-005-2",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-005-3",
+    "farmer_id": "f-005",
+    "species": "goat",
+    "tag_or_name": "TAG-005-3",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-006-1",
+    "farmer_id": "f-006",
+    "species": "buffalo",
+    "tag_or_name": "TAG-006-1",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-007-1",
+    "farmer_id": "f-007",
+    "species": "goat",
+    "tag_or_name": "TAG-007-1",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-007-2",
+    "farmer_id": "f-007",
+    "species": "sheep",
+    "tag_or_name": "TAG-007-2",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-008-1",
+    "farmer_id": "f-008",
+    "species": "sheep",
+    "tag_or_name": "TAG-008-1",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-008-2",
+    "farmer_id": "f-008",
+    "species": "poultry",
+    "tag_or_name": "TAG-008-2",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-008-3",
+    "farmer_id": "f-008",
+    "species": "cattle",
+    "tag_or_name": "TAG-008-3",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-009-1",
+    "farmer_id": "f-009",
+    "species": "poultry",
+    "tag_or_name": "TAG-009-1",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-010-1",
+    "farmer_id": "f-010",
+    "species": "cattle",
+    "tag_or_name": "TAG-010-1",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-010-2",
+    "farmer_id": "f-010",
+    "species": "buffalo",
+    "tag_or_name": "TAG-010-2",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-011-1",
+    "farmer_id": "f-011",
+    "species": "buffalo",
+    "tag_or_name": "TAG-011-1",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-011-2",
+    "farmer_id": "f-011",
+    "species": "goat",
+    "tag_or_name": "TAG-011-2",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-011-3",
+    "farmer_id": "f-011",
+    "species": "sheep",
+    "tag_or_name": "TAG-011-3",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-012-1",
+    "farmer_id": "f-012",
+    "species": "goat",
+    "tag_or_name": "TAG-012-1",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-013-1",
+    "farmer_id": "f-013",
+    "species": "sheep",
+    "tag_or_name": "TAG-013-1",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-013-2",
+    "farmer_id": "f-013",
+    "species": "poultry",
+    "tag_or_name": "TAG-013-2",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-014-1",
+    "farmer_id": "f-014",
+    "species": "poultry",
+    "tag_or_name": "TAG-014-1",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-014-2",
+    "farmer_id": "f-014",
+    "species": "cattle",
+    "tag_or_name": "TAG-014-2",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-014-3",
+    "farmer_id": "f-014",
+    "species": "buffalo",
+    "tag_or_name": "TAG-014-3",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-015-1",
+    "farmer_id": "f-015",
+    "species": "cattle",
+    "tag_or_name": "TAG-015-1",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-016-1",
+    "farmer_id": "f-016",
+    "species": "buffalo",
+    "tag_or_name": "TAG-016-1",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-016-2",
+    "farmer_id": "f-016",
+    "species": "goat",
+    "tag_or_name": "TAG-016-2",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-017-1",
+    "farmer_id": "f-017",
+    "species": "goat",
+    "tag_or_name": "TAG-017-1",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-017-2",
+    "farmer_id": "f-017",
+    "species": "sheep",
+    "tag_or_name": "TAG-017-2",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-017-3",
+    "farmer_id": "f-017",
+    "species": "poultry",
+    "tag_or_name": "TAG-017-3",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-018-1",
+    "farmer_id": "f-018",
+    "species": "sheep",
+    "tag_or_name": "TAG-018-1",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-019-1",
+    "farmer_id": "f-019",
+    "species": "poultry",
+    "tag_or_name": "TAG-019-1",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-019-2",
+    "farmer_id": "f-019",
+    "species": "cattle",
+    "tag_or_name": "TAG-019-2",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-020-1",
+    "farmer_id": "f-020",
+    "species": "cattle",
+    "tag_or_name": "TAG-020-1",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-020-2",
+    "farmer_id": "f-020",
+    "species": "buffalo",
+    "tag_or_name": "TAG-020-2",
+    "breed": "Gir",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-020-3",
+    "farmer_id": "f-020",
+    "species": "goat",
+    "tag_or_name": "TAG-020-3",
+    "breed": "Cross",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-021-1",
+    "farmer_id": "f-021",
+    "species": "buffalo",
+    "tag_or_name": "TAG-021-1",
+    "breed": "Gir",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-022-1",
+    "farmer_id": "f-022",
+    "species": "goat",
+    "tag_or_name": "TAG-022-1",
+    "breed": "Cross",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-022-2",
+    "farmer_id": "f-022",
+    "species": "sheep",
+    "tag_or_name": "TAG-022-2",
+    "breed": "Desi",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-023-1",
+    "farmer_id": "f-023",
+    "species": "sheep",
+    "tag_or_name": "TAG-023-1",
+    "breed": "Desi",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-023-2",
+    "farmer_id": "f-023",
+    "species": "poultry",
+    "tag_or_name": "TAG-023-2",
+    "breed": "Broiler",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-023-3",
+    "farmer_id": "f-023",
+    "species": "cattle",
+    "tag_or_name": "TAG-023-3",
+    "breed": "Local",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-024-1",
+    "farmer_id": "f-024",
+    "species": "poultry",
+    "tag_or_name": "TAG-024-1",
+    "breed": "Broiler",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-025-1",
+    "farmer_id": "f-025",
+    "species": "cattle",
+    "tag_or_name": "TAG-025-1",
+    "breed": "Local",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-025-2",
+    "farmer_id": "f-025",
+    "species": "buffalo",
+    "tag_or_name": "TAG-025-2",
+    "breed": "Gir",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-026-1",
+    "farmer_id": "f-026",
+    "species": "buffalo",
+    "tag_or_name": "TAG-026-1",
+    "breed": "Gir",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-026-2",
+    "farmer_id": "f-026",
+    "species": "goat",
+    "tag_or_name": "TAG-026-2",
+    "breed": "Cross",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-026-3",
+    "farmer_id": "f-026",
+    "species": "sheep",
+    "tag_or_name": "TAG-026-3",
+    "breed": "Desi",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-027-1",
+    "farmer_id": "f-027",
+    "species": "goat",
+    "tag_or_name": "TAG-027-1",
+    "breed": "Cross",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-028-1",
+    "farmer_id": "f-028",
+    "species": "sheep",
+    "tag_or_name": "TAG-028-1",
+    "breed": "Desi",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-028-2",
+    "farmer_id": "f-028",
+    "species": "poultry",
+    "tag_or_name": "TAG-028-2",
+    "breed": "Broiler",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-029-1",
+    "farmer_id": "f-029",
+    "species": "poultry",
+    "tag_or_name": "TAG-029-1",
+    "breed": "Broiler",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-029-2",
+    "farmer_id": "f-029",
+    "species": "cattle",
+    "tag_or_name": "TAG-029-2",
+    "breed": "Local",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-029-3",
+    "farmer_id": "f-029",
+    "species": "buffalo",
+    "tag_or_name": "TAG-029-3",
+    "breed": "Gir",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-030-1",
+    "farmer_id": "f-030",
+    "species": "cattle",
+    "tag_or_name": "TAG-030-1",
+    "breed": "Local",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-031-1",
+    "farmer_id": "f-031",
+    "species": "buffalo",
+    "tag_or_name": "TAG-031-1",
+    "breed": "Gir",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-031-2",
+    "farmer_id": "f-031",
+    "species": "goat",
+    "tag_or_name": "TAG-031-2",
+    "breed": "Cross",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-032-1",
+    "farmer_id": "f-032",
+    "species": "goat",
+    "tag_or_name": "TAG-032-1",
+    "breed": "Cross",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-032-2",
+    "farmer_id": "f-032",
+    "species": "sheep",
+    "tag_or_name": "TAG-032-2",
+    "breed": "Desi",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-032-3",
+    "farmer_id": "f-032",
+    "species": "poultry",
+    "tag_or_name": "TAG-032-3",
+    "breed": "Broiler",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-033-1",
+    "farmer_id": "f-033",
+    "species": "sheep",
+    "tag_or_name": "TAG-033-1",
+    "breed": "Desi",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-034-1",
+    "farmer_id": "f-034",
+    "species": "poultry",
+    "tag_or_name": "TAG-034-1",
+    "breed": "Broiler",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-034-2",
+    "farmer_id": "f-034",
+    "species": "cattle",
+    "tag_or_name": "TAG-034-2",
+    "breed": "Local",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-035-1",
+    "farmer_id": "f-035",
+    "species": "cattle",
+    "tag_or_name": "TAG-035-1",
+    "breed": "Local",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-035-2",
+    "farmer_id": "f-035",
+    "species": "buffalo",
+    "tag_or_name": "TAG-035-2",
+    "breed": "Gir",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-035-3",
+    "farmer_id": "f-035",
+    "species": "goat",
+    "tag_or_name": "TAG-035-3",
+    "breed": "Cross",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-036-1",
+    "farmer_id": "f-036",
+    "species": "buffalo",
+    "tag_or_name": "TAG-036-1",
+    "breed": "Gir",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-037-1",
+    "farmer_id": "f-037",
+    "species": "goat",
+    "tag_or_name": "TAG-037-1",
+    "breed": "Cross",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-037-2",
+    "farmer_id": "f-037",
+    "species": "sheep",
+    "tag_or_name": "TAG-037-2",
+    "breed": "Desi",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-038-1",
+    "farmer_id": "f-038",
+    "species": "sheep",
+    "tag_or_name": "TAG-038-1",
+    "breed": "Desi",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-038-2",
+    "farmer_id": "f-038",
+    "species": "poultry",
+    "tag_or_name": "TAG-038-2",
+    "breed": "Broiler",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-038-3",
+    "farmer_id": "f-038",
+    "species": "cattle",
+    "tag_or_name": "TAG-038-3",
+    "breed": "Local",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-039-1",
+    "farmer_id": "f-039",
+    "species": "poultry",
+    "tag_or_name": "TAG-039-1",
+    "breed": "Broiler",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-040-1",
+    "farmer_id": "f-040",
+    "species": "cattle",
+    "tag_or_name": "TAG-040-1",
+    "breed": "Local",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-040-2",
+    "farmer_id": "f-040",
+    "species": "buffalo",
+    "tag_or_name": "TAG-040-2",
+    "breed": "Gir",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-041-1",
+    "farmer_id": "f-041",
+    "species": "buffalo",
+    "tag_or_name": "TAG-041-1",
+    "breed": "Gir",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-041-2",
+    "farmer_id": "f-041",
+    "species": "goat",
+    "tag_or_name": "TAG-041-2",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-041-3",
+    "farmer_id": "f-041",
+    "species": "sheep",
+    "tag_or_name": "TAG-041-3",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-042-1",
+    "farmer_id": "f-042",
+    "species": "goat",
+    "tag_or_name": "TAG-042-1",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-043-1",
+    "farmer_id": "f-043",
+    "species": "sheep",
+    "tag_or_name": "TAG-043-1",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-043-2",
+    "farmer_id": "f-043",
+    "species": "poultry",
+    "tag_or_name": "TAG-043-2",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-044-1",
+    "farmer_id": "f-044",
+    "species": "poultry",
+    "tag_or_name": "TAG-044-1",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-044-2",
+    "farmer_id": "f-044",
+    "species": "cattle",
+    "tag_or_name": "TAG-044-2",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-044-3",
+    "farmer_id": "f-044",
+    "species": "buffalo",
+    "tag_or_name": "TAG-044-3",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-045-1",
+    "farmer_id": "f-045",
+    "species": "cattle",
+    "tag_or_name": "TAG-045-1",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-046-1",
+    "farmer_id": "f-046",
+    "species": "buffalo",
+    "tag_or_name": "TAG-046-1",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-046-2",
+    "farmer_id": "f-046",
+    "species": "goat",
+    "tag_or_name": "TAG-046-2",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-047-1",
+    "farmer_id": "f-047",
+    "species": "goat",
+    "tag_or_name": "TAG-047-1",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-047-2",
+    "farmer_id": "f-047",
+    "species": "sheep",
+    "tag_or_name": "TAG-047-2",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-047-3",
+    "farmer_id": "f-047",
+    "species": "poultry",
+    "tag_or_name": "TAG-047-3",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-048-1",
+    "farmer_id": "f-048",
+    "species": "sheep",
+    "tag_or_name": "TAG-048-1",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-049-1",
+    "farmer_id": "f-049",
+    "species": "poultry",
+    "tag_or_name": "TAG-049-1",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-049-2",
+    "farmer_id": "f-049",
+    "species": "cattle",
+    "tag_or_name": "TAG-049-2",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-050-1",
+    "farmer_id": "f-050",
+    "species": "cattle",
+    "tag_or_name": "TAG-050-1",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-050-2",
+    "farmer_id": "f-050",
+    "species": "buffalo",
+    "tag_or_name": "TAG-050-2",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-050-3",
+    "farmer_id": "f-050",
+    "species": "goat",
+    "tag_or_name": "TAG-050-3",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-051-1",
+    "farmer_id": "f-051",
+    "species": "buffalo",
+    "tag_or_name": "TAG-051-1",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-052-1",
+    "farmer_id": "f-052",
+    "species": "goat",
+    "tag_or_name": "TAG-052-1",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-052-2",
+    "farmer_id": "f-052",
+    "species": "sheep",
+    "tag_or_name": "TAG-052-2",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-053-1",
+    "farmer_id": "f-053",
+    "species": "sheep",
+    "tag_or_name": "TAG-053-1",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-053-2",
+    "farmer_id": "f-053",
+    "species": "poultry",
+    "tag_or_name": "TAG-053-2",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-053-3",
+    "farmer_id": "f-053",
+    "species": "cattle",
+    "tag_or_name": "TAG-053-3",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-054-1",
+    "farmer_id": "f-054",
+    "species": "poultry",
+    "tag_or_name": "TAG-054-1",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-055-1",
+    "farmer_id": "f-055",
+    "species": "cattle",
+    "tag_or_name": "TAG-055-1",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-055-2",
+    "farmer_id": "f-055",
+    "species": "buffalo",
+    "tag_or_name": "TAG-055-2",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-056-1",
+    "farmer_id": "f-056",
+    "species": "buffalo",
+    "tag_or_name": "TAG-056-1",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-056-2",
+    "farmer_id": "f-056",
+    "species": "goat",
+    "tag_or_name": "TAG-056-2",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-056-3",
+    "farmer_id": "f-056",
+    "species": "sheep",
+    "tag_or_name": "TAG-056-3",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-057-1",
+    "farmer_id": "f-057",
+    "species": "goat",
+    "tag_or_name": "TAG-057-1",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-058-1",
+    "farmer_id": "f-058",
+    "species": "sheep",
+    "tag_or_name": "TAG-058-1",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-058-2",
+    "farmer_id": "f-058",
+    "species": "poultry",
+    "tag_or_name": "TAG-058-2",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-059-1",
+    "farmer_id": "f-059",
+    "species": "poultry",
+    "tag_or_name": "TAG-059-1",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-059-2",
+    "farmer_id": "f-059",
+    "species": "cattle",
+    "tag_or_name": "TAG-059-2",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-059-3",
+    "farmer_id": "f-059",
+    "species": "buffalo",
+    "tag_or_name": "TAG-059-3",
+    "breed": "Gir",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-060-1",
+    "farmer_id": "f-060",
+    "species": "cattle",
+    "tag_or_name": "TAG-060-1",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-061-1",
+    "farmer_id": "f-061",
+    "species": "buffalo",
+    "tag_or_name": "TAG-061-1",
+    "breed": "Gir",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-061-2",
+    "farmer_id": "f-061",
+    "species": "goat",
+    "tag_or_name": "TAG-061-2",
+    "breed": "Cross",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-062-1",
+    "farmer_id": "f-062",
+    "species": "goat",
+    "tag_or_name": "TAG-062-1",
+    "breed": "Cross",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-062-2",
+    "farmer_id": "f-062",
+    "species": "sheep",
+    "tag_or_name": "TAG-062-2",
+    "breed": "Desi",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-062-3",
+    "farmer_id": "f-062",
+    "species": "poultry",
+    "tag_or_name": "TAG-062-3",
+    "breed": "Broiler",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-063-1",
+    "farmer_id": "f-063",
+    "species": "sheep",
+    "tag_or_name": "TAG-063-1",
+    "breed": "Desi",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-064-1",
+    "farmer_id": "f-064",
+    "species": "poultry",
+    "tag_or_name": "TAG-064-1",
+    "breed": "Broiler",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-064-2",
+    "farmer_id": "f-064",
+    "species": "cattle",
+    "tag_or_name": "TAG-064-2",
+    "breed": "Local",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-065-1",
+    "farmer_id": "f-065",
+    "species": "cattle",
+    "tag_or_name": "TAG-065-1",
+    "breed": "Local",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-065-2",
+    "farmer_id": "f-065",
+    "species": "buffalo",
+    "tag_or_name": "TAG-065-2",
+    "breed": "Gir",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-065-3",
+    "farmer_id": "f-065",
+    "species": "goat",
+    "tag_or_name": "TAG-065-3",
+    "breed": "Cross",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-066-1",
+    "farmer_id": "f-066",
+    "species": "buffalo",
+    "tag_or_name": "TAG-066-1",
+    "breed": "Gir",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-067-1",
+    "farmer_id": "f-067",
+    "species": "goat",
+    "tag_or_name": "TAG-067-1",
+    "breed": "Cross",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-067-2",
+    "farmer_id": "f-067",
+    "species": "sheep",
+    "tag_or_name": "TAG-067-2",
+    "breed": "Desi",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-068-1",
+    "farmer_id": "f-068",
+    "species": "sheep",
+    "tag_or_name": "TAG-068-1",
+    "breed": "Desi",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-068-2",
+    "farmer_id": "f-068",
+    "species": "poultry",
+    "tag_or_name": "TAG-068-2",
+    "breed": "Broiler",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-068-3",
+    "farmer_id": "f-068",
+    "species": "cattle",
+    "tag_or_name": "TAG-068-3",
+    "breed": "Local",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-069-1",
+    "farmer_id": "f-069",
+    "species": "poultry",
+    "tag_or_name": "TAG-069-1",
+    "breed": "Broiler",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-070-1",
+    "farmer_id": "f-070",
+    "species": "cattle",
+    "tag_or_name": "TAG-070-1",
+    "breed": "Local",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-070-2",
+    "farmer_id": "f-070",
+    "species": "buffalo",
+    "tag_or_name": "TAG-070-2",
+    "breed": "Gir",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-071-1",
+    "farmer_id": "f-071",
+    "species": "buffalo",
+    "tag_or_name": "TAG-071-1",
+    "breed": "Gir",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-071-2",
+    "farmer_id": "f-071",
+    "species": "goat",
+    "tag_or_name": "TAG-071-2",
+    "breed": "Cross",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-071-3",
+    "farmer_id": "f-071",
+    "species": "sheep",
+    "tag_or_name": "TAG-071-3",
+    "breed": "Desi",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-072-1",
+    "farmer_id": "f-072",
+    "species": "goat",
+    "tag_or_name": "TAG-072-1",
+    "breed": "Cross",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-073-1",
+    "farmer_id": "f-073",
+    "species": "sheep",
+    "tag_or_name": "TAG-073-1",
+    "breed": "Desi",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-073-2",
+    "farmer_id": "f-073",
+    "species": "poultry",
+    "tag_or_name": "TAG-073-2",
+    "breed": "Broiler",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-074-1",
+    "farmer_id": "f-074",
+    "species": "poultry",
+    "tag_or_name": "TAG-074-1",
+    "breed": "Broiler",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-074-2",
+    "farmer_id": "f-074",
+    "species": "cattle",
+    "tag_or_name": "TAG-074-2",
+    "breed": "Local",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-074-3",
+    "farmer_id": "f-074",
+    "species": "buffalo",
+    "tag_or_name": "TAG-074-3",
+    "breed": "Gir",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-075-1",
+    "farmer_id": "f-075",
+    "species": "cattle",
+    "tag_or_name": "TAG-075-1",
+    "breed": "Local",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-076-1",
+    "farmer_id": "f-076",
+    "species": "buffalo",
+    "tag_or_name": "TAG-076-1",
+    "breed": "Gir",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-076-2",
+    "farmer_id": "f-076",
+    "species": "goat",
+    "tag_or_name": "TAG-076-2",
+    "breed": "Cross",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-077-1",
+    "farmer_id": "f-077",
+    "species": "goat",
+    "tag_or_name": "TAG-077-1",
+    "breed": "Cross",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-077-2",
+    "farmer_id": "f-077",
+    "species": "sheep",
+    "tag_or_name": "TAG-077-2",
+    "breed": "Desi",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-077-3",
+    "farmer_id": "f-077",
+    "species": "poultry",
+    "tag_or_name": "TAG-077-3",
+    "breed": "Broiler",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-078-1",
+    "farmer_id": "f-078",
+    "species": "sheep",
+    "tag_or_name": "TAG-078-1",
+    "breed": "Desi",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-079-1",
+    "farmer_id": "f-079",
+    "species": "poultry",
+    "tag_or_name": "TAG-079-1",
+    "breed": "Broiler",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-079-2",
+    "farmer_id": "f-079",
+    "species": "cattle",
+    "tag_or_name": "TAG-079-2",
+    "breed": "Local",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-080-1",
+    "farmer_id": "f-080",
+    "species": "cattle",
+    "tag_or_name": "TAG-080-1",
+    "breed": "Local",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-080-2",
+    "farmer_id": "f-080",
+    "species": "buffalo",
+    "tag_or_name": "TAG-080-2",
+    "breed": "Gir",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-080-3",
+    "farmer_id": "f-080",
+    "species": "goat",
+    "tag_or_name": "TAG-080-3",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-081-1",
+    "farmer_id": "f-081",
+    "species": "buffalo",
+    "tag_or_name": "TAG-081-1",
+    "breed": "Gir",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-082-1",
+    "farmer_id": "f-082",
+    "species": "goat",
+    "tag_or_name": "TAG-082-1",
+    "breed": "Cross",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-082-2",
+    "farmer_id": "f-082",
+    "species": "sheep",
+    "tag_or_name": "TAG-082-2",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-083-1",
+    "farmer_id": "f-083",
+    "species": "sheep",
+    "tag_or_name": "TAG-083-1",
+    "breed": "Desi",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-083-2",
+    "farmer_id": "f-083",
+    "species": "poultry",
+    "tag_or_name": "TAG-083-2",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-083-3",
+    "farmer_id": "f-083",
+    "species": "cattle",
+    "tag_or_name": "TAG-083-3",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-084-1",
+    "farmer_id": "f-084",
+    "species": "poultry",
+    "tag_or_name": "TAG-084-1",
+    "breed": "Broiler",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-085-1",
+    "farmer_id": "f-085",
+    "species": "cattle",
+    "tag_or_name": "TAG-085-1",
+    "breed": "Local",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-085-2",
+    "farmer_id": "f-085",
+    "species": "buffalo",
+    "tag_or_name": "TAG-085-2",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-086-1",
+    "farmer_id": "f-086",
+    "species": "buffalo",
+    "tag_or_name": "TAG-086-1",
+    "breed": "Gir",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-086-2",
+    "farmer_id": "f-086",
+    "species": "goat",
+    "tag_or_name": "TAG-086-2",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-086-3",
+    "farmer_id": "f-086",
+    "species": "sheep",
+    "tag_or_name": "TAG-086-3",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-087-1",
+    "farmer_id": "f-087",
+    "species": "goat",
+    "tag_or_name": "TAG-087-1",
+    "breed": "Cross",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-088-1",
+    "farmer_id": "f-088",
+    "species": "sheep",
+    "tag_or_name": "TAG-088-1",
+    "breed": "Desi",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-088-2",
+    "farmer_id": "f-088",
+    "species": "poultry",
+    "tag_or_name": "TAG-088-2",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-089-1",
+    "farmer_id": "f-089",
+    "species": "poultry",
+    "tag_or_name": "TAG-089-1",
+    "breed": "Broiler",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-089-2",
+    "farmer_id": "f-089",
+    "species": "cattle",
+    "tag_or_name": "TAG-089-2",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-089-3",
+    "farmer_id": "f-089",
+    "species": "buffalo",
+    "tag_or_name": "TAG-089-3",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-090-1",
+    "farmer_id": "f-090",
+    "species": "cattle",
+    "tag_or_name": "TAG-090-1",
+    "breed": "Local",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-091-1",
+    "farmer_id": "f-091",
+    "species": "buffalo",
+    "tag_or_name": "TAG-091-1",
+    "breed": "Gir",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-091-2",
+    "farmer_id": "f-091",
+    "species": "goat",
+    "tag_or_name": "TAG-091-2",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-092-1",
+    "farmer_id": "f-092",
+    "species": "goat",
+    "tag_or_name": "TAG-092-1",
+    "breed": "Cross",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-092-2",
+    "farmer_id": "f-092",
+    "species": "sheep",
+    "tag_or_name": "TAG-092-2",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-092-3",
+    "farmer_id": "f-092",
+    "species": "poultry",
+    "tag_or_name": "TAG-092-3",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-093-1",
+    "farmer_id": "f-093",
+    "species": "sheep",
+    "tag_or_name": "TAG-093-1",
+    "breed": "Desi",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-094-1",
+    "farmer_id": "f-094",
+    "species": "poultry",
+    "tag_or_name": "TAG-094-1",
+    "breed": "Broiler",
+    "age_years": 7.0
+  },
+  {
+    "id": "a-f-094-2",
+    "farmer_id": "f-094",
+    "species": "cattle",
+    "tag_or_name": "TAG-094-2",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-095-1",
+    "farmer_id": "f-095",
+    "species": "cattle",
+    "tag_or_name": "TAG-095-1",
+    "breed": "Local",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-095-2",
+    "farmer_id": "f-095",
+    "species": "buffalo",
+    "tag_or_name": "TAG-095-2",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-095-3",
+    "farmer_id": "f-095",
+    "species": "goat",
+    "tag_or_name": "TAG-095-3",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-096-1",
+    "farmer_id": "f-096",
+    "species": "buffalo",
+    "tag_or_name": "TAG-096-1",
+    "breed": "Gir",
+    "age_years": 1.0
+  },
+  {
+    "id": "a-f-097-1",
+    "farmer_id": "f-097",
+    "species": "goat",
+    "tag_or_name": "TAG-097-1",
+    "breed": "Cross",
+    "age_years": 2.0
+  },
+  {
+    "id": "a-f-097-2",
+    "farmer_id": "f-097",
+    "species": "sheep",
+    "tag_or_name": "TAG-097-2",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-098-1",
+    "farmer_id": "f-098",
+    "species": "sheep",
+    "tag_or_name": "TAG-098-1",
+    "breed": "Desi",
+    "age_years": 3.0
+  },
+  {
+    "id": "a-f-098-2",
+    "farmer_id": "f-098",
+    "species": "poultry",
+    "tag_or_name": "TAG-098-2",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-098-3",
+    "farmer_id": "f-098",
+    "species": "cattle",
+    "tag_or_name": "TAG-098-3",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-099-1",
+    "farmer_id": "f-099",
+    "species": "poultry",
+    "tag_or_name": "TAG-099-1",
+    "breed": "Broiler",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-100-1",
+    "farmer_id": "f-100",
+    "species": "cattle",
+    "tag_or_name": "TAG-100-1",
+    "breed": "Local",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-100-2",
+    "farmer_id": "f-100",
+    "species": "buffalo",
+    "tag_or_name": "TAG-100-2",
+    "breed": "Gir",
+    "age_years": 6.0
+  }
+]

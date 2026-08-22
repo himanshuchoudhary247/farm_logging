@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+from datetime import datetime
+from pathlib import Path
+import json
+import uuid
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from utils.env_check import validate_env
 from pydantic import BaseModel, Field
 
@@ -35,9 +39,19 @@ from services.llm_service.bedrock_adapter import (
 from services.emergency_alerts.api import fetch_alert_feed
 from services.query_agent.agent import process_query
 from difflib import get_close_matches
+from services.cache_refresh import (
+    ensure_general_alert,
+    load_cache_settings,
+    load_pin_profiles,
+    PinProfile,
+)
+from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
+from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
+from storage import get_data_dir
 
 
 app = FastAPI(title="Farmer Chat API Service", version="0.1.0")
+appointment_supervisor = AppointmentSupervisor()
 
 # Validate env at startup
 validate_env()
@@ -168,6 +182,22 @@ class WeatherPreferenceRequest(BaseModel):
     weather_location: str
 
 
+class PersonalizedAdvisoryRequest(BaseModel):
+    pin: Optional[str] = None
+    force_refresh: bool = False
+
+
+class AppointmentVoiceTextRequest(BaseModel):
+    session_id: str
+    text: str
+    language: str = "en-IN"
+
+
+class AppointmentVoiceConfirmRequest(BaseModel):
+    session_id: str
+    response: str
+
+
 def to_public_farmer(f: Farmer) -> FarmerPublic:
     return FarmerPublic(
         id=f.id,
@@ -181,6 +211,14 @@ def to_public_farmer(f: Farmer) -> FarmerPublic:
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def _load_settings() -> dict[str, Any]:
+    return load_cache_settings()
+
+
+def _load_pin_profiles() -> list[PinProfile]:
+    return load_pin_profiles()
 
 
 @app.post("/auth/login", response_model=FarmerPublic)
@@ -287,6 +325,19 @@ def seasonal_advisory(req: SeasonalAdvisoryRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/alerts/general/{pin}")
+def general_alert(pin: str, force_refresh: bool = False) -> dict[str, Any]:
+    try:
+        settings = _load_settings()
+        profiles = _load_pin_profiles()
+        alert = ensure_general_alert(pin.strip(), settings, profiles, force_refresh=force_refresh)
+        return alert
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 
 @app.get("/farmers/{farmer_id}/consultations")
 def list_consultations(farmer_id: str) -> list[dict[str, Any]]:
@@ -366,6 +417,148 @@ def create_preconsult_appointment(
         "status": "ok",
         "health_log": health.model_dump(),
         "appointment": appt.model_dump(),
+    }
+
+
+@app.post("/farmers/{farmer_id}/appointments/voice/text")
+def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+    if req.language not in SUPPORTED_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {req.language}")
+    try:
+        return appointment_supervisor.turn(farmer_id, req.session_id, req.text, req.language)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/farmers/{farmer_id}/appointments/voice/turn")
+async def appointment_voice_turn(
+    farmer_id: str,
+    session_id: str,
+    language: str = "en-IN",
+    audio: UploadFile = File(...),
+) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    if language not in SUPPORTED_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
+    audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
+    if audio_type not in {"audio/wav", "audio/x-wav", "audio/webm", "audio/mpeg", "audio/mp4", "audio/ogg"}:
+        raise HTTPException(status_code=415, detail="Upload a supported audio file")
+    data = await audio.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file is larger than 10 MB")
+    try:
+        from services.voice_agent.transcribe import transcribe_audio
+
+        media_formats = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/ogg": "ogg-amr"}
+        text = transcribe_audio(data, media_format=media_formats[audio_type])
+        result = appointment_supervisor.turn(farmer_id, session_id, text, language)
+        result["audio_filename"] = audio.filename
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Audio processing failed: {exc}")
+
+
+@app.post("/farmers/{farmer_id}/appointments/voice/confirm")
+def appointment_voice_confirm(farmer_id: str, req: AppointmentVoiceConfirmRequest) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    if not req.response.strip():
+        raise HTTPException(status_code=400, detail="Confirmation response is required")
+    try:
+        return appointment_supervisor.confirm(farmer_id, req.session_id, req.response)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/farmers/{farmer_id}/appointments/voice/image")
+async def appointment_voice_image(
+    farmer_id: str,
+    session_id: str,
+    image: UploadFile = File(...),
+) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Upload an image file")
+    data = await image.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image file is larger than 8 MB")
+    attachment_id = str(uuid.uuid4())
+    media_dir = get_data_dir() / "appointment_intakes" / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(image.filename or "image.bin").suffix.lower() or ".bin"
+    path = media_dir / f"{attachment_id}{suffix}"
+    path.write_bytes(data)
+    try:
+        return appointment_supervisor.attach(
+            farmer_id,
+            session_id,
+            {"attachment_id": attachment_id, "type": "image", "filename": image.filename or "image", "content_type": image.content_type, "storage_path": str(path), "uploaded_at": datetime.now().isoformat()},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/farmers/{farmer_id}/appointments/voice/{session_id}")
+def appointment_voice_draft(farmer_id: str, session_id: str) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    path = get_data_dir() / "appointment_intakes" / f"{''.join(ch for ch in session_id if ch.isalnum() or ch in '-_')}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Appointment draft not found")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.post("/farmers/{farmer_id}/appointments/voice/submit")
+def appointment_voice_submit(farmer_id: str, req: AppointmentVoiceConfirmRequest) -> dict[str, Any]:
+    if get_farmer_by_id(farmer_id) is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    if req.response.strip().lower() not in {"submit", "yes", "y", "confirm"}:
+        raise HTTPException(status_code=400, detail="Final submission requires explicit confirmation")
+    try:
+        return appointment_supervisor.submit(farmer_id, req.session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/farmers/{farmer_id}/advisory/personalized")
+def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> dict[str, Any]:
+    farmer = get_farmer_by_id(farmer_id)
+    if farmer is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+
+    farms = farms_for_farmer(farmer_id)
+    pin = infer_pin_code(req.pin, farmer, farms)
+    if not pin:
+        raise HTTPException(status_code=400, detail="Unable to determine PIN code for farmer")
+
+    settings = _load_settings()
+    profiles = _load_pin_profiles()
+    try:
+        general = ensure_general_alert(pin, settings, profiles, force_refresh=req.force_refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    animals = animals_for_farmer(farmer_id)
+    logs = health_logs_for_farmer(farmer_id)
+    appointments = appointments_for_farmer(farmer_id)
+
+    farmer_profile = build_farmer_profile(farmer, pin, animals, logs, appointments, farms)
+    personalized = generate_personalized_recommendation(farmer_profile, general)
+
+    return {
+        "pin": pin,
+        "general_alert": general,
+        "personalized": personalized,
     }
 
 

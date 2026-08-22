@@ -1,12 +1,5 @@
-"""Async emergency-alert pipeline: daily multi-source scans for the 10 demo
-PIN codes, with Bedrock actionable insights.
-
-Sources blended:
-  1. Open-Meteo forecast (thunderstorm / heavy rain / wind)
-  2. ICAR-NIVEDI disease catalogue (seasonal disease advisory)
-  3. IMD public warnings (best-effort, often unavailable)
-  4. wttr.in current conditions (severe weather classification)
-"""
+"""Async emergency-alert pipeline: daily Open-Meteo + ICAR/Kisan Suvidha scans
+for the 10 demo PIN codes, with Bedrock actionable insights."""
 
 from __future__ import annotations
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=FarmHerd FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/farmer-chat-api
+EnvironmentFile=-/home/ubuntu/farmer-chat-api/runtime.env
+ExecStart=/home/ubuntu/farmer-chat-api/.venv/bin/uvicorn services.api_service.main:app --host 127.0.0.1 --port 8001 --workers 1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -52,6 +52,7 @@ def test_get_weather_alert_from_pin(monkeypatch):
     assert out["risk_level"] == "high"
     assert out["alerts"]
     assert out["resolved_location"]["display_name"].startswith("Pune")
+    assert out["resolved_location"]["state"] == "Maharashtra"
 
 
 def test_get_weather_alert_handles_no_geo_match(monkeypatch):
@@ -98,3 +99,4 @@ def test_get_weather_alert_low_risk(monkeypatch):
     out = service.get_weather_alert("Belagavi", country_code="in", days=1)
     assert out["risk_level"] == "low"
     assert out["alerts"] == []
+    assert out["resolved_location"]["state"] == "Karnataka"

@@ -1,0 +1,826 @@
+[
+  {
+    "id": "admin",
+    "name": "Administrator",
+    "login_username": "admin",
+    "password_hash": "$2b$12$3lUerbQwgUzZsLFUPaJh1OJ7bz75C1FQZAZGTE4yK6dCsq4dt1M5a",
+    "phone": "",
+    "role": "admin"
+  },
+  {
+    "id": "f-001",
+    "name": "Farmer 1",
+    "login_username": "farmer001",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000001",
+    "role": "farmer"
+  },
+  {
+    "id": "f-002",
+    "name": "Farmer 2",
+    "login_username": "farmer002",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000002",
+    "role": "farmer"
+  },
+  {
+    "id": "f-003",
+    "name": "Farmer 3",
+    "login_username": "farmer003",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000003",
+    "role": "farmer"
+  },
+  {
+    "id": "f-004",
+    "name": "Farmer 4",
+    "login_username": "farmer004",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000004",
+    "role": "farmer"
+  },
+  {
+    "id": "f-005",
+    "name": "Farmer 5",
+    "login_username": "farmer005",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000005",
+    "role": "farmer"
+  },
+  {
+    "id": "f-006",
+    "name": "Farmer 6",
+    "login_username": "farmer006",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000006",
+    "role": "farmer"
+  },
+  {
+    "id": "f-007",
+    "name": "Farmer 7",
+    "login_username": "farmer007",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000007",
+    "role": "farmer"
+  },
+  {
+    "id": "f-008",
+    "name": "Farmer 8",
+    "login_username": "farmer008",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000008",
+    "role": "farmer"
+  },
+  {
+    "id": "f-009",
+    "name": "Farmer 9",
+    "login_username": "farmer009",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000009",
+    "role": "farmer"
+  },
+  {
+    "id": "f-010",
+    "name": "Farmer 10",
+    "login_username": "farmer010",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000010",
+    "role": "farmer"
+  },
+  {
+    "id": "f-011",
+    "name": "Farmer 11",
+    "login_username": "farmer011",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000011",
+    "role": "farmer"
+  },
+  {
+    "id": "f-012",
+    "name": "Farmer 12",
+    "login_username": "farmer012",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000012",
+    "role": "farmer"
+  },
+  {
+    "id": "f-013",
+    "name": "Farmer 13",
+    "login_username": "farmer013",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000013",
+    "role": "farmer"
+  },
+  {
+    "id": "f-014",
+    "name": "Farmer 14",
+    "login_username": "farmer014",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000014",
+    "role": "farmer"
+  },
+  {
+    "id": "f-015",
+    "name": "Farmer 15",
+    "login_username": "farmer015",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000015",
+    "role": "farmer"
+  },
+  {
+    "id": "f-016",
+    "name": "Farmer 16",
+    "login_username": "farmer016",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000016",
+    "role": "farmer"
+  },
+  {
+    "id": "f-017",
+    "name": "Farmer 17",
+    "login_username": "farmer017",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000017",
+    "role": "farmer"
+  },
+  {
+    "id": "f-018",
+    "name": "Farmer 18",
+    "login_username": "farmer018",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000018",
+    "role": "farmer"
+  },
+  {
+    "id": "f-019",
+    "name": "Farmer 19",
+    "login_username": "farmer019",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000019",
+    "role": "farmer"
+  },
+  {
+    "id": "f-020",
+    "name": "Farmer 20",
+    "login_username": "farmer020",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000020",
+    "role": "farmer"
+  },
+  {
+    "id": "f-021",
+    "name": "Farmer 21",
+    "login_username": "farmer021",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000021",
+    "role": "farmer"
+  },
+  {
+    "id": "f-022",
+    "name": "Farmer 22",
+    "login_username": "farmer022",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000022",
+    "role": "farmer"
+  },
+  {
+    "id": "f-023",
+    "name": "Farmer 23",
+    "login_username": "farmer023",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000023",
+    "role": "farmer"
+  },
+  {
+    "id": "f-024",
+    "name": "Farmer 24",
+    "login_username": "farmer024",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000024",
+    "role": "farmer"
+  },
+  {
+    "id": "f-025",
+    "name": "Farmer 25",
+    "login_username": "farmer025",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000025",
+    "role": "farmer"
+  },
+  {
+    "id": "f-026",
+    "name": "Farmer 26",
+    "login_username": "farmer026",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000026",
+    "role": "farmer"
+  },
+  {
+    "id": "f-027",
+    "name": "Farmer 27",
+    "login_username": "farmer027",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000027",
+    "role": "farmer"
+  },
+  {
+    "id": "f-028",
+    "name": "Farmer 28",
+    "login_username": "farmer028",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000028",
+    "role": "farmer"
+  },
+  {
+    "id": "f-029",
+    "name": "Farmer 29",
+    "login_username": "farmer029",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000029",
+    "role": "farmer"
+  },
+  {
+    "id": "f-030",
+    "name": "Farmer 30",
+    "login_username": "farmer030",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000030",
+    "role": "farmer"
+  },
+  {
+    "id": "f-031",
+    "name": "Farmer 31",
+    "login_username": "farmer031",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000031",
+    "role": "farmer"
+  },
+  {
+    "id": "f-032",
+    "name": "Farmer 32",
+    "login_username": "farmer032",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000032",
+    "role": "farmer"
+  },
+  {
+    "id": "f-033",
+    "name": "Farmer 33",
+    "login_username": "farmer033",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000033",
+    "role": "farmer"
+  },
+  {
+    "id": "f-034",
+    "name": "Farmer 34",
+    "login_username": "farmer034",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000034",
+    "role": "farmer"
+  },
+  {
+    "id": "f-035",
+    "name": "Farmer 35",
+    "login_username": "farmer035",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000035",
+    "role": "farmer"
+  },
+  {
+    "id": "f-036",
+    "name": "Farmer 36",
+    "login_username": "farmer036",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000036",
+    "role": "farmer"
+  },
+  {
+    "id": "f-037",
+    "name": "Farmer 37",
+    "login_username": "farmer037",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000037",
+    "role": "farmer"
+  },
+  {
+    "id": "f-038",
+    "name": "Farmer 38",
+    "login_username": "farmer038",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000038",
+    "role": "farmer"
+  },
+  {
+    "id": "f-039",
+    "name": "Farmer 39",
+    "login_username": "farmer039",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000039",
+    "role": "farmer"
+  },
+  {
+    "id": "f-040",
+    "name": "Farmer 40",
+    "login_username": "farmer040",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000040",
+    "role": "farmer"
+  },
+  {
+    "id": "f-041",
+    "name": "Farmer 41",
+    "login_username": "farmer041",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000041",
+    "role": "farmer"
+  },
+  {
+    "id": "f-042",
+    "name": "Farmer 42",
+    "login_username": "farmer042",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000042",
+    "role": "farmer"
+  },
+  {
+    "id": "f-043",
+    "name": "Farmer 43",
+    "login_username": "farmer043",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000043",
+    "role": "farmer"
+  },
+  {
+    "id": "f-044",
+    "name": "Farmer 44",
+    "login_username": "farmer044",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000044",
+    "role": "farmer"
+  },
+  {
+    "id": "f-045",
+    "name": "Farmer 45",
+    "login_username": "farmer045",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000045",
+    "role": "farmer"
+  },
+  {
+    "id": "f-046",
+    "name": "Farmer 46",
+    "login_username": "farmer046",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000046",
+    "role": "farmer"
+  },
+  {
+    "id": "f-047",
+    "name": "Farmer 47",
+    "login_username": "farmer047",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000047",
+    "role": "farmer"
+  },
+  {
+    "id": "f-048",
+    "name": "Farmer 48",
+    "login_username": "farmer048",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000048",
+    "role": "farmer"
+  },
+  {
+    "id": "f-049",
+    "name": "Farmer 49",
+    "login_username": "farmer049",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000049",
+    "role": "farmer"
+  },
+  {
+    "id": "f-050",
+    "name": "Farmer 50",
+    "login_username": "farmer050",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000050",
+    "role": "farmer"
+  },
+  {
+    "id": "f-051",
+    "name": "Farmer 51",
+    "login_username": "farmer051",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000051",
+    "role": "farmer"
+  },
+  {
+    "id": "f-052",
+    "name": "Farmer 52",
+    "login_username": "farmer052",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000052",
+    "role": "farmer"
+  },
+  {
+    "id": "f-053",
+    "name": "Farmer 53",
+    "login_username": "farmer053",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000053",
+    "role": "farmer"
+  },
+  {
+    "id": "f-054",
+    "name": "Farmer 54",
+    "login_username": "farmer054",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000054",
+    "role": "farmer"
+  },
+  {
+    "id": "f-055",
+    "name": "Farmer 55",
+    "login_username": "farmer055",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000055",
+    "role": "farmer"
+  },
+  {
+    "id": "f-056",
+    "name": "Farmer 56",
+    "login_username": "farmer056",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000056",
+    "role": "farmer"
+  },
+  {
+    "id": "f-057",
+    "name": "Farmer 57",
+    "login_username": "farmer057",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000057",
+    "role": "farmer"
+  },
+  {
+    "id": "f-058",
+    "name": "Farmer 58",
+    "login_username": "farmer058",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000058",
+    "role": "farmer"
+  },
+  {
+    "id": "f-059",
+    "name": "Farmer 59",
+    "login_username": "farmer059",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000059",
+    "role": "farmer"
+  },
+  {
+    "id": "f-060",
+    "name": "Farmer 60",
+    "login_username": "farmer060",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000060",
+    "role": "farmer"
+  },
+  {
+    "id": "f-061",
+    "name": "Farmer 61",
+    "login_username": "farmer061",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000061",
+    "role": "farmer"
+  },
+  {
+    "id": "f-062",
+    "name": "Farmer 62",
+    "login_username": "farmer062",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000062",
+    "role": "farmer"
+  },
+  {
+    "id": "f-063",
+    "name": "Farmer 63",
+    "login_username": "farmer063",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000063",
+    "role": "farmer"
+  },
+  {
+    "id": "f-064",
+    "name": "Farmer 64",
+    "login_username": "farmer064",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000064",
+    "role": "farmer"
+  },
+  {
+    "id": "f-065",
+    "name": "Farmer 65",
+    "login_username": "farmer065",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000065",
+    "role": "farmer"
+  },
+  {
+    "id": "f-066",
+    "name": "Farmer 66",
+    "login_username": "farmer066",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000066",
+    "role": "farmer"
+  },
+  {
+    "id": "f-067",
+    "name": "Farmer 67",
+    "login_username": "farmer067",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000067",
+    "role": "farmer"
+  },
+  {
+    "id": "f-068",
+    "name": "Farmer 68",
+    "login_username": "farmer068",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000068",
+    "role": "farmer"
+  },
+  {
+    "id": "f-069",
+    "name": "Farmer 69",
+    "login_username": "farmer069",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000069",
+    "role": "farmer"
+  },
+  {
+    "id": "f-070",
+    "name": "Farmer 70",
+    "login_username": "farmer070",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000070",
+    "role": "farmer"
+  },
+  {
+    "id": "f-071",
+    "name": "Farmer 71",
+    "login_username": "farmer071",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000071",
+    "role": "farmer"
+  },
+  {
+    "id": "f-072",
+    "name": "Farmer 72",
+    "login_username": "farmer072",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000072",
+    "role": "farmer"
+  },
+  {
+    "id": "f-073",
+    "name": "Farmer 73",
+    "login_username": "farmer073",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000073",
+    "role": "farmer"
+  },
+  {
+    "id": "f-074",
+    "name": "Farmer 74",
+    "login_username": "farmer074",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000074",
+    "role": "farmer"
+  },
+  {
+    "id": "f-075",
+    "name": "Farmer 75",
+    "login_username": "farmer075",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000075",
+    "role": "farmer"
+  },
+  {
+    "id": "f-076",
+    "name": "Farmer 76",
+    "login_username": "farmer076",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000076",
+    "role": "farmer"
+  },
+  {
+    "id": "f-077",
+    "name": "Farmer 77",
+    "login_username": "farmer077",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000077",
+    "role": "farmer"
+  },
+  {
+    "id": "f-078",
+    "name": "Farmer 78",
+    "login_username": "farmer078",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000078",
+    "role": "farmer"
+  },
+  {
+    "id": "f-079",
+    "name": "Farmer 79",
+    "login_username": "farmer079",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000079",
+    "role": "farmer"
+  },
+  {
+    "id": "f-080",
+    "name": "Farmer 80",
+    "login_username": "farmer080",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000080",
+    "role": "farmer"
+  },
+  {
+    "id": "f-081",
+    "name": "Farmer 81",
+    "login_username": "farmer081",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000081",
+    "role": "farmer"
+  },
+  {
+    "id": "f-082",
+    "name": "Farmer 82",
+    "login_username": "farmer082",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000082",
+    "role": "farmer"
+  },
+  {
+    "id": "f-083",
+    "name": "Farmer 83",
+    "login_username": "farmer083",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000083",
+    "role": "farmer"
+  },
+  {
+    "id": "f-084",
+    "name": "Farmer 84",
+    "login_username": "farmer084",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000084",
+    "role": "farmer"
+  },
+  {
+    "id": "f-085",
+    "name": "Farmer 85",
+    "login_username": "farmer085",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000085",
+    "role": "farmer"
+  },
+  {
+    "id": "f-086",
+    "name": "Farmer 86",
+    "login_username": "farmer086",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000086",
+    "role": "farmer"
+  },
+  {
+    "id": "f-087",
+    "name": "Farmer 87",
+    "login_username": "farmer087",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000087",
+    "role": "farmer"
+  },
+  {
+    "id": "f-088",
+    "name": "Farmer 88",
+    "login_username": "farmer088",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000088",
+    "role": "farmer"
+  },
+  {
+    "id": "f-089",
+    "name": "Farmer 89",
+    "login_username": "farmer089",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000089",
+    "role": "farmer"
+  },
+  {
+    "id": "f-090",
+    "name": "Farmer 90",
+    "login_username": "farmer090",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000090",
+    "role": "farmer"
+  },
+  {
+    "id": "f-091",
+    "name": "Farmer 91",
+    "login_username": "farmer091",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000091",
+    "role": "farmer"
+  },
+  {
+    "id": "f-092",
+    "name": "Farmer 92",
+    "login_username": "farmer092",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000092",
+    "role": "farmer"
+  },
+  {
+    "id": "f-093",
+    "name": "Farmer 93",
+    "login_username": "farmer093",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000093",
+    "role": "farmer"
+  },
+  {
+    "id": "f-094",
+    "name": "Farmer 94",
+    "login_username": "farmer094",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000094",
+    "role": "farmer"
+  },
+  {
+    "id": "f-095",
+    "name": "Farmer 95",
+    "login_username": "farmer095",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000095",
+    "role": "farmer"
+  },
+  {
+    "id": "f-096",
+    "name": "Farmer 96",
+    "login_username": "farmer096",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000096",
+    "role": "farmer"
+  },
+  {
+    "id": "f-097",
+    "name": "Farmer 97",
+    "login_username": "farmer097",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000097",
+    "role": "farmer"
+  },
+  {
+    "id": "f-098",
+    "name": "Farmer 98",
+    "login_username": "farmer098",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000098",
+    "role": "farmer"
+  },
+  {
+    "id": "f-099",
+    "name": "Farmer 99",
+    "login_username": "farmer099",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000099",
+    "role": "farmer"
+  },
+  {
+    "id": "f-100",
+    "name": "Farmer 100",
+    "login_username": "farmer100",
+    "password_hash": "$2b$12$80Ud0qGtgqXkiBJgwDvgSu8zAhVpcx/JfKvjUU.J9AZR/.wIDHi9y",
+    "phone": "+910000000100",
+    "role": "farmer"
+  },
+  {
+    "id": "9e95446d-c317-4074-b698-c8cc35325de6",
+    "name": "Himanshu",
+    "login_username": "farmer_9e95446d",
+    "password_hash": "",
+    "phone": "9876543210",
+    "role": "farmer",
+    "weather_location": "",
+    "onboarding_data": {
+      "name": "Himanshu",
+      "phone": "9876543210",
+      "aadharNo": "123456789012",
+      "city": "Jaipur",
+      "state": "Rajasthan"
+    }
+  }
+]

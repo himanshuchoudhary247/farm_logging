@@ -1,0 +1,15 @@
+[Unit]
+Description=FarmHerd unified portal
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/farmer-portal
+Environment=AWS_REGION=ap-south-1
+ExecStart=/home/ubuntu/.local/bin/streamlit run portal_app.py --server.address 127.0.0.1 --server.port 8500 --server.headless true --server.enableCORS false --server.enableXsrfProtection true
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
