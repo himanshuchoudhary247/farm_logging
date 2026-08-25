@@ -4,10 +4,14 @@ from typing import Any, Optional
 from datetime import datetime
 from pathlib import Path
 import json
+import logging
+import time
 import uuid
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from utils.env_check import validate_env
+
+_log = logging.getLogger("api")
 from pydantic import BaseModel, Field
 
 from auth import authenticate
@@ -429,7 +433,12 @@ def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest) -> 
     if req.language not in SUPPORTED_LANGUAGES:
         raise HTTPException(status_code=400, detail=f"Unsupported language: {req.language}")
     try:
-        return appointment_supervisor.turn(farmer_id, req.session_id, req.text, req.language)
+        t0 = time.time()
+        result = appointment_supervisor.turn(farmer_id, req.session_id, req.text, req.language)
+        total_ms = round((time.time() - t0) * 1000)
+        result["timing"] = {"total_ms": total_ms}
+        _log.info("LATENCY voice_text total=%dms farmer=%s session=%s", total_ms, farmer_id, req.session_id)
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -455,9 +464,24 @@ async def appointment_voice_turn(
         from services.voice_agent.transcribe import transcribe_audio
 
         media_formats = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/ogg": "ogg-amr"}
+        t0 = time.time()
         text = transcribe_audio(data, media_format=media_formats[audio_type])
+        t_transcribe = time.time()
         result = appointment_supervisor.turn(farmer_id, session_id, text, language)
+        t_turn = time.time()
         result["audio_filename"] = audio.filename
+        transcribe_ms = round((t_transcribe - t0) * 1000)
+        turn_ms = round((t_turn - t_transcribe) * 1000)
+        total_ms = round((t_turn - t0) * 1000)
+        result["timing"] = {
+            "transcribe_ms": transcribe_ms,
+            "turn_ms": turn_ms,
+            "total_ms": total_ms,
+        }
+        _log.info(
+            "LATENCY voice_turn total=%dms transcribe=%dms turn=%dms farmer=%s session=%s",
+            total_ms, transcribe_ms, turn_ms, farmer_id, session_id,
+        )
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

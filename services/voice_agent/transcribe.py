@@ -122,6 +122,7 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
     if not bucket:
         raise ValueError("VOICE_S3_BUCKET not set for AWS mode")
 
+    t0 = time.time()
     # Step 1: save temp file
     suffix = "." + (media_format if media_format != "mpeg" else "mp3")
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
@@ -132,6 +133,7 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
     extension = media_format if media_format != "mpeg" else "mp3"
     key = f"voice-input/{uuid.uuid4()}.{extension}"
     s3_uri = upload_file_to_s3(local_path, bucket, key)
+    t_s3 = time.time()
 
     # Step 3: transcribe
     service = TranscribeService()
@@ -158,5 +160,14 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
             f"AWS transcription failed ({code or 'unknown'}: {msg or 'no details'}). Ensure IAM allows transcribe:StartTranscriptionJob and "
             "transcribe:GetTranscriptionJob, or set TRANSCRIBE_FALLBACK_TO_LOCAL=true."
         ) from e
+
+    t_transcribe = time.time()
+    s3_ms = round((t_s3 - t0) * 1000)
+    transcribe_ms = round((t_transcribe - t_s3) * 1000)
+    total_ms = round((t_transcribe - t0) * 1000)
+    logging.getLogger("transcribe").info(
+        "LATENCY transcribe_audio total=%dms s3_upload=%dms transcribe_job=%dms",
+        total_ms, s3_ms, transcribe_ms,
+    )
 
     return text

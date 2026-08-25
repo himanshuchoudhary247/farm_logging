@@ -1,13 +1,17 @@
 import os
 import json
+import time
+import logging
 import boto3
 from typing import Optional, Dict, Any
+
+_log = logging.getLogger("bedrock")
 
 
 class BedrockTextAdapter:
     def __init__(self):
         self.client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
-        self.model_id = os.getenv("BEDROCK_MODEL_ID", "qwen.qwen3-32b-v1:0")
+        self.model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
 
     def complete(self, messages, system=None):
         prompt = ""
@@ -16,6 +20,8 @@ class BedrockTextAdapter:
         for m in messages:
             prompt += f"{m['role'].capitalize()}: {m['content']}\n"
         prompt += "Assistant:"
+
+        t0 = time.time()
 
         # Anthropic models via invoke_model
         if self.model_id.startswith("anthropic."):
@@ -31,7 +37,9 @@ class BedrockTextAdapter:
                 body=json.dumps(body),
             )
             out = json.loads(resp["body"].read())
-            return out.get("content", [{"text": ""}])[0]["text"]
+            result = out.get("content", [{"text": ""}])[0]["text"]
+            _log.info("LATENCY bedrock model=%s ms=%.0f", self.model_id, (time.time() - t0) * 1000)
+            return result
 
         # Non-anthropic models via Converse API
         req = {
@@ -52,9 +60,9 @@ class BedrockTextAdapter:
 
         resp = self.client.converse(**req)
         content = resp.get("output", {}).get("message", {}).get("content", [])
-        if content and isinstance(content, list):
-            return content[0].get("text", "")
-        return ""
+        result = content[0].get("text", "") if content and isinstance(content, list) else ""
+        _log.info("LATENCY bedrock model=%s ms=%.0f", self.model_id, (time.time() - t0) * 1000)
+        return result
 
 
 # ---- Voice Extraction Wrapper ----

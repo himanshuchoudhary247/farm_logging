@@ -1,7 +1,11 @@
 import os
 import re
+import time
+import logging
 from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
+
+_log = logging.getLogger("orchestrator")
 
 from services.llm_service.bedrock_adapter import call_bedrock, translate_to_english
 from services.voice_agent.extractor import normalize_entities
@@ -135,7 +139,7 @@ def _has_native_indic_script(text: str) -> bool:
 
 
 def _to_english_working_text(text: str) -> str:
-    use_translation = os.getenv("VOICE_TRANSLATE_TO_ENGLISH", "true").lower() in {
+    use_translation = os.getenv("VOICE_TRANSLATE_TO_ENGLISH", "false").lower() in {
         "1",
         "true",
         "yes",
@@ -955,8 +959,11 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
 
 
 def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]:
+    t0 = time.time()
     normalized_text = _normalize_text(text)
+    t_norm = time.time()
     working_text = _to_english_working_text(normalized_text)
+    t_translate = time.time()
 
     session = get_session(session_id)
     entities = dict(session.get("entities") or {})
@@ -979,7 +986,9 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     llm_missing_fields: List[str] = []
 
     # Best-effort LLM enrichment
+    llm_ms = 0.0
     try:
+        t_llm_start = time.time()
         llm_response = call_bedrock(
             working_text,
             context={
@@ -988,6 +997,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
                 "pending_questions": pending_questions,
             },
         )
+        llm_ms = (time.time() - t_llm_start) * 1000
         llm_raw = llm_response.get("_raw")
         confidence = float(llm_response.get("confidence", 0.0) or 0.0)
         llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
@@ -1000,6 +1010,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     except Exception:
         # Keep deterministic flow even if LLM is unavailable
         pass
+    t_post_llm = time.time()
 
     # Merge quick entities and direct follow-up answers
     entities = _extract_quick_entities(working_text, entities)
@@ -1028,6 +1039,14 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
         },
     )
 
+    total_ms = (time.time() - t0) * 1000
+    translate_ms = (t_translate - t_norm) * 1000
+    rule_ms = (t_post_llm - t_translate - llm_ms) * 1000
+    _log.info(
+        "LATENCY process_text_input total=%.0fms llm=%.0fms translate=%.0fms rules=%.0fms session=%s",
+        total_ms, llm_ms, translate_ms, rule_ms, session_id,
+    )
+
     return {
         "intent": intent,
         "target_tables": tables,
@@ -1044,6 +1063,12 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
             "working_text_en": working_text,
             "confidence": confidence,
             "session_id": session_id,
+        },
+        "timing": {
+            "total_ms": round(total_ms),
+            "llm_ms": round(llm_ms),
+            "translate_ms": round(translate_ms),
+            "rule_ms": round(rule_ms),
         },
         "_raw": llm_raw,
     }
