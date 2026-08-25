@@ -6,6 +6,9 @@ import boto3
 from typing import Optional, Dict, Any
 
 _log = logging.getLogger("bedrock")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
 
 
 class BedrockTextAdapter:
@@ -111,7 +114,7 @@ Conversation context:
 - pending_questions: {json.dumps(pending_questions, ensure_ascii=False)}
 
 Today's date: {today.isoformat()}
-Tomorrow's date: {tomorrow.isoformat()}
+Tomorrow's date: {tomorrow}
 
 Your job:
 1. Identify intent

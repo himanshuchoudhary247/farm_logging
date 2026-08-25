@@ -6,6 +6,9 @@ from difflib import get_close_matches
 from typing import Any, Dict, List, Optional
 
 _log = logging.getLogger("orchestrator")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
 
 from services.llm_service.bedrock_adapter import call_bedrock, translate_to_english
 from services.voice_agent.extractor import normalize_entities
@@ -1007,7 +1010,9 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
             intent = llm_intent
         llm_entities = llm_response.get("entities", {}) or {}
         entities.update(llm_entities)
-    except Exception:
+    except Exception as exc:
+        import traceback
+        _log.warning("LLM enrichment failed: %s\n%s", exc, traceback.format_exc())
         # Keep deterministic flow even if LLM is unavailable
         pass
     t_post_llm = time.time()
@@ -1041,7 +1046,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
 
     total_ms = (time.time() - t0) * 1000
     translate_ms = (t_translate - t_norm) * 1000
-    rule_ms = (t_post_llm - t_translate - llm_ms) * 1000
+    rule_ms = (t_post_llm - t_translate) * 1000 - llm_ms
     _log.info(
         "LATENCY process_text_input total=%.0fms llm=%.0fms translate=%.0fms rules=%.0fms session=%s",
         total_ms, llm_ms, translate_ms, rule_ms, session_id,

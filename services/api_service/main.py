@@ -12,6 +12,9 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from utils.env_check import validate_env
 
 _log = logging.getLogger("api")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
 from pydantic import BaseModel, Field
 
 from auth import authenticate
