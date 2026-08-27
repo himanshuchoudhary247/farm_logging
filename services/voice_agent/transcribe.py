@@ -55,7 +55,7 @@ class TranscribeService:
                 break
             if time.time() - start > 300:
                 raise TimeoutError("Transcription timed out")
-            time.sleep(2)
+            time.sleep(0.5)
 
         if state == "FAILED":
             self.log.error(f"Transcription failed for {job_name}")

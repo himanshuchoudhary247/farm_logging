@@ -30,7 +30,7 @@ class BedrockTextAdapter:
         if self.model_id.startswith("anthropic."):
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 512,
+                "max_tokens": 256,
                 "messages": [
                     {"role": "user", "content": prompt}
                 ],
@@ -54,7 +54,7 @@ class BedrockTextAdapter:
                 }
             ],
             "inferenceConfig": {
-                "maxTokens": 512,
+                "maxTokens": 256,
                 "temperature": 0,
             },
         }
@@ -70,22 +70,13 @@ class BedrockTextAdapter:
 
 # ---- Voice Extraction Wrapper ----
 _SYSTEM_PROMPT = (
-    "You are an information extraction system for a livestock veterinary app in India.\n"
-    "You receive transcribed farmer voice input in Hindi, Tamil, Telugu, Kannada, or English (often code-mixed).\n"
-    "Return ONLY valid JSON. No backticks. No markdown. No preamble. No trailing text.\n"
-    "The response MUST be a single JSON object with EXACT keys: intent, entities, missing_fields, follow_up_questions, confidence.\n"
-    "- intent: one of [WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT] or null\n"
-    "- entities: a JSON object with keys: animal_name, animal_tag, animal_identifier, issue, symptoms(list), duration, severity, date, time\n"
-    "- missing_fields: array of strings\n"
-    "- follow_up_questions: array of strings\n"
-    "- confidence: number between 0 and 1\n"
-    "RULES:\n"
-    "- Translate issue/symptoms to canonical English (e.g. 'खाना नहीं खा रहा' -> 'not eating')\n"
-    "- Keep animal_name in the original script (e.g. 'सीमा', 'செல்வி')\n"
-    "- 'मतलब' is a filler word meaning 'that is' — NEVER extract it as an animal name\n"
-    "- Convert spoken English number words in Hindi transcripts to digits (e.g. 'वन टू थ्री फोर' -> tag '1234')\n"
-    "- If tomorrow/कल/நாளை/రేపు/ನಾಳೆ is mentioned, set date to tomorrow's date\n"
-    "- If information is missing, leave fields null or empty; do not invent values"
+    "Extract livestock vet info from farmer voice (Hindi/Tamil/Telugu/Kannada/English). "
+    "Return ONLY JSON with keys: intent, entities, missing_fields, follow_up_questions, confidence. "
+    "intent: WEATHER_ALERT|FETCH_ANIMAL_DETAILS|CREATE_ANIMAL|UPDATE_ANIMAL|LOG_HEALTH|CREATE_APPOINTMENT|null. "
+    "entities keys: animal_name, animal_tag, animal_identifier, issue, symptoms[], duration, severity, date, time. "
+    "Translate issue/symptoms to English. Keep animal_name in original script. "
+    "मतलब is filler, NOT an animal name. "
+    "If info missing, use null. Do not invent values."
 )
 
 def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
@@ -102,51 +93,10 @@ def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
     today = datetime.now(timezone.utc).date()
     tomorrow = (today + timedelta(days=1)).isoformat()
 
-    return f"""
-You are an AI assistant for a livestock veterinary management system in India.
-
-User said:
-"{text}"
-
-Conversation context:
-- current_intent: {json.dumps(session_intent)}
-- known_entities: {json.dumps(session_entities, ensure_ascii=False)}
-- pending_questions: {json.dumps(pending_questions, ensure_ascii=False)}
-
-Today's date: {today.isoformat()}
-Tomorrow's date: {tomorrow}
-
-Your job:
-1. Identify intent
-2. Extract entities (translate issue/symptoms to English, keep animal_name in original script)
-3. Identify missing required fields
-4. Suggest follow-up questions
-
-Intents:
-- WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT, null
-
-Entity schema:
-- animal_name: name in original script (e.g. "सीमा", "செல்வி", "Lakshmi") or null
-- animal_tag: tag number as digits (e.g. "1234") or null
-- animal_identifier: animal_name if given, else "tag-XXXX" if tag given, else null
-- issue: primary problem in English (e.g. "not eating", "fever", "swelling", "lethargy", "limping", "wound")
-- symptoms: array of symptoms in English
-- duration: e.g. "2 days" or null
-- severity: "mild" | "moderate" | "severe" or null
-- date: YYYY-MM-DD format (use {tomorrow} if tomorrow/कल/நாளை/రేపు/ನಾಳೆ is mentioned)
-- time: HH:MM format or null
-
-CRITICAL: "मतलब" is a filler word, NOT an animal name. Code-mixed English number words (वन, टू, थ्री, फोर) should be converted to digits for tags.
-
-Return ONLY valid JSON (no extra text):
-{{
-  "intent": "...",
-  "entities": {{}},
-  "missing_fields": [],
-  "follow_up_questions": [],
-  "confidence": 0.0
-}}
-"""
+    return f"""User: "{text}"
+Context: intent={json.dumps(session_intent)} entities={json.dumps(session_entities, ensure_ascii=False)} pending={json.dumps(pending_questions, ensure_ascii=False)}
+Today: {today.isoformat()} Tomorrow: {tomorrow}
+Extract intent+entities. Return ONLY JSON."""
 
 
 def _safe_json_parse(s: str):
