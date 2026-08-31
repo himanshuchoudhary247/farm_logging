@@ -633,13 +633,80 @@ function VoiceAppointment() {
   const [sessionId] = useState(() => crypto.randomUUID());
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
-  async function sendText() {
-    if (!farmerId.trim() || !text.trim()) return;
+  const recognition = useRef<any>(null);
+  const speechSupported = useRef(false);
+
+  // Detect Web Speech API support once
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    speechSupported.current = Boolean(SR);
+    if (!SR) return;
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript;
+        }
+      }
+      if (transcript) {
+        setText(transcript.trim());
+      }
+    };
+    rec.onerror = (event: any) => {
+      if (event.error !== "aborted") {
+        setError(`Speech recognition error: ${event.error}`);
+      }
+      setActivity("idle");
+    };
+    rec.onend = () => {
+      if (activity === "recording") {
+        setActivity("processing");
+        // transcript was set in onresult; send it
+        const said = textRef.current;
+        if (said && said.trim()) {
+          sendSaidText(said.trim());
+        } else {
+          setActivity("idle");
+        }
+      }
+    };
+    recognition.current = rec;
+    return () => {
+      try { rec.abort(); } catch { /* ignore */ }
+    };
+  }, []);
+
+  // Keep latest text accessible in speech callbacks
+  const textRef = useRef("");
+  useEffect(() => { textRef.current = text; }, [text]);
+
+  async function sendText(t?: string) {
+    const value = (t ?? text).trim();
+    if (!farmerId.trim() || !value) return;
     setError("");
     setActivity("processing");
     try {
       setResponse(
-        await appointmentVoiceText(farmerId, sessionId, text, language),
+        await appointmentVoiceText(farmerId, sessionId, value, language),
+      );
+      setText("");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to process message",
+      );
+    } finally {
+      setActivity("idle");
+    }
+  }
+  async function sendSaidText(said: string) {
+    setError("");
+    setActivity("processing");
+    try {
+      setResponse(
+        await appointmentVoiceText(farmerId, sessionId, said, language),
       );
       setText("");
     } catch (err) {
@@ -651,6 +718,17 @@ function VoiceAppointment() {
     }
   }
   async function startRecording() {
+    setError("");
+    if (speechSupported.current && recognition.current) {
+      try {
+        recognition.current.lang = language;
+        recognition.current.start();
+        setActivity("recording");
+        return;
+      } catch {
+        // fall through to audio upload fallback
+      }
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const media = new MediaRecorder(stream);
@@ -687,6 +765,11 @@ function VoiceAppointment() {
     }
   }
   function stopRecording() {
+    if (speechSupported.current && recognition.current && activity === "recording") {
+      try { recognition.current.stop(); } catch { /* ignore */ }
+      setActivity("processing");
+      return;
+    }
     recorder.current?.stop();
     setActivity("processing");
   }
@@ -862,7 +945,7 @@ function VoiceAppointment() {
           />
           <button
             className="button secondary"
-            onClick={sendText}
+            onClick={() => sendText()}
             disabled={!farmerId.trim() || !text.trim()}
           >
             Send

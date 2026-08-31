@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import boto3
+from botocore.config import Config
 from typing import Optional, Dict, Any
 
 _log = logging.getLogger("bedrock")
@@ -10,11 +11,32 @@ if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
+_BEDROCK_CONFIG = Config(
+    max_pool_connections=10,
+    connect_timeout=2,
+    read_timeout=30,
+    retries={"max_attempts": 2, "mode": "adaptive"},
+)
+
+_bedrock_client = None
+_bedrock_model = None
+
+
+def _get_client():
+    global _bedrock_client, _bedrock_model
+    if _bedrock_client is None:
+        _bedrock_client = boto3.client(
+            "bedrock-runtime",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+            config=_BEDROCK_CONFIG,
+        )
+        _bedrock_model = os.getenv("BEDROCK_MODEL_ID", "mistral.mistral-large-3-675b-instruct")
+    return _bedrock_client, _bedrock_model
+
 
 class BedrockTextAdapter:
     def __init__(self):
-        self.client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
-        self.model_id = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
+        self.client, self.model_id = _get_client()
 
     def complete(self, messages, system=None):
         prompt = ""
