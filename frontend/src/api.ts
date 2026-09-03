@@ -138,6 +138,10 @@ export type VoiceAppointmentResponse = {
   audio_error?: string | null;
 };
 
+export function speechSynthesisSupported() {
+  return typeof window !== "undefined" && "speechSynthesis" in window;
+}
+
 export function appointmentVoiceText(
   farmerId: string,
   sessionId: string,
@@ -148,7 +152,12 @@ export function appointmentVoiceText(
     `/farmers/${encodeURIComponent(farmerId)}/appointments/voice/text`,
     {
       method: "POST",
-      body: JSON.stringify({ session_id: sessionId, text, language }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        text,
+        language,
+        include_audio: !speechSynthesisSupported(),
+      }),
     },
   );
 }
@@ -181,7 +190,11 @@ export function appointmentVoiceConfirm(
     `/farmers/${encodeURIComponent(farmerId)}/appointments/voice/confirm`,
     {
       method: "POST",
-      body: JSON.stringify({ session_id: sessionId, response }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        response,
+        include_audio: !speechSynthesisSupported(),
+      }),
     },
   );
 }

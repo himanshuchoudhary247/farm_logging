@@ -1,9 +1,36 @@
 import logging
 import os
+import time
 from typing import Optional, Tuple
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
+
+_log = logging.getLogger("tts")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
+
+_POLLY_CONFIG = Config(
+    max_pool_connections=10,
+    connect_timeout=2,
+    read_timeout=10,
+    retries={"max_attempts": 2, "mode": "adaptive"},
+)
+
+_polly_client = None
+
+
+def _get_polly_client():
+    global _polly_client
+    if _polly_client is None:
+        _polly_client = boto3.client(
+            "polly",
+            region_name=os.getenv("AWS_REGION", "ap-south-1"),
+            config=_POLLY_CONFIG,
+        )
+    return _polly_client
 
 
 def _infer_lang(text: str) -> str:
@@ -43,7 +70,7 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
 
     engine = os.getenv("AWS_POLLY_ENGINE", "standard")
 
-    client = boto3.client("polly", region_name=region)
+    client = _get_polly_client()
 
     fallback_chain = [
         (voice_id, language_code, engine),
@@ -52,6 +79,7 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
         fallback_chain.append((voice_hi, os.getenv("AWS_POLLY_LANGUAGE_CODE_HI", "hi-IN"), "standard"))
         fallback_chain.append((voice_en, os.getenv("AWS_POLLY_LANGUAGE_CODE_EN", "en-IN"), "standard"))
 
+    t0 = time.time()
     for v_id, lc, eng in fallback_chain:
         try:
             resp = client.synthesize_speech(
@@ -64,8 +92,11 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
             stream = resp.get("AudioStream")
             if stream is None:
                 continue
-            return stream.read(), None
+            audio = stream.read()
+            _log.info("LATENCY tts voice=%s ms=%.0f bytes=%d", v_id, (time.time() - t0) * 1000, len(audio))
+            return audio, None
         except ClientError:
             continue
 
+    _log.info("LATENCY tts failed after %.0fms", (time.time() - t0) * 1000)
     return None, "polly_unsupported_language"

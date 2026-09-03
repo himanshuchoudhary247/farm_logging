@@ -988,39 +988,61 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     llm_followups: List[str] = []
     llm_missing_fields: List[str] = []
 
+    # Fast path: for short English answers to pending questions, rules are enough.
+    # Skip the LLM entirely to cut ~1s per follow-up turn.
+    entities_before_rules = dict(entities)
+    rule_entities = _extract_quick_entities(working_text, dict(entities))
+    rule_entities = _prefill_animal_details(working_text, rule_entities)
+    rule_entities = _apply_followup_answer(working_text, intent, pending_questions, rule_entities)
+    fast_path = (
+        pending_questions
+        and not _has_native_indic_script(working_text)
+        and len(working_text) <= 60
+        and not detected_intent
+        and any(
+            rule_entities.get(k) not in (None, "", []) and rule_entities.get(k) != entities_before_rules.get(k)
+            for k in rule_entities
+        )
+    )
+
     # Best-effort LLM enrichment
     llm_ms = 0.0
-    try:
-        t_llm_start = time.time()
-        llm_response = call_bedrock(
-            working_text,
-            context={
-                "intent": session_intent,
-                "entities": entities,
-                "pending_questions": pending_questions,
-            },
-        )
-        llm_ms = (time.time() - t_llm_start) * 1000
-        llm_raw = llm_response.get("_raw")
-        confidence = float(llm_response.get("confidence", 0.0) or 0.0)
-        llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
-        llm_missing_fields = [str(x).strip() for x in (llm_response.get("missing_fields") or []) if str(x).strip()]
-        llm_intent = llm_response.get("intent")
-        if llm_intent and (not intent or confidence >= 0.55):
-            intent = llm_intent
-        llm_entities = llm_response.get("entities", {}) or {}
-        entities.update(llm_entities)
-    except Exception as exc:
-        import traceback
-        _log.warning("LLM enrichment failed: %s\n%s", exc, traceback.format_exc())
-        # Keep deterministic flow even if LLM is unavailable
-        pass
+    if fast_path:
+        entities = rule_entities
+        _log.info("LLM fast-path hit (rules sufficient) session=%s", session_id)
+    else:
+        try:
+            t_llm_start = time.time()
+            llm_response = call_bedrock(
+                working_text,
+                context={
+                    "intent": session_intent,
+                    "entities": entities,
+                    "pending_questions": pending_questions,
+                },
+            )
+            llm_ms = (time.time() - t_llm_start) * 1000
+            llm_raw = llm_response.get("_raw")
+            confidence = float(llm_response.get("confidence", 0.0) or 0.0)
+            llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
+            llm_missing_fields = [str(x).strip() for x in (llm_response.get("missing_fields") or []) if str(x).strip()]
+            llm_intent = llm_response.get("intent")
+            if llm_intent and (not intent or confidence >= 0.55):
+                intent = llm_intent
+            llm_entities = llm_response.get("entities", {}) or {}
+            entities.update(llm_entities)
+        except Exception as exc:
+            import traceback
+            _log.warning("LLM enrichment failed: %s\n%s", exc, traceback.format_exc())
+            # Keep deterministic flow even if LLM is unavailable
+            pass
     t_post_llm = time.time()
 
-    # Merge quick entities and direct follow-up answers
-    entities = _extract_quick_entities(working_text, entities)
-    entities = _prefill_animal_details(working_text, entities)
-    entities = _apply_followup_answer(working_text, intent, pending_questions, entities)
+    # Merge quick entities and direct follow-up answers (skip if fast-path already applied them)
+    if not fast_path:
+        entities = _extract_quick_entities(working_text, entities)
+        entities = _prefill_animal_details(working_text, entities)
+        entities = _apply_followup_answer(working_text, intent, pending_questions, entities)
     entities = normalize_entities(entities)
     intent = _sync_animal_intent(intent, entities)
     entities = _canonicalize_entities(intent, entities)

@@ -64,6 +64,31 @@ appointment_supervisor = AppointmentSupervisor()
 validate_env()
 
 
+@app.on_event("startup")
+async def prewarm_connections() -> None:
+    """Fire-and-forget: warm the Bedrock TLS connection so the first
+    conversational turn doesn't pay the handshake (~100-200ms)."""
+    import asyncio
+
+    def _warm() -> None:
+        try:
+            from services.llm_service.bedrock_adapter import BedrockTextAdapter
+
+            adapter = BedrockTextAdapter()
+            if adapter.model_id.startswith("anthropic."):
+                return
+            adapter.client.converse(
+                modelId=adapter.model_id,
+                messages=[{"role": "user", "content": [{"text": "hi"}]}],
+                inferenceConfig={"maxTokens": 4, "temperature": 0},
+            )
+            _log.info("Bedrock connection pre-warmed (model=%s)", adapter.model_id)
+        except Exception as exc:
+            _log.info("Bedrock pre-warm skipped: %s", exc)
+
+    await asyncio.get_event_loop().run_in_executor(None, _warm)
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -198,11 +223,13 @@ class AppointmentVoiceTextRequest(BaseModel):
     session_id: str
     text: str
     language: str = "en-IN"
+    include_audio: bool = True
 
 
 class AppointmentVoiceConfirmRequest(BaseModel):
     session_id: str
     response: str
+    include_audio: bool = True
 
 
 def to_public_farmer(f: Farmer) -> FarmerPublic:
@@ -437,7 +464,7 @@ def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest) -> 
         raise HTTPException(status_code=400, detail=f"Unsupported language: {req.language}")
     try:
         t0 = time.time()
-        result = appointment_supervisor.turn(farmer_id, req.session_id, req.text, req.language)
+        result = appointment_supervisor.turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
         total_ms = round((time.time() - t0) * 1000)
         result["timing"] = {"total_ms": total_ms}
         _log.info("LATENCY voice_text total=%dms farmer=%s session=%s", total_ms, farmer_id, req.session_id)
@@ -451,6 +478,7 @@ async def appointment_voice_turn(
     farmer_id: str,
     session_id: str,
     language: str = "en-IN",
+    include_audio: bool = True,
     audio: UploadFile = File(...),
 ) -> dict[str, Any]:
     if get_farmer_by_id(farmer_id) is None:
@@ -470,7 +498,7 @@ async def appointment_voice_turn(
         t0 = time.time()
         text = transcribe_audio(data, media_format=media_formats[audio_type])
         t_transcribe = time.time()
-        result = appointment_supervisor.turn(farmer_id, session_id, text, language)
+        result = appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         t_turn = time.time()
         result["audio_filename"] = audio.filename
         transcribe_ms = round((t_transcribe - t0) * 1000)
@@ -499,7 +527,12 @@ def appointment_voice_confirm(farmer_id: str, req: AppointmentVoiceConfirmReques
     if not req.response.strip():
         raise HTTPException(status_code=400, detail="Confirmation response is required")
     try:
-        return appointment_supervisor.confirm(farmer_id, req.session_id, req.response)
+        t0 = time.time()
+        result = appointment_supervisor.confirm(farmer_id, req.session_id, req.response, include_audio=req.include_audio)
+        total_ms = round((time.time() - t0) * 1000)
+        result["timing"] = {"total_ms": total_ms}
+        _log.info("LATENCY voice_confirm total=%dms farmer=%s session=%s", total_ms, farmer_id, req.session_id)
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

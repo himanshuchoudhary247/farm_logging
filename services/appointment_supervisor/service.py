@@ -401,9 +401,12 @@ class AppointmentSupervisor:
             return "cancel"
         return None
 
-    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None) -> dict[str, Any]:
+    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True) -> dict[str, Any]:
         language = draft["language"]
-        audio, audio_error = synthesize_speech(text, target_lang=_lang(language))
+        if include_audio:
+            audio, audio_error = synthesize_speech(text, target_lang=_lang(language))
+        else:
+            audio, audio_error = None, None
         return {
             "session_id": draft["session_id"],
             "state": draft["state"],
@@ -416,7 +419,7 @@ class AppointmentSupervisor:
             "audio_error": audio_error,
         }
 
-    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN") -> dict[str, Any]:
+    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
@@ -425,7 +428,7 @@ class AppointmentSupervisor:
         response_kind = self._response_kind(text)
         if draft.get("state") == "CONFIRMING" and response_kind in {"yes", "no", "cancel"}:
             self._save(draft)
-            return self.confirm(farmer_id, session_id, response_kind)
+            return self.confirm(farmer_id, session_id, response_kind, include_audio=include_audio)
         if draft.get("state") == "READY_TO_SUBMIT" and response_kind == "submit":
             self._save(draft)
             return self.submit(farmer_id, session_id)
@@ -439,13 +442,13 @@ class AppointmentSupervisor:
             draft["state"] = "COLLECTING"
             message = self._message(draft["language"], "welcome")
             self._save(draft)
-            return self._response(draft, message, input_transcript=text)
+            return self._response(draft, message, input_transcript=text, include_audio=include_audio)
         draft["state"] = "CONFIRMING"
         self._save(draft)
         message = self._message(draft["language"], "correct", summary=self._summary(draft))
-        return self._response(draft, message, input_transcript=text)
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
-    def confirm(self, farmer_id: str, session_id: str, response: str) -> dict[str, Any]:
+    def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
@@ -474,7 +477,7 @@ class AppointmentSupervisor:
             self._copy_entities(draft, result.get("entities") or {})
             message = self._message(language, "updated", summary=self._summary(draft))
         self._save(draft)
-        return self._response(draft, message)
+        return self._response(draft, message, include_audio=include_audio)
 
     def submit(self, farmer_id: str, session_id: str) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")

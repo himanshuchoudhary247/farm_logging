@@ -811,6 +811,22 @@ function VoiceAppointment() {
   const audioSrc = response?.response_audio_base64
     ? `data:audio/mp3;base64,${response.response_audio_base64}`
     : null;
+
+  // Speak via browser speechSynthesis when the server skipped Polly audio
+  useEffect(() => {
+    if (!response?.response_text || audioSrc) return;
+    if (!("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utter = new SpeechSynthesisUtterance(response.response_text);
+    utter.lang = response.language || language;
+    const voices = synth.getVoices();
+    const match = voices.find((v) => v.lang === utter.lang) ||
+      voices.find((v) => v.lang.startsWith(utter.lang.split("-")[0]));
+    if (match) utter.voice = match;
+    synth.speak(utter);
+    return () => synth.cancel();
+  }, [response, audioSrc, language]);
   return (
     <PageFrame
       eyebrow="VOICE APPOINTMENT SUPERVISOR"
