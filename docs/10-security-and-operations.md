@@ -14,25 +14,25 @@ Practical notes for operating the Farmer livestock assistant beyond local develo
 
 ## Transport
 
-Streamlit over plain HTTP is normal on `localhost`. In production, terminate **TLS** at a reverse proxy (nginx, ALB, CloudFront, etc.) and restrict network access to the Streamlit port.
+Plain HTTP is fine on `localhost`. In production, terminate **TLS** at a reverse proxy (nginx, ALB, CloudFront, etc.) and restrict network access to service ports.
 
 ## Session and access control
 
 - **Farmers** only see data for their own `farmer_id` (animals, logs, consultations).
 - **Admins** choose a farmer scope in the UI; enforce **who may use admin accounts** outside the app (VPN, SSO gateway, IP allowlists).
-- Streamlit **session state** is not a substitute for enterprise IAM; this is a lightweight v1 design.
+- Browser **session state** is not a substitute for enterprise IAM; this is a lightweight v1 design.
 
 ## Concurrency and scaling
 
 - JSON writes use **file locks** and **atomic replace** to reduce corruption risk on concurrent updates.
-- **Multiple Streamlit workers** or replicas writing the **same** JSON directory can still race; prefer **one write-capable instance** or move to a proper database if you scale horizontally.
+- **Multiple API workers** or replicas writing the **same** JSON directory can still race; prefer **one write-capable instance** or move to a proper database if you scale horizontally.
 - **Read-heavy** scaling is easier with replicated read-only copies only if you accept eventual consistency or migrate storage.
 
 ## Observability
 
 v1 does not ship structured logging or metrics. For production:
 
-- Capture **stdout/stderr** from the Streamlit process.
+- Capture **stdout/stderr** from the service processes (systemd journal on EC2).
 - Optionally wrap LLM calls with logging of latency and error rates (without logging full PHI or secrets).
 
 ## Backups

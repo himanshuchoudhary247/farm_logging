@@ -22,7 +22,7 @@ This folder holds **deployment and Bedrock** notes. Application code stays at th
    ```bash
    export AWS_REGION=us-east-1
    export LLM_CONFIG_PATH=/path/to/farmer_chat/config/llm.bedrock.example.yaml
-   streamlit run app.py
+   uvicorn services.api_service.main:app --port 8001
    ```
 
    Or merge the `text:` block from [`config/llm.bedrock.example.yaml`](../config/llm.bedrock.example.yaml) into `config/llm.yaml`.

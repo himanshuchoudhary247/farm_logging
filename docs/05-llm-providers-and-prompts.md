@@ -47,7 +47,7 @@ See [09 – AWS and Bedrock](09-aws-and-bedrock.md).
 
 ## Voice section in YAML
 
-[`VoiceLLMConfig`](../llm/config.py) mirrors optional `region` and `aws_profile` for future use. **The Streamlit app does not read the voice block yet**; only `text` is used for chat. Keeping `voice` in the file validates the full config and documents future voice provider settings.
+[`VoiceLLMConfig`](../llm/config.py) mirrors optional `region` and `aws_profile`. **The voice pipeline (`services/voice_agent/`) configures Bedrock via env vars (`BEDROCK_MODEL_ID`, `AWS_REGION`)**; the YAML `voice` block validates the full config and documents provider settings.
 
 ## System prompts
 
@@ -65,9 +65,9 @@ To change behavior, edit `llm/prompts.py` or refactor to load prompts from YAML 
 
 `get_text_adapter()` reads [`load_llm_config().text`](../llm/config.py) and instantiates the matching adapter. Unknown `provider` raises `ValueError`.
 
-## Caching in the UI
+## Client caching
 
-[`app.py`](../app.py) uses `@st.cache_resource` on `_text_adapter()`. Changing YAML or credentials may require **restarting Streamlit** or clearing cache from the app menu for changes to apply.
+The API services cache LLM/Bedrock clients as **singletons** (`services/llm_service/bedrock_adapter.py`, `services/voice_agent/tts.py`). Restart the service after changing YAML or credentials for changes to apply.
 
 ## Related
 

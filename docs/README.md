@@ -5,7 +5,6 @@ Detailed guides for the **Farmer livestock assistant** codebase. Start with [Get
 | Guide | Description |
 | ----- | ----------- |
 | [01 – Getting started](01-getting-started.md) | Install, env vars, run the app, seed data, default logins |
-| [02 – Application and UI](02-application-and-ui.md) | Streamlit entrypoint, tabs, session state, admin “act as farmer” |
 | [03 – Data models and storage](03-data-models-and-storage.md) | JSON files, Pydantic models, locks, atomic writes |
 | [04 – Authentication and roles](04-authentication-and-roles.md) | bcrypt, farmers vs admins, adding users |
 | [05 – LLM providers and prompts](05-llm-providers-and-prompts.md) | OpenAI, Gemini, Bedrock adapters; system prompts |

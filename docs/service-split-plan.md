@@ -1,5 +1,7 @@
 # Service split plan (and applied changes)
 
+> **Status (2026-09): superseded.** The Streamlit UI referenced in this historical plan has been **removed**. The app is now a React frontend (`frontend/`) + FastAPI backend (`services/api_service/main:app`) + voice/onboarding services. Kept as a record of the migration.
+
 This is a pragmatic split from monolith to service-oriented deployment with minimal complexity and minimal cost impact.
 
 ## Why split this way

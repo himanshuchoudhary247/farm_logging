@@ -6,7 +6,7 @@ For a shorter overview, see [`aws/README.md`](../aws/README.md).
 
 ## Architecture note
 
-Application code stays at the **repository root** (`app.py`, `storage.py`, `llm/`, …). The [`aws/`](../aws/) folder holds **examples and IAM snippets**, not runnable app code.
+Application code lives in **`services/`** (plus `storage.py`, `llm/`, `models.py` at the repo root). The [`aws/`](../aws/) folder holds **examples and IAM snippets**, not runnable app code.
 
 ## Amazon Bedrock (text LLM)
 

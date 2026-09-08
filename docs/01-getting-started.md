@@ -1,6 +1,6 @@
 # Getting started
 
-This guide walks you from a clean clone to a running Streamlit app with sample data.
+This guide walks you from a clean clone to a running FarmHerd API + React frontend with sample data.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ source .venv/bin/activate    # Linux / macOS
 pip install -r requirements.txt
 ```
 
-Main packages: **Streamlit**, **Pydantic**, **PyYAML**, **bcrypt**, **openai**, **google-generativeai**, **boto3**, **python-dotenv**, **filelock**, **pytest** (dev).
+Main packages: **FastAPI**, **uvicorn**, **Pydantic**, **PyYAML**, **bcrypt**, **openai**, **google-generativeai**, **boto3**, **python-dotenv**, **filelock**, **pytest** (dev).
 
 ## 4. Load environment variables (optional)
 
@@ -84,11 +84,17 @@ Details: [07 – Scripts](07-scripts.md).
 
 ## 8. Run the app
 
+Backend (FastAPI, port 8001):
+
 ```bash
-streamlit run app.py
+uvicorn services.api_service.main:app --port 8001
 ```
 
-Open the URL shown in the terminal (usually `http://localhost:8501`).
+Frontend (React + Vite, separate terminal):
+
+```bash
+cd frontend && npm install && npm run dev
+```
 
 ## 9. Run tests
 
@@ -109,5 +115,4 @@ Tests use a temporary directory via `FARMER_CHAT_DATA_DIR`; see [08 – Testing]
 
 ## Next steps
 
-- [02 – Application and UI](02-application-and-ui.md) – what each screen does.
 - [09 – AWS and Bedrock](09-aws-and-bedrock.md) – running on AWS with Bedrock.

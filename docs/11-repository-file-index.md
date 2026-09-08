@@ -6,7 +6,8 @@ Map from **repository paths** to **documentation** that describes them.
 
 | Path | Documentation |
 | ---- | ------------- |
-| [`app.py`](../app.py) | [02 – Application and UI](02-application-and-ui.md) |
+| [`services/api_service/main.py`](../services/api_service/main.py) | FastAPI backend (auth, animals, appointments, voice intake) |
+| [`frontend/`](../frontend/) | React frontend (Vite + TypeScript) |
 | [`auth.py`](../auth.py) | [04 – Authentication and roles](04-authentication-and-roles.md) |
 | [`storage.py`](../storage.py) | [03 – Data models and storage](03-data-models-and-storage.md) |
 | [`models.py`](../models.py) | [03 – Data models and storage](03-data-models-and-storage.md) |

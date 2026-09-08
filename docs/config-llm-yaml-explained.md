@@ -44,7 +44,7 @@ Prefer overriding the file path:
 
 ```bash
 export LLM_CONFIG_PATH=/path/to/custom.yaml
-streamlit run app.py
+uvicorn services.api_service.main:app --port 8001
 ```
 
 For Bedrock-only setups, start from [`config/llm.bedrock.example.yaml`](../config/llm.bedrock.example.yaml); see [config-llm-bedrock-example-explained.md](config-llm-bedrock-example-explained.md).

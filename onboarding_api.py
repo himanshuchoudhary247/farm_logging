@@ -6,7 +6,6 @@ import time
 import logging
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Any, Optional
 import boto3
@@ -666,24 +665,9 @@ def root():
     return {
         "service": "Farmer Onboarding API",
         "status": "ok",
-        "endpoints": ["/health", "/tts", "/onboarding", "/onboarding/health", "/voice", "/voice_done"],
-        "ui": os.environ.get("STREAMLIT_URL", "https://65.0.181.84:8503"),
+        "endpoints": ["/health", "/onboarding", "/onboarding/health"],
+        "ui": "https://65.0.181.84",
     }
-
-VOICE_HTML_PATH = os.path.join(os.path.dirname(__file__), "voice_page.html")
-
-@app.get("/voice", response_class=HTMLResponse)
-def voice_page():
-    try:
-        with open(VOICE_HTML_PATH, "r") as f:
-            return HTMLResponse(content=f.read())
-    except FileNotFoundError:
-        raise HTTPException(404, "Voice page not found")
-
-@app.get("/voice_done")
-def voice_done(text: str = ""):
-    streamlit_url = os.environ.get("STREAMLIT_URL", "https://65.0.181.84:8503")
-    return RedirectResponse(url=f"{streamlit_url}?voice_text={text}")
 
 if __name__ == "__main__":
     import uvicorn

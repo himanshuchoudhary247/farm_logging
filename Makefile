@@ -2,29 +2,25 @@ PY=python3
 VENV=venv
 ACTIVATE=source $(VENV)/bin/activate
 
-.PHONY: setup install-api install-app api app run clean
+.PHONY: setup install api frontend run clean
 
 setup:
 	$(PY) -m venv $(VENV)
 	$(ACTIVATE) && pip install --upgrade pip
-	$(ACTIVATE) && pip install -r requirements-api.txt
-	$(ACTIVATE) && pip install -r requirements-app.txt
+	$(ACTIVATE) && pip install -r requirements.txt
 
-install-api:
-	$(ACTIVATE) && pip install -r requirements-api.txt
-
-install-app:
-	$(ACTIVATE) && pip install -r requirements-app.txt
+install:
+	$(ACTIVATE) && pip install -r requirements.txt
 
 api:
-	$(ACTIVATE) && PYTHONPATH=. uvicorn services.api_service.main:app --reload --port 8000
+	$(ACTIVATE) && PYTHONPATH=. uvicorn services.api_service.main:app --reload --port 8001
 
-app:
-	$(ACTIVATE) && streamlit run app.py
+frontend:
+	cd frontend && npm install && npm run build
 
 run:
-	@echo "Starting API and Streamlit (two processes)..."
-	@$(MAKE) -j 2 api app
+	@echo "Starting API (port 8001)..."
+	@$(MAKE) api
 
 clean:
 	rm -rf $(VENV)

@@ -4,14 +4,14 @@
 
 | Package | Role in this project |
 | ------- | -------------------- |
-| `streamlit` | Web UI / [`app.py`](../app.py) |
+| `fastapi` / `uvicorn` | API service ([`services/api_service/main.py`](../services/api_service/main.py)) |
 | `pydantic` | Validate config and JSON-backed models in [`models.py`](../models.py), [`llm/config.py`](../llm/config.py) |
 | `pyyaml` | Parse [`config/llm.yaml`](../config/llm.yaml) |
 | `bcrypt` | Password hashing in [`auth.py`](../auth.py) |
 | `openai` | OpenAI chat adapter in [`llm/adapters.py`](../llm/adapters.py) |
 | `google-generativeai` | Gemini adapter |
 | `boto3` | Amazon Bedrock **`bedrock-runtime`** client |
-| `python-dotenv` | Optional `.env` loading in [`app.py`](../app.py) |
+| `python-dotenv` | Optional `.env` loading at service startup |
 | `filelock` | Serialize JSON writes in [`storage.py`](../storage.py) |
 | `pytest` | Test runner ([`tests/`](../tests/)) |
 

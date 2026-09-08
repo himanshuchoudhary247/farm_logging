@@ -17,7 +17,7 @@ Passwords are **never** stored in plaintext in JSON.
 
 ## Login flow
 
-1. User submits username and password in Streamlit [`app.py`](../app.py).
+1. User submits username and password via the React frontend to `POST /auth/login` in [`services/api_service/main.py`](../services/api_service/main.py).
 2. `authenticate(username, password)` loads farmer by **case-insensitive** username match.
 3. If no row or verify fails → `None` (same error shown to user).
 4. If ok → `Farmer` returned; session stores `farmer_id`, `farmer_name`, `is_admin` from `role`.
@@ -58,9 +58,8 @@ Admin rows should use a dedicated `id` (e.g. `admin`). They typically have **no 
 
 - Treat `farmers.json` as **sensitive**; it contains password hashes.
 - Use HTTPS and strong passwords in production; see [10 – Security and operations](10-security-and-operations.md).
-- Session state lives **in the browser / Streamlit server**; protect the Streamlit deployment from cross-site and network sniffing.
+- Session state lives **in the browser**; serve the frontend over HTTPS and protect against cross-site and network sniffing.
 
 ## Related
 
-- [02 – Application and UI](02-application-and-ui.md) – admin farmer selector.
 - [07 – Scripts](07-scripts.md) – seed and add-admin behavior.

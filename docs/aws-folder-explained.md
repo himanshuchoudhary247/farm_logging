@@ -1,6 +1,6 @@
 # `aws/` folder explained
 
-The [`aws/`](../aws/) directory groups **Amazon Web Services** deployment and **Bedrock** material. It does **not** contain the Streamlit application entrypoint; those stay in the repo root.
+The [`aws/`](../aws/) directory groups **Amazon Web Services** deployment and **Bedrock** material. It does **not** contain application code; that lives under `services/` and the repo root.
 
 ## Files
 

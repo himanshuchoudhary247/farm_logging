@@ -444,6 +444,7 @@ def test_hindi_script_uses_english_working_text(monkeypatch):
         return {}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
     monkeypatch.setattr(
         orchestrator,
         "translate_to_english",
@@ -467,6 +468,7 @@ def test_kannada_script_uses_english_working_text(monkeypatch):
         return {}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
     monkeypatch.setattr(
         orchestrator,
         "translate_to_english",
@@ -490,6 +492,7 @@ def test_telugu_script_uses_english_working_text(monkeypatch):
         return {}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
+    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
     monkeypatch.setattr(
         orchestrator,
         "translate_to_english",

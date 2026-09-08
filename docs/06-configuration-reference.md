@@ -14,7 +14,7 @@ This document lists **environment variables** and **YAML fields** used by the Fa
 | `AWS_PROFILE` | No | Optional; Bedrock can also use per-config `aws_profile` in YAML. |
 | Standard AWS vars | For Bedrock without profile file | e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, session token if applicable. |
 
-**dotenv:** If a `.env` file exists at the project root, `python-dotenv` loads it when [`app.py`](../app.py) runs `load_dotenv()`. Keep `.env` out of version control.
+**dotenv:** If a `.env` file exists at the project root, `python-dotenv` loads it when the API service starts. Keep `.env` out of version control.
 
 ---
 
@@ -34,7 +34,7 @@ The file must parse as a single mapping with **`text`** and **`voice`** keys (bo
 
 ### `voice` — `VoiceLLMConfig`
 
-Same fields as above structurally (`provider`, `model`, `api_key_env`, optional `region`, `aws_profile`). **Not consumed by the current Streamlit UI**; reserved for a future voice feature.
+Same fields as above structurally (`provider`, `model`, `api_key_env`, optional `region`, `aws_profile`). **Not consumed by the voice pipeline** (which uses `BEDROCK_MODEL_ID` and AWS env vars); reserved for per-voice-provider overrides.
 
 ### Example: OpenAI (default style)
 

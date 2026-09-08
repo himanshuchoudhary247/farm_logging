@@ -1,37 +1,35 @@
-# Farmer Livestock Assistant
+# Farmer Livestock Assistant (FarmHerd)
 
-Streamlit app for farmers: general livestock Q&A, structured health logging, conversational issue triage, weather advisories, and voice-enabled onboarding. Data is stored as JSON files on disk.
+FarmHerd AI — farmer onboarding + livestock management platform. React frontend,
+FastAPI backend, AWS Bedrock LLM extraction, browser-based voice input/output.
+Data is stored as JSON files on disk.
 
 ## Live Deployment (EC2)
 
 | Service | Port | URL |
 |---|---|---|
-| Weather Advisory API | 8000 | `https://65.0.181.84:8000` |
-| Weather Streamlit UI | 8501 | `https://65.0.181.84:8501` |
-| Onboarding API | 8004 | `https://65.0.181.84:8004` |
-| Onboarding Streamlit UI | 8503 | `https://65.0.181.84:8503` |
+| Farmer Chat API (FastAPI) | 8001 | `https://65.0.181.84/api/` |
+| Weather Advisory API | 8000 | `https://65.0.181.84/weather-api/` |
+| Onboarding API | 8004 | `https://65.0.181.84/onboarding-api/` |
+| React Frontend | 443 | `https://65.0.181.84` |
 
 **Instance:** `i-017b9a61a29f8c1e0` (Ubuntu, ap-south-1)
 **Key pair:** `temp-weather-key` (PEM at `~/.ssh/temp-weather-key.pem`)
 
-### Unified Public Portal
+### Public Entry Point
 
-The intended public entry point is `https://65.0.181.84`. Nginx routes the portal
-and services by path, so users do not need to know service ports:
+The public entry point is `https://65.0.181.84`. Nginx serves the React
+frontend and routes API traffic by path:
 
-- `/` — FarmHerd project portal
-- `/assistant/` — authenticated farmer assistant
-- `/weather/` — weather and livestock advisory
-- `/onboarding/` — conversational onboarding
-- `/api-docs` — endpoint reference with request/response examples
-- `/api/` — backend API
+- `/` — FarmHerd React app (advisory, animals, appointments, voice intake, onboarding)
+- `/api/` — backend API (FastAPI, port 8001)
+- `/weather-api/` — weather advisory API (port 8000)
+- `/onboarding-api/` — onboarding extraction API (port 8004)
+- `/api/docs` — FastAPI endpoint reference
 
-Deployment templates are provided in `deploy/nginx-farmer-chat.conf`,
-`deploy/farmer-portal.service`, and `deploy/farmer-assistant.service`. Streamlit
-services behind a path must be started with the matching `--server.baseUrlPath`
-value.
+Deployment template: `deploy/nginx-farmer-chat.conf`, `deploy/farmer-api.service`.
 
-The new React website lives in `frontend/` and is built with:
+The React website lives in `frontend/`:
 
 ```bash
 cd frontend
@@ -39,8 +37,8 @@ npm install
 npm run build
 ```
 
-The compiled `frontend/dist/` directory is served by Nginx. Existing Streamlit
-pages remain available under `/legacy/` during the migration.
+The compiled `frontend/dist/` directory is served by Nginx from
+`/var/www/farmer-web/` on the EC2 host.
 
 ### Showcase Demo
 
@@ -59,32 +57,31 @@ personalized advisory flow with the demo PIN prefilled.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    EC2 (65.0.181.84)                     │
-├─────────────────────┬───────────────────────────────────┤
-│  Weather Services   │  Onboarding Services              │
-│  ┌───────────────┐  │  ┌─────────────────────────────┐  │
-│  │ Streamlit UI  │  │  │ Streamlit UI (Chat + Voice) │  │
-│  │ Port 8501     │  │  │ Port 8503 (HTTPS)           │  │
-│  └───────┬───────┘  │  └──────────┬──────────────────┘  │
-│          │          │             │                      │
-│  ┌───────▼───────┐  │  ┌──────────▼──────────────────┐  │
-│  │ Weather API   │  │  │ Onboarding API              │  │
-│  │ Port 8000     │  │  │ Port 8004 (HTTPS)           │  │
-│  └───────────────┘  │  └──────────┬──────────────────┘  │
-│                     │             │                      │
-│  ┌───────────────┐  │  ┌──────────▼──────────────────┐  │
-│  │ Disease       │  │  │ AWS Bedrock                 │  │
-│  │ Catalogue     │  │  │ Mistral Large 3             │  │
-│  │ (JSON)        │  │  │ (Field Extraction)          │  │
-│  └───────────────┘  │  └─────────────────────────────┘  │
-│                     │                                    │
-│  ┌───────────────┐  │  ┌─────────────────────────────┐  │
-│  │ Google Speech  │  │  │ Self-Signed SSL            │  │
-│  │ Recognition   │  │  │ cert.pem / key.pem         │  │
-│  └───────────────┘  │  └─────────────────────────────┘  │
-└─────────────────────┴───────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                      EC2 (65.0.181.84)                       │
+├──────────────────────────────────────────────────────────────┤
+│  Nginx (443)                                                 │
+│  ├── /            → React frontend (/var/www/farmer-web)     │
+│  ├── /api/        → FastAPI farmer API        (port 8001)    │
+│  ├── /weather-api/→ Weather advisory API      (port 8000)    │
+│  └── /onboarding-api/ → Onboarding extraction (port 8004)    │
+│                                                              │
+│  FastAPI farmer API (services/api_service/main.py)          │
+│  ├── auth, animals, health logs, appointments               │
+│  ├── voice appointment supervisor (Web Speech + Bedrock)    │
+│  └── query agent (SQL over JSON stores)                     │
+│                                                              │
+│  AWS Bedrock (mistral.mistral-large-3-675b-instruct)        │
+│  └── field extraction, intent detection                     │
+│                                                              │
+│  Browser (React)                                             │
+│  ├── SpeechRecognition  → voice input (~200ms)              │
+│  └── speechSynthesis     → spoken responses (local)          │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+Voice latency: follow-up turns ~100-300ms (rule fast-path + browser TTS),
+LLM turns ~1.2s. LATENCY-prefixed logs are emitted across the pipeline.
 
 ## Models & Services
 
@@ -93,18 +90,9 @@ personalized advisory flow with the demo PIN prefilled.
 | Model / Service | Provider | Purpose |
 |---|---|---|
 | `mistral.mistral-large-3-675b-instruct` | AWS Bedrock | Farmer field extraction from conversation |
-| Google Speech Recognition | Google (via SpeechRecognition pkg) | Voice-to-text transcription |
+| Web Speech API | Browser | Voice-to-text and text-to-speech |
 | ICAR-NIVEDI Disease Catalogue | Static JSON | Sheep/goat disease data (5 states, 8 diseases) |
-
-### Development / Test (Local)
-
-| Model | Provider | Purpose |
-|---|---|---|
-| `deepseek.v3-v1:0` | AWS Bedrock | Dev/test UIs |
-| `anthropic.claude-3-sonnet-20240229-v1:0` | AWS Bedrock | Legacy LLM adapter |
-| `mistral.mistral-large-2402-v1:0` | AWS Bedrock | Legacy extraction |
-| Amazon Transcribe | AWS | Voice-to-text (alternative) |
-| AWS Polly | AWS | Text-to-speech |
+| AWS Transcribe / Polly | AWS | Legacy server-side voice fallback |
 
 ### OpenCode Swarm Agents
 
@@ -124,25 +112,23 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Additional Dependencies (EC2)
-
-```bash
-pip install --break-system-packages SpeechRecognition
-```
-
 ## Services
 
-### Weather Advisory
+### Farmer Chat API (`services/api_service/main.py`)
 
-- **API** (`api_server.py`): `/health`, `/weather/alert`, `/weather/seasonal-advisory`
-- **UI** (`weather_streamlit_app.py`): 4 tabs — Risk Alert, SMS Advisory, Historical Data, Weekly Insight
-- **Disease data** (`disease_catalogue.json`): ICAR-NIVEDI NADRES catalogue
+- Auth (`/auth/login`), animals, health logs, appointments, consultations
+- `/farmers/{id}/appointments/voice/*` — voice appointment supervisor
+  (browser speech recognition posts text; `include_audio=false` skips Polly
+  when the browser speaks locally)
+- `/farmers/{id}/query` — natural-language query agent
+- `/alerts/general/{pin}` — cached PIN alerts
+- `/farmers/{id}/advisory/personalized` — personalized advisory
 
 ### Onboarding
 
-- **API** (`onboarding_api.py`): `/health`, `/onboarding` (POST), `/voice`, `/voice_done`
-- **UI** (`onboarding_app.py`): Chat Mode (voice + text) + Manual Form
-- **Voice input**: `st.audio_input` → Google Speech Recognition → Bedrock LLM extraction
+- **API** (`onboarding_api.py`, port 8004): `/health`, `/onboarding` (POST)
+- **Frontend**: conversational onboarding with thumbs up/down confirmation
+  and latency panel (React)
 - **Extraction**: Mistral Large 3 with conversation context, Hindi/Kannada support
 
 ### Onboarding API Request/Response
@@ -201,8 +187,9 @@ python test_onboarding.py
 | Group | Ports | Purpose |
 |---|---|---|
 | `admin-sg` | 22 | SSH (122.168.70.175, 183.82.105.114, 122.168.65.158) |
-| `weather-sg` | 8501, 8000 | Weather services (public) |
-| `onboarding-sg` | 8502, 8503, 8004 | Onboarding services (public) |
+| `weather-sg` | 8000 | Weather API (via nginx) |
+| `onboarding-sg` | 8004 | Onboarding API (via nginx) |
+| `web-sg` | 443 | Public HTTPS (nginx) |
 
 ### Credentials
 
@@ -219,26 +206,15 @@ python test_onboarding.py
 ## Run
 
 ```bash
-# Weather services
-cd farmer-weather
-python3 api_server.py &                    # Port 8000
-streamlit run app.py --server.port 8501    # Port 8501
+# Farmer Chat API (port 8001)
+uvicorn services.api_service.main:app --host 127.0.0.1 --port 8001
 
-# Onboarding services
-cd onboarding-weather
-python3 onboarding_api.py &                # Port 8004 (HTTPS)
-streamlit run onboarding_app.py --server.port 8503 --server.sslCertFile cert.pem --server.sslKeyFile key.pem  # Port 8503 (HTTPS)
+# Onboarding API (port 8004, HTTPS)
+python3 onboarding_api.py &
+
+# React frontend dev server
+cd frontend && npm run dev
 ```
-
-## Service-split Mode
-
-The codebase supports lightweight multi-service split:
-
-- `services/api_service/main.py` — data/auth API
-- `services/llm_service/main.py` — LLM completion API
-- `app.py` — Streamlit UI (calls services via `gateways.py`)
-
-Set `APP_MODE=services` to enable service mode.
 
 ## PIN Alert Cache
 
@@ -268,4 +244,12 @@ forecast/THI, seasonal advisory, and feed-price refreshes independently.
 
 ## Single-worker Note
 
-JSON writes use `filelock`. For multiple Streamlit workers, prefer one worker or migrate to SQLite later.
+JSON writes use `filelock`. Prefer one API worker or migrate to SQLite later.
+
+## Model Latency Benchmark
+
+Compare candidate Bedrock models for extraction latency + quality on the server:
+
+```bash
+python3 scripts/benchmark_models.py
+```
