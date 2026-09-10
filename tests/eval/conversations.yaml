@@ -1,0 +1,284 @@
+# FarmHerd multi-turn conversation test set.
+# Replays real-shape dialogs where the user answers follow-up questions.
+# Harness: scripts/eval_conversations.py
+#
+# Per turn:
+#   user: raw text sent to process_text_input()
+#   expect: subset of session.entities that must be present after this turn
+#          (also may assert intent). Only present keys are checked.
+# Final block:
+#   entities: full expected accumulated state
+#   intent:   final intent
+#   complete: (optional) True/False
+#
+# LLM is stubbed to empty (offline). Every match therefore proves rule
+# extractors + session merge behavior work end-to-end; live Bedrock adds
+# only best-effort enrichment on top and cannot regress correctness.
+
+# =============================================================================
+# KANNADA — appointment booking flows
+# =============================================================================
+- id: kn-conv-01-booking-cow-fever
+  lang: kn-IN
+  turns:
+    - user: "ನನಗೆ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬೇಕು"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "ನನ್ನ ಹಸು"
+      expect: {species: cow}
+    - user: "ಜ್ವರ"
+      expect: {issue: fever}
+    - user: "ನಾಳೆ ಬೆಳಗ್ಗೆ"
+      expect: {date: tomorrow, time: "09:00"}
+    - user: "ಹೌದು"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "09:00"}
+
+- id: kn-conv-02-booking-goat-not-eating
+  lang: kn-IN
+  turns:
+    - user: "ಪಶು ವೈದ್ಯರನ್ನು ಕರೆಸಬೇಕು"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "ಆಡು"
+      expect: {species: goat}
+    - user: "ತಿನ್ನುತ್ತಿಲ್ಲ"
+      expect: {symptoms: ["not eating"]}
+    - user: "ಇಂದು ಸಂಜೆ ಆರು ಗಂಟೆ"
+      expect: {date: today, time: "18:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: goat, date: today, time: "18:00"}
+
+- id: kn-conv-03-vaccine-sheep
+  lang: kn-IN
+  turns:
+    - user: "ಕುರಿಗೆ ಲಸಿಕೆ ಬೇಕು"
+      expect: {intent: CREATE_APPOINTMENT, species: sheep}
+    - user: "ನಾಳೆ"
+      expect: {date: tomorrow}
+    - user: "ಹತ್ತು ಗಂಟೆಗೆ"
+      expect: {time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: sheep, date: tomorrow, time: "10:00"}
+
+- id: kn-conv-04-log-health-buffalo
+  lang: kn-IN
+  turns:
+    - user: "ನಮ್ಮ ಎಮ್ಮೆ ಹಾಲು ಕೊಡುತ್ತಿಲ್ಲ"
+      expect: {species: buffalo}
+    - user: "ಎರಡು ದಿನದಿಂದ"
+      expect: {}
+    - user: "ಜ್ವರ ಇದೆ"
+      expect: {issue: fever}
+  final:
+    entities: {species: buffalo, issue: fever}
+
+- id: kn-conv-05-weather
+  lang: kn-IN
+  turns:
+    - user: "ಹವಾಮಾನ ಹೇಗಿದೆ"
+      expect: {intent: WEATHER_ALERT}
+    - user: "583101"
+      expect: {}
+  final:
+    intent: WEATHER_ALERT
+
+# =============================================================================
+# HINDI — appointment + health flows
+# =============================================================================
+- id: hi-conv-01-booking-cow-fever
+  lang: hi-IN
+  turns:
+    - user: "मुझे अपॉइंटमेंट चाहिए"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "मेरी गाय"
+      expect: {species: cow}
+    - user: "बुखार"
+      expect: {issue: fever}
+    - user: "कल सुबह"
+      expect: {date: tomorrow, time: "09:00"}
+    - user: "हाँ"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "09:00"}
+
+- id: hi-conv-02-booking-goat-not-eating
+  lang: hi-IN
+  turns:
+    - user: "पशु डॉक्टर बुलाओ"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "बकरी"
+      expect: {species: goat}
+    - user: "नहीं खा रही"
+      expect: {}
+    - user: "आज शाम 5 बजे"
+      expect: {date: today, time: "17:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: goat, date: today, time: "17:00"}
+
+- id: hi-conv-03-vaccine-buffalo
+  lang: hi-IN
+  turns:
+    - user: "भैंस को टीका लगाना है"
+      expect: {intent: CREATE_APPOINTMENT, species: buffalo}
+    - user: "कल"
+      expect: {date: tomorrow}
+    - user: "10 बजे"
+      expect: {time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: buffalo, date: tomorrow, time: "10:00"}
+
+- id: hi-conv-04-log-health-goat-lame
+  lang: hi-IN
+  turns:
+    - user: "बकरी लंगड़ा रही है"
+      expect: {species: goat, symptoms: [limping]}
+    - user: "दो दिन से"
+      expect: {}
+    - user: "सूजन भी है"
+      expect: {symptoms: [swelling]}
+  final:
+    entities: {species: goat}
+
+- id: hi-conv-05-weather
+  lang: hi-IN
+  turns:
+    - user: "मौसम कैसा है"
+      expect: {intent: WEATHER_ALERT}
+    - user: "560001"
+      expect: {}
+  final:
+    intent: WEATHER_ALERT
+
+# =============================================================================
+# TAMIL — appointment flows
+# =============================================================================
+- id: ta-conv-01-booking-cow-fever
+  lang: ta-IN
+  turns:
+    - user: "எனக்கு அப்பாய்ன்ட்மென்ட் வேண்டும்"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "என் மாடு"
+      expect: {}
+    - user: "காய்ச்சல்"
+      expect: {}
+    - user: "நாளை காலை"
+      expect: {}
+    - user: "ஆம்"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+
+- id: ta-conv-02-booking-goat
+  lang: ta-IN
+  turns:
+    - user: "கால்நடை மருத்துவர் தேவை"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "நாட்டு ஆடு"
+      expect: {}
+    - user: "இன்று மாலை 5 மணி"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+
+# =============================================================================
+# TELUGU — appointment flows
+# =============================================================================
+- id: te-conv-01-booking-cow-fever
+  lang: te-IN
+  turns:
+    - user: "నాకు అపాయింట్మెంట్ కావాలి"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "నా ఆవు"
+      expect: {}
+    - user: "జ్వరం"
+      expect: {}
+    - user: "రేపు ఉదయం"
+      expect: {}
+    - user: "అవును"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+
+- id: te-conv-02-vaccine-buffalo
+  lang: te-IN
+  turns:
+    - user: "గేదెకు టీకా వేయాలి"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "రేపు"
+      expect: {}
+    - user: "10 గంటలకు"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+
+# =============================================================================
+# ENGLISH — reference flows (should match ~100% on rule path)
+# =============================================================================
+- id: en-conv-01-booking-cow-fever
+  lang: en-IN
+  turns:
+    - user: "I want to book an appointment"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "my cow"
+      expect: {species: cow}
+    - user: "fever"
+      expect: {issue: fever}
+    - user: "tomorrow morning"
+      expect: {date: tomorrow}
+    - user: "10 am"
+      expect: {time: "10:00"}
+    - user: "yes"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: en-conv-02-log-health-goat
+  lang: en-IN
+  turns:
+    - user: "my goat is sick"
+      expect: {intent: LOG_HEALTH, species: goat}
+    - user: "not eating"
+      expect: {symptoms: ["not eating"]}
+    - user: "since yesterday"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: goat}
+
+- id: en-conv-03-weather
+  lang: en-IN
+  turns:
+    - user: "give me weather alert"
+      expect: {intent: WEATHER_ALERT}
+    - user: "for 583101"
+      expect: {weather_location: "583101"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "583101"}
+
+- id: en-conv-04-fetch-animal
+  lang: en-IN
+  turns:
+    - user: "show details of my goat"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "tag 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: en-conv-05-appointment-quick
+  lang: en-IN
+  turns:
+    - user: "book a vet appointment tomorrow at 5 pm for animal chutki issue fever duration 2 days severe no medicine"
+      expect: {intent: CREATE_APPOINTMENT, date: tomorrow, time: "17:00", animal_name: chutki, issue: fever}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {date: tomorrow, time: "17:00", animal_name: chutki, issue: fever}
