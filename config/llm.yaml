@@ -12,7 +12,7 @@ provider: bedrock
 
 models:
   extraction:
-    id: apac.anthropic.claude-haiku-4-5-20251001-v1:0
+    id: global.anthropic.claude-haiku-4-5-20251001-v1:0
     max_tokens: 256
     temperature: 0
     # Fastest structured-output model with prompt caching + tool use.
@@ -20,33 +20,38 @@ models:
     # profile once available in ap-south-1 (roll forward via env override).
 
   extraction_alt:
-    id: amazon.nova-micro-v1:0
+    id: apac.amazon.nova-micro-v1:0
     max_tokens: 256
     temperature: 0
     # A/B candidate: cheapest+fastest option. Flip via
-    # BEDROCK_MODEL_EXTRACTION=amazon.nova-micro-v1:0 for canary or full switch.
+    # BEDROCK_MODEL_EXTRACTION=apac.amazon.nova-micro-v1:0 for canary or full switch.
+    # Verified working on this account 2026-09-11 (direct on-demand id fails;
+    # needs the apac. cross-region inference profile).
 
   generation:
-    id: in.openai.gpt-5.6-luna
+    id: global.anthropic.claude-haiku-4-5-20251001-v1:0
     max_tokens: 512
     temperature: 0.2
-    # India-Geo inference profile — data stays in-country. Handles the voice
-    # reply text + response summarization. Streaming supported.
+    # TEMP: in.openai.gpt-5.6-luna returned AccessDeniedException on this
+    # account 2026-09-11 ("not available for this account") — needs a model
+    # access request in the Bedrock console before it can be used. Falls
+    # back to the same Haiku profile as extraction until granted.
 
   long_form:
-    id: deepseek.deepseek-v3-1-v1:0
+    id: deepseek.v3-v1:0
     max_tokens: 1024
     temperature: 0.3
-    # Seasonal + personalized advisory. Native ap-south-1, thinking-mode
-    # optional. Larger context, no prompt-caching needed for periodic runs.
+    # Seasonal + personalized advisory. Native ap-south-1. Corrected from
+    # deepseek.deepseek-v3-1-v1:0 (invalid id on this account) 2026-09-11 —
+    # verified working id is deepseek.v3-v1:0.
 
 # Legacy: preserved for callers still reading text/voice.model. New code
 # should call model_for_task() instead.
 text:
   provider: bedrock
-  model: apac.anthropic.claude-haiku-4-5-20251001-v1:0
+  model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   region: ap-south-1
 voice:
   provider: bedrock
-  model: apac.anthropic.claude-haiku-4-5-20251001-v1:0
+  model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   region: ap-south-1

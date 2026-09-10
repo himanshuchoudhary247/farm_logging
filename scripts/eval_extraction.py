@@ -38,22 +38,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 MODEL_SHORTCUTS = {
-    "haiku": "apac.anthropic.claude-haiku-4-5-20251001-v1:0",
-    "nova": "amazon.nova-micro-v1:0",
+    # Verified callable on this account 2026-09-11 (see config/llm.yaml notes).
+    "haiku": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "nova": "apac.amazon.nova-micro-v1:0",
     "mistral": "mistral.mistral-small-2402-v1:0",
-    "luna": "in.openai.gpt-5.6-luna",
-    "deepseek": "deepseek.deepseek-v3-1-v1:0",
+    "luna": "in.openai.gpt-5.6-luna",  # AccessDeniedException — needs model access request
+    "deepseek": "deepseek.v3-v1:0",
     "current": None,  # resolved from config
 }
 
 # Rough list-price cost per 1K in-tokens + per 1K out-tokens (USD, ap-south-1).
 # Update as pricing changes. Used only for a rough $/1000-turns estimate.
 PRICING = {
-    "apac.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),
-    "amazon.nova-micro-v1:0": (0.000035, 0.00014),
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),
+    "apac.amazon.nova-micro-v1:0": (0.000035, 0.00014),
     "mistral.mistral-small-2402-v1:0": (0.001, 0.003),
     "in.openai.gpt-5.6-luna": (0.001, 0.004),
-    "deepseek.deepseek-v3-1-v1:0": (0.0005, 0.002),
+    "deepseek.v3-v1:0": (0.0005, 0.002),
     "mistral.mistral-large-3-675b-instruct": (0.008, 0.024),
 }
 

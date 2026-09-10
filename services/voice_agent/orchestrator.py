@@ -124,53 +124,61 @@ def _sync_animal_intent(intent: Optional[str], entities: Dict[str, Any]) -> Opti
     return intent
 
 
+# Key aliases observed from live models that don't strictly follow the
+# schema (e.g. Nova Micro emitting 'appointment_date' instead of 'date').
+# Mapping runs before anything else touches these fields.
+_KEY_ALIASES = {
+    "date": ["appointment_date", "date_of_appointment"],
+    "time": ["appointment_time", "time_of_appointment"],
+    "sex": ["gender", "animal_gender"],
+    "animal_name": ["name", "animal", "tag_or_name"],
+    "age_years": ["age", "animal_age"],
+}
+
+
 def _canonicalize_entities(intent: Optional[str], entities: Dict[str, Any]) -> Dict[str, Any]:
-    """Fold alias keys an LLM might emit (gender/age/name/symptom) onto the
-    canonical schema. Pure dict reshaping, no text parsing."""
+    """Fold alias keys an LLM might emit onto the canonical schema. Pure dict
+    reshaping, no text parsing."""
     out = dict(entities or {})
 
-    if not out.get("sex"):
-        for key in ["gender", "animal_gender"]:
-            value = out.get(key)
-            if isinstance(value, str) and value.strip():
-                out["sex"] = value.strip().lower()
-                break
-
-    if not out.get("animal_name"):
-        for key in ["name", "animal", "tag_or_name"]:
-            value = out.get(key)
-            if isinstance(value, str) and value.strip():
-                out["animal_name"] = value.strip()
-                break
-
-    if not out.get("age_years"):
-        for key in ["age", "animal_age"]:
-            value = out.get(key)
-            if value not in (None, ""):
+    for canonical, aliases in _KEY_ALIASES.items():
+        if out.get(canonical) not in (None, ""):
+            continue
+        for alias in aliases:
+            value = out.get(alias)
+            if value in (None, ""):
+                continue
+            if canonical == "age_years":
                 try:
-                    out["age_years"] = float(value)
+                    out[canonical] = float(value)
                     break
                 except (TypeError, ValueError):
                     continue
+            if isinstance(value, str):
+                out[canonical] = value.strip().lower() if canonical == "sex" else value.strip()
+            else:
+                out[canonical] = value
+            break
 
     if intent in {"CREATE_ANIMAL", "UPDATE_ANIMAL"} and not out.get("feeding_details"):
         symptom = out.get("symptom")
         if isinstance(symptom, str) and symptom.strip() and "feed" in symptom.lower():
             out["feeding_details"] = symptom.strip().lower()
 
+    # unavailable_fields may also carry alias key names — normalize them so
+    # _has_value_or_unavailable("date") sees "appointment_date not available".
+    unavailable = out.get("unavailable_fields")
+    if isinstance(unavailable, list) and unavailable:
+        alias_to_canonical = {a: c for c, aliases in _KEY_ALIASES.items() for a in aliases}
+        out["unavailable_fields"] = sorted({alias_to_canonical.get(f, f) for f in unavailable})
+
     if intent in {"CREATE_ANIMAL", "UPDATE_ANIMAL"}:
-        for key in [
-            "gender",
-            "animal_gender",
-            "name",
-            "animal",
-            "tag",
-            "age",
-            "animal_age",
-            "symptom",
-            "symptoms",
-        ]:
+        for key in ["gender", "animal_gender", "name", "animal", "tag", "age", "animal_age", "symptom", "symptoms"]:
             out.pop(key, None)
+
+    for aliases in _KEY_ALIASES.values():
+        for alias in aliases:
+            out.pop(alias, None)
 
     return out
 

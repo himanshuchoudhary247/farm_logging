@@ -166,9 +166,12 @@ _SYSTEM_PROMPT = (
     "unavailable_fields: list of the entity keys above that the farmer "
     "explicitly said they do not know or that are not available (e.g. "
     "\"severity not available\"). "
-    "follow_up_questions: at most one question, phrased in the same "
-    "language as the user's input, asking for the single most important "
-    "missing piece of information for the detected intent. "
+    "follow_up_questions: a JSON array containing at most one question "
+    "string (or an empty array), phrased in the same language as the "
+    "user's input, asking for the single most important missing piece of "
+    "information for the detected intent. "
+    "confidence: a JSON number between 0 and 1 (e.g. 0.9) — never the "
+    "words 'high'/'medium'/'low'. "
     "Use the conversation context (prior intent, entities already collected, "
     "and the pending question) to interpret short follow-up answers like "
     "'10 am' or 'yes' in light of what was just asked. Never invent values."
@@ -247,6 +250,43 @@ def _safe_json_parse(s: str):
     }
 
 
+_CONFIDENCE_WORD_MAP = {"high": 0.9, "medium": 0.6, "low": 0.3, "none": 0.0}
+
+
+def _coerce_confidence(value: Any) -> float:
+    """Some models (observed: Nova Micro) ignore the numeric instruction and
+    return 'high'/'medium'/'low' despite the prompt asking for a 0-1 float.
+    Map those, and fail safe to 0.0 on anything else unparseable — never let
+    a malformed confidence value discard an otherwise-valid intent/entities
+    payload."""
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if s in _CONFIDENCE_WORD_MAP:
+            return _CONFIDENCE_WORD_MAP[s]
+        try:
+            return float(s)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def _coerce_list(value: Any) -> list:
+    """Some models return a bare string for a field documented as an array
+    (observed: Nova Micro on follow_up_questions). A bare string must never
+    be iterated character-by-character downstream."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return []
+
+
 def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
 
@@ -262,10 +302,10 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     return {
         "intent": parsed.get("intent"),
         "entities": parsed.get("entities", {}) or {},
-        "unavailable_fields": parsed.get("unavailable_fields", []) or [],
-        "missing_fields": parsed.get("missing_fields", []) or [],
-        "follow_up_questions": parsed.get("follow_up_questions", []) or [],
-        "confidence": float(parsed.get("confidence", 0.0) or 0.0),
+        "unavailable_fields": _coerce_list(parsed.get("unavailable_fields")),
+        "missing_fields": _coerce_list(parsed.get("missing_fields")),
+        "follow_up_questions": _coerce_list(parsed.get("follow_up_questions")),
+        "confidence": _coerce_confidence(parsed.get("confidence")),
         "_raw": raw,
     }
 
