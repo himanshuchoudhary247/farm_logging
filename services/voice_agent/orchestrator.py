@@ -165,6 +165,23 @@ def _canonicalize_entities(intent: Optional[str], entities: Dict[str, Any]) -> D
         if isinstance(symptom, str) and symptom.strip() and "feed" in symptom.lower():
             out["feeding_details"] = symptom.strip().lower()
 
+    # The schema asks for both issue (string) and symptoms (array) — models
+    # correctly extract one and skip restating it in the other, since from
+    # their view it's redundant. Backfill deterministically rather than
+    # relying on every model to duplicate the same fact into two fields.
+    issue = out.get("issue")
+    symptoms = out.get("symptoms")
+    if isinstance(symptoms, str):
+        symptoms = [symptoms] if symptoms.strip() else []
+    if not isinstance(symptoms, list):
+        symptoms = []
+    if isinstance(issue, str) and issue.strip() and issue.strip() not in symptoms:
+        symptoms = symptoms + [issue.strip()]
+    if not issue and symptoms:
+        out["issue"] = symptoms[0]
+    if symptoms:
+        out["symptoms"] = symptoms
+
     # unavailable_fields may also carry alias key names — normalize them so
     # _has_value_or_unavailable("date") sees "appointment_date not available".
     unavailable = out.get("unavailable_fields")

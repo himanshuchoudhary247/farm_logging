@@ -164,7 +164,9 @@ _SYSTEM_PROMPT = (
     "current_medication ('none' if the farmer says no medicine), "
     "temperature_c (number; convert Fahrenheit to Celsius if needed), "
     "date ('today'|'tomorrow'|'yesterday', or an ISO date YYYY-MM-DD), "
-    "time (24-hour 'HH:MM'), weather_location (pincode or place name), "
+    "time (24-hour 'HH:MM' — if the farmer says only a period of day with "
+    "no exact hour, use these defaults: morning=09:00, afternoon=14:00, "
+    "evening=18:00, night=20:00), weather_location (pincode or place name), "
     "forecast_days (integer 1-7), country_code. "
     "Translate issue/symptoms to English; keep animal_name/animal_tag in "
     "the original script. मतलब/matlab is filler, never an animal name. "
@@ -203,8 +205,10 @@ _SYSTEM_PROMPT = (
     "entities: {\"time\": \"10:00\"}\n"
     "\n"
     "Use the conversation context (prior intent, entities already collected, "
-    "and the pending question) to interpret short follow-up answers. Never "
-    "invent values that were not stated."
+    "and the pending question) to interpret short follow-up answers. If the "
+    "current message states a NEW value for a field that already has a "
+    "value in the context, the new message wins — replace it, don't keep "
+    "the old one. Never invent values that were not stated."
 )
 
 def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
