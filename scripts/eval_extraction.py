@@ -38,24 +38,43 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 MODEL_SHORTCUTS = {
-    # Verified callable on this account 2026-09-11 (see config/llm.yaml notes).
-    "haiku": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    # Verified callable on this account 2026-09-11 via direct converse() probe
+    # (see config/llm.yaml notes for the ones that are NOT callable).
+    "haiku": "global.anthropic.claude-haiku-4-5-20251001-v1:0",  # blocked: Anthropic use-case form
     "nova": "apac.amazon.nova-micro-v1:0",
-    "mistral": "mistral.mistral-small-2402-v1:0",
-    "luna": "in.openai.gpt-5.6-luna",  # AccessDeniedException — needs model access request
+    "nova-lite": "apac.amazon.nova-lite-v1:0",
+    "ministral-3b": "mistral.ministral-3-3b-instruct",
+    "ministral-8b": "mistral.ministral-3-8b-instruct",
+    "ministral-14b": "mistral.ministral-3-14b-instruct",
+    "mistral": "mistral.ministral-3-8b-instruct",  # alias: mistral.mistral-small-2402-v1:0 does not exist on this account
+    "glm-flash": "zai.glm-4.7-flash",
+    "glm": "zai.glm-4.7",
+    "qwen3-32b": "qwen.qwen3-32b-v1:0",
+    "luna": "in.openai.gpt-5.6-luna",  # blocked: AccessDeniedException, needs model access request
     "deepseek": "deepseek.v3-v1:0",
+    "deepseek-v3.2": "deepseek.v3.2",
     "current": None,  # resolved from config
 }
 
-# Rough list-price cost per 1K in-tokens + per 1K out-tokens (USD, ap-south-1).
-# Update as pricing changes. Used only for a rough $/1000-turns estimate.
+# List-price cost per 1K in-tokens + per 1K out-tokens (USD). Verified via
+# web search 2026-09-11 against published Bedrock/vendor rate cards where
+# marked; "estimate" entries are same-class guesses pending a real rate
+# card. Used only for a rough $/1000-turns comparison, not billing.
 PRICING = {
-    "global.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),
-    "apac.amazon.nova-micro-v1:0": (0.000035, 0.00014),
-    "mistral.mistral-small-2402-v1:0": (0.001, 0.003),
-    "in.openai.gpt-5.6-luna": (0.001, 0.004),
-    "deepseek.v3-v1:0": (0.0005, 0.002),
-    "mistral.mistral-large-3-675b-instruct": (0.008, 0.024),
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),  # estimate, blocked on this account
+    "apac.amazon.nova-micro-v1:0": (0.000035, 0.00014),  # verified
+    "apac.amazon.nova-lite-v1:0": (0.00006, 0.00024),  # verified
+    "apac.amazon.nova-pro-v1:0": (0.0008, 0.0032),  # verified
+    "mistral.ministral-3-3b-instruct": (0.00004, 0.00004),  # estimate, below 8B tier
+    "mistral.ministral-3-8b-instruct": (0.00015, 0.00015),  # verified (Mistral API rate card)
+    "mistral.ministral-3-14b-instruct": (0.0002, 0.0002),  # verified (Mistral API rate card)
+    "zai.glm-4.7-flash": (0.00007, 0.0004),  # verified
+    "zai.glm-4.7": (0.0004, 0.0018),  # estimate
+    "qwen.qwen3-32b-v1:0": (0.00015, 0.00062),  # verified
+    "in.openai.gpt-5.6-luna": (0.001, 0.004),  # estimate, blocked on this account
+    "deepseek.v3-v1:0": (0.0005, 0.002),  # estimate
+    "deepseek.v3.2": (0.00062, 0.00185),  # verified
+    "mistral.mistral-large-3-675b-instruct": (0.008, 0.024),  # estimate, current prod default
 }
 
 

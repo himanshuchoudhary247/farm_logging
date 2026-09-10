@@ -142,12 +142,17 @@ class BedrockTextAdapter:
 _SYSTEM_PROMPT = (
     "You are the sole extraction engine for a livestock voice assistant. Read "
     "farmer input in any language and any phrasing (Hindi/Tamil/Telugu/Kannada/"
-    "English, or mixed) and in any word order. There is no fallback text "
-    "parser after you, so extract everything the farmer stated. "
+    "Malayalam/English, or mixed) and in any word order. There is no fallback "
+    "text parser after you, so extract everything the farmer stated. "
     "Return ONLY JSON with keys: intent, entities, unavailable_fields, "
     "follow_up_questions, confidence. "
     "intent: one of WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, "
     "UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT, or null if unclear. "
+    "CREATE_ANIMAL/UPDATE_ANIMAL are ONLY for registering or editing an "
+    "animal's profile record (name, breed, age). A request to see a vet, "
+    "get treatment, or vaccinate an animal is CREATE_APPOINTMENT even if the "
+    "farmer never says the word 'appointment' — 'need vaccine for my sheep' "
+    "is CREATE_APPOINTMENT, not CREATE_ANIMAL. "
     "entities keys (include only what is stated; omit or null the rest): "
     "animal_id, animal_name, animal_tag, "
     "animal_record_mode ('new' or 'existing'), "
@@ -172,13 +177,39 @@ _SYSTEM_PROMPT = (
     "information for the detected intent. "
     "confidence: a JSON number between 0 and 1 (e.g. 0.9) — never the "
     "words 'high'/'medium'/'low'. "
+    "\n\n"
+    "CRITICAL RULE for short answers: the Context block below carries "
+    "pending_questions — a question the farmer was just asked. If the "
+    "current message is a single word or short phrase (an animal name, a "
+    "species word, a bare number, 'yes'/'no', a time, a date word) and "
+    "pending_questions is non-empty, that word IS the answer to the pending "
+    "field — extract it even with no other context. Never return empty "
+    "entities for a short reply just because the sentence alone seems "
+    "ambiguous; use pending_questions to resolve it. "
+    "\n\n"
+    "EXAMPLES (input -> output), including bare follow-up answers:\n"
+    "1) User: \"ನನ್ನ ಹಸು\" | pending_questions: [\"animal ID or animal "
+    "name/tag\"] -> entities: {\"species\": \"cow\", \"animal_name\": "
+    "\"ಹಸು\"}\n"
+    "2) User: \"my cow\" | pending_questions: [\"issue/symptoms\"] -> "
+    "entities: {\"species\": \"cow\", \"animal_name\": \"cow\"}\n"
+    "3) User: \"ఆవుకు జ్వరం\" (no prior context) -> intent: LOG_HEALTH, "
+    "entities: {\"species\": \"cow\", \"issue\": \"fever\"}\n"
+    "4) User: \"கால்நடை மருத்துவர் தேவை\" (need a vet) -> intent: "
+    "CREATE_APPOINTMENT (never CREATE_ANIMAL)\n"
+    "5) User: \"बकरी को टीका चाहिए\" (goat needs vaccine) -> intent: "
+    "CREATE_APPOINTMENT, entities: {\"species\": \"goat\"}\n"
+    "6) User: \"10 am\" | pending_questions: [\"appointment time\"] -> "
+    "entities: {\"time\": \"10:00\"}\n"
+    "\n"
     "Use the conversation context (prior intent, entities already collected, "
-    "and the pending question) to interpret short follow-up answers like "
-    "'10 am' or 'yes' in light of what was just asked. Never invent values."
+    "and the pending question) to interpret short follow-up answers. Never "
+    "invent values that were not stated."
 )
 
 def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
 
     session_intent = None
     session_entities = {}
@@ -188,7 +219,11 @@ def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
         session_entities = context.get("entities") or {}
         pending_questions = context.get("pending_questions") or []
 
-    today = datetime.now(timezone.utc).date()
+    # FarmHerd is India-only (ap-south-1). UTC is 5:30h behind IST, so
+    # midnight-5:30am IST calls would get "today"/"tomorrow" computed one
+    # calendar day early if this used UTC — confirmed live: at 2026-09-11
+    # 03:44 IST, UTC clock still read 2026-09-10.
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
     tomorrow = (today + timedelta(days=1)).isoformat()
 
     return f"""User: "{text}"

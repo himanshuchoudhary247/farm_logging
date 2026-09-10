@@ -282,3 +282,470 @@
   final:
     intent: CREATE_APPOINTMENT
     entities: {date: tomorrow, time: "17:00", animal_name: chutki, issue: fever}
+
+# =============================================================================
+# Additional conversations — bringing KN/HI/TA/TE/EN to 10 each and adding
+# Malayalam (10). Ten scenario templates reused per language: (1) appointment
+# cow+fever, (2) appointment goat+not-eating, (3) vaccine request, (4) log
+# health only, (5) weather, (6) fetch animal, (7) create new animal,
+# (8) update existing animal, (9) single-turn combined booking, (10) poultry
+# wound booking.
+# =============================================================================
+
+- id: kn-conv-06-vaccine-buffalo
+  lang: kn-IN
+  turns:
+    - user: "ಎಮ್ಮೆಗೆ ಲಸಿಕೆ ಬೇಕು"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "ನಾಳೆ ಹತ್ತು ಗಂಟೆಗೆ"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {date: tomorrow, time: "10:00"}
+
+- id: kn-conv-07-log-health-only
+  lang: kn-IN
+  turns:
+    - user: "ನನ್ನ ಕೋಳಿಗೆ ಗಾಯ ಆಗಿದೆ"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "ಎರಡು ದಿನದಿಂದ"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: kn-conv-08-weather-with-days
+  lang: kn-IN
+  turns:
+    - user: "ಹವಾಮಾನ ಎಚ್ಚರಿಕೆ ಬೇಕು"
+      expect: {intent: WEATHER_ALERT}
+    - user: "583101 ಮೂರು ದಿನಗಳಿಗೆ"
+      expect: {weather_location: "583101"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "583101"}
+
+- id: kn-conv-09-fetch-animal-tag
+  lang: kn-IN
+  turns:
+    - user: "ನನ್ನ ಆಡಿನ ವಿವರ ಬೇಕು"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "ಟ್ಯಾಗ್ ನಂಬರ್ 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: kn-conv-10-combined-single-turn
+  lang: kn-IN
+  turns:
+    - user: "ನನ್ನ ಹಸುವಿಗೆ ಜ್ವರ ಇದೆ ನಾಳೆ ಬೆಳಗ್ಗೆ ಹತ್ತು ಗಂಟೆಗೆ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬೇಕು"
+      expect: {intent: CREATE_APPOINTMENT, species: cow, issue: fever, date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: hi-conv-06-vaccine-buffalo
+  lang: hi-IN
+  turns:
+    - user: "भैंस को टीका चाहिए"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "कल 10 बजे"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {date: tomorrow, time: "10:00"}
+
+- id: hi-conv-07-log-health-only
+  lang: hi-IN
+  turns:
+    - user: "मेरी मुर्गी को घाव है"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "दो दिन से"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: hi-conv-08-weather-with-days
+  lang: hi-IN
+  turns:
+    - user: "मौसम की चेतावनी चाहिए"
+      expect: {intent: WEATHER_ALERT}
+    - user: "560001 अगले तीन दिन के लिए"
+      expect: {weather_location: "560001"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "560001"}
+
+- id: hi-conv-09-fetch-animal-tag
+  lang: hi-IN
+  turns:
+    - user: "मेरी बकरी का विवरण चाहिए"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "टैग नंबर 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: hi-conv-10-combined-single-turn
+  lang: hi-IN
+  turns:
+    - user: "मेरी गाय को बुखार है कल सुबह 10 बजे अपॉइंटमेंट चाहिए"
+      expect: {intent: CREATE_APPOINTMENT, species: cow, issue: fever, date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: ta-conv-03-vaccine-buffalo
+  lang: ta-IN
+  turns:
+    - user: "எருமைக்கு தடுப்பூசி வேண்டும்"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "நாளை 10 மணிக்கு"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {date: tomorrow, time: "10:00"}
+
+- id: ta-conv-04-log-health-only
+  lang: ta-IN
+  turns:
+    - user: "என் கோழிக்கு காயம் உள்ளது"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "இரண்டு நாட்களாக"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: ta-conv-05-weather-with-days
+  lang: ta-IN
+  turns:
+    - user: "வானிலை எச்சரிக்கை வேண்டும்"
+      expect: {intent: WEATHER_ALERT}
+    - user: "583101 மூன்று நாட்களுக்கு"
+      expect: {weather_location: "583101"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "583101"}
+
+- id: ta-conv-06-fetch-animal-tag
+  lang: ta-IN
+  turns:
+    - user: "என் ஆட்டின் விவரம் வேண்டும்"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "டேக் எண் 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: ta-conv-07-create-new-animal
+  lang: ta-IN
+  turns:
+    - user: "புதிய ஆடு சேர்க்க வேண்டும்"
+      expect: {intent: CREATE_ANIMAL}
+    - user: "பெயர் ராணி வயது மூன்று"
+      expect: {animal_name: ராணி}
+  final:
+    intent: CREATE_ANIMAL
+    entities: {animal_name: ராணி}
+
+- id: ta-conv-08-update-existing-animal
+  lang: ta-IN
+  turns:
+    - user: "ஏற்கனவே உள்ள மாட்டின் விவரம் மாற்ற வேண்டும்"
+      expect: {intent: UPDATE_ANIMAL}
+    - user: "டேக் 5678 எடை புதுப்பிக்க வேண்டும்"
+      expect: {animal_tag: "5678"}
+  final:
+    intent: UPDATE_ANIMAL
+    entities: {animal_tag: "5678"}
+
+- id: ta-conv-09-combined-single-turn
+  lang: ta-IN
+  turns:
+    - user: "என் மாட்டுக்கு காய்ச்சல் நாளை காலை 10 மணிக்கு அப்பாய்ன்ட்மென்ட் வேண்டும்"
+      expect: {intent: CREATE_APPOINTMENT, species: cow, issue: fever, date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: ta-conv-10-poultry-wound
+  lang: ta-IN
+  turns:
+    - user: "கோழிக்கு காயம் ஆனது அப்பாய்ன்ட்மென்ட் வேண்டும்"
+      expect: {intent: CREATE_APPOINTMENT, species: chicken, symptoms: [wound]}
+    - user: "இன்று மாலை 5 மணி"
+      expect: {date: today, time: "17:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: chicken, date: today, time: "17:00"}
+
+- id: te-conv-03-vaccine-buffalo
+  lang: te-IN
+  turns:
+    - user: "గేదెకు టీకా కావాలి"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "రేపు 10 గంటలకు"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {date: tomorrow, time: "10:00"}
+
+- id: te-conv-04-log-health-only
+  lang: te-IN
+  turns:
+    - user: "నా కోడికి గాయం అయింది"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "రెండు రోజులుగా"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: te-conv-05-weather-with-days
+  lang: te-IN
+  turns:
+    - user: "వాతావరణ హెచ్చరిక కావాలి"
+      expect: {intent: WEATHER_ALERT}
+    - user: "583101 మూడు రోజులకు"
+      expect: {weather_location: "583101"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "583101"}
+
+- id: te-conv-06-fetch-animal-tag
+  lang: te-IN
+  turns:
+    - user: "నా మేక వివరాలు కావాలి"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "టాగ్ నంబర్ 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: te-conv-07-create-new-animal
+  lang: te-IN
+  turns:
+    - user: "కొత్త మేకను జోడించాలి"
+      expect: {intent: CREATE_ANIMAL}
+    - user: "పేరు రాణి వయస్సు మూడు"
+      expect: {animal_name: రాణి}
+  final:
+    intent: CREATE_ANIMAL
+    entities: {animal_name: రాణి}
+
+- id: te-conv-08-update-existing-animal
+  lang: te-IN
+  turns:
+    - user: "ఇప్పటికే ఉన్న ఆవు వివరాలు మార్చాలి"
+      expect: {intent: UPDATE_ANIMAL}
+    - user: "టాగ్ 5678 బరువు నవీకరించాలి"
+      expect: {animal_tag: "5678"}
+  final:
+    intent: UPDATE_ANIMAL
+    entities: {animal_tag: "5678"}
+
+- id: te-conv-09-combined-single-turn
+  lang: te-IN
+  turns:
+    - user: "నా ఆవుకు జ్వరం రేపు ఉదయం 10 గంటలకు అపాయింట్మెంట్ కావాలి"
+      expect: {intent: CREATE_APPOINTMENT, species: cow, issue: fever, date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: te-conv-10-poultry-wound
+  lang: te-IN
+  turns:
+    - user: "కోడికి గాయం అయింది అపాయింట్మెంట్ కావాలి"
+      expect: {intent: CREATE_APPOINTMENT, species: chicken, symptoms: [wound]}
+    - user: "ఈరోజు సాయంత్రం 5 గంటలకు"
+      expect: {date: today, time: "17:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: chicken, date: today, time: "17:00"}
+
+- id: en-conv-06-vaccine-buffalo
+  lang: en-IN
+  turns:
+    - user: "buffalo needs a vaccine"
+      expect: {intent: CREATE_APPOINTMENT, species: buffalo}
+    - user: "tomorrow at 10 am"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: buffalo, date: tomorrow, time: "10:00"}
+
+- id: en-conv-07-create-new-animal
+  lang: en-IN
+  turns:
+    - user: "add a new goat"
+      expect: {intent: CREATE_ANIMAL}
+    - user: "name rani age three"
+      expect: {animal_name: rani}
+  final:
+    intent: CREATE_ANIMAL
+    entities: {animal_name: rani}
+
+- id: en-conv-08-update-existing-animal
+  lang: en-IN
+  turns:
+    - user: "update my existing cow record"
+      expect: {intent: UPDATE_ANIMAL}
+    - user: "tag 5678 update the weight"
+      expect: {animal_tag: "5678"}
+  final:
+    intent: UPDATE_ANIMAL
+    entities: {animal_tag: "5678"}
+
+- id: en-conv-09-log-health-only
+  lang: en-IN
+  turns:
+    - user: "my chicken has a wound"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "for two days"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: en-conv-10-poultry-wound
+  lang: en-IN
+  turns:
+    - user: "chicken has a wound, need an appointment"
+      expect: {intent: CREATE_APPOINTMENT, species: chicken, symptoms: [wound]}
+    - user: "today evening 5 pm"
+      expect: {date: today, time: "17:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: chicken, date: today, time: "17:00"}
+
+# =============================================================================
+# MALAYALAM (10) — new language, added alongside the prompt update that lists
+# Malayalam explicitly. Vocabulary: cow=പശു, buffalo=എരുമ, goat=ആട്,
+# sheep=ചെമ്മരിയാട്, chicken=കോഴി, fever=പനി, wound=മുറിവ്,
+# today=ഇന്ന്, tomorrow=നാളെ, yes=അതെ.
+# =============================================================================
+
+- id: ml-conv-01-booking-cow-fever
+  lang: ml-IN
+  turns:
+    - user: "എനിക്ക് അപ്പോയിന്റ്മെന്റ് വേണം"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "എന്റെ പശു"
+      expect: {species: cow}
+    - user: "പനി ഉണ്ട്"
+      expect: {issue: fever}
+    - user: "നാളെ രാവിലെ"
+      expect: {date: tomorrow}
+    - user: "അതെ"
+      expect: {}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow}
+
+- id: ml-conv-02-booking-goat-not-eating
+  lang: ml-IN
+  turns:
+    - user: "പശുവൈദ്യനെ വിളിക്കണം"
+      expect: {intent: CREATE_APPOINTMENT}
+    - user: "ആട്"
+      expect: {species: goat}
+    - user: "തിന്നുന്നില്ല"
+      expect: {symptoms: ["not eating"]}
+    - user: "ഇന്ന് വൈകുന്നേരം ആറു മണിക്ക്"
+      expect: {date: today, time: "18:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: goat, date: today, time: "18:00"}
+
+- id: ml-conv-03-vaccine-buffalo
+  lang: ml-IN
+  turns:
+    - user: "എരുമയ്ക്ക് വാക്സിൻ വേണം"
+      expect: {intent: CREATE_APPOINTMENT, species: buffalo}
+    - user: "നാളെ പത്തു മണിക്ക്"
+      expect: {date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: buffalo, date: tomorrow, time: "10:00"}
+
+- id: ml-conv-04-log-health-only
+  lang: ml-IN
+  turns:
+    - user: "എന്റെ കോഴിക്ക് മുറിവ് ഉണ്ട്"
+      expect: {intent: LOG_HEALTH, species: chicken, symptoms: [wound]}
+    - user: "രണ്ട് ദിവസമായി"
+      expect: {}
+  final:
+    intent: LOG_HEALTH
+    entities: {species: chicken}
+
+- id: ml-conv-05-weather
+  lang: ml-IN
+  turns:
+    - user: "കാലാവസ്ഥ മുന്നറിയിപ്പ് വേണം"
+      expect: {intent: WEATHER_ALERT}
+    - user: "583101 മൂന്ന് ദിവസത്തേക്ക്"
+      expect: {weather_location: "583101"}
+  final:
+    intent: WEATHER_ALERT
+    entities: {weather_location: "583101"}
+
+- id: ml-conv-06-fetch-animal-tag
+  lang: ml-IN
+  turns:
+    - user: "എന്റെ ആടിന്റെ വിവരം വേണം"
+      expect: {intent: FETCH_ANIMAL_DETAILS, species: goat}
+    - user: "ടാഗ് നമ്പർ 1234"
+      expect: {animal_tag: "1234"}
+  final:
+    intent: FETCH_ANIMAL_DETAILS
+    entities: {species: goat}
+
+- id: ml-conv-07-create-new-animal
+  lang: ml-IN
+  turns:
+    - user: "പുതിയ ആടിനെ ചേർക്കണം"
+      expect: {intent: CREATE_ANIMAL}
+    - user: "പേര് റാണി പ്രായം മൂന്ന്"
+      expect: {animal_name: റാണി}
+  final:
+    intent: CREATE_ANIMAL
+    entities: {animal_name: റാണി}
+
+- id: ml-conv-08-update-existing-animal
+  lang: ml-IN
+  turns:
+    - user: "നിലവിലുള്ള പശുവിന്റെ വിവരം മാറ്റണം"
+      expect: {intent: UPDATE_ANIMAL}
+    - user: "ടാഗ് 5678 ഭാരം പുതുക്കണം"
+      expect: {animal_tag: "5678"}
+  final:
+    intent: UPDATE_ANIMAL
+    entities: {animal_tag: "5678"}
+
+- id: ml-conv-09-combined-single-turn
+  lang: ml-IN
+  turns:
+    - user: "എന്റെ പശുവിന് പനി ഉണ്ട് നാളെ രാവിലെ പത്തു മണിക്ക് അപ്പോയിന്റ്മെന്റ് വേണം"
+      expect: {intent: CREATE_APPOINTMENT, species: cow, issue: fever, date: tomorrow, time: "10:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: cow, issue: fever, date: tomorrow, time: "10:00"}
+
+- id: ml-conv-10-poultry-wound
+  lang: ml-IN
+  turns:
+    - user: "കോഴിക്ക് മുറിവ് ഉണ്ട് അപ്പോയിന്റ്മെന്റ് വേണം"
+      expect: {intent: CREATE_APPOINTMENT, species: chicken, symptoms: [wound]}
+    - user: "ഇന്ന് വൈകുന്നേരം അഞ്ചു മണിക്ക്"
+      expect: {date: today, time: "17:00"}
+  final:
+    intent: CREATE_APPOINTMENT
+    entities: {species: chicken, date: today, time: "17:00"}
