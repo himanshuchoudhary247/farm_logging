@@ -2,6 +2,8 @@ import os
 import json
 import time
 import logging
+from enum import Enum
+from pathlib import Path
 import boto3
 from botocore.config import Config
 from typing import Optional, Dict, Any
@@ -20,6 +22,49 @@ _BEDROCK_CONFIG = Config(
 
 _bedrock_client = None
 _bedrock_model = None
+_llm_config_cache: Optional[dict] = None
+
+
+class TaskTier(str, Enum):
+    EXTRACTION = "extraction"
+    EXTRACTION_ALT = "extraction_alt"
+    GENERATION = "generation"
+    LONG_FORM = "long_form"
+
+
+def _load_llm_config() -> dict:
+    """Load config/llm.yaml once. Env LLM_CONFIG_PATH overrides."""
+    global _llm_config_cache
+    if _llm_config_cache is not None:
+        return _llm_config_cache
+    try:
+        import yaml
+        path = os.getenv("LLM_CONFIG_PATH") or str(Path(__file__).resolve().parents[2] / "config" / "llm.yaml")
+        with open(path, encoding="utf-8") as f:
+            _llm_config_cache = yaml.safe_load(f) or {}
+    except Exception as exc:
+        _log.warning("llm config load failed: %s", exc)
+        _llm_config_cache = {}
+    return _llm_config_cache
+
+
+def model_for_task(task: TaskTier) -> Dict[str, Any]:
+    """Resolve (id, max_tokens, temperature) for a task tier.
+
+    Precedence: BEDROCK_MODEL_<TIER> env > config/llm.yaml models.<tier> >
+    legacy BEDROCK_MODEL_ID env > mistral-large fallback.
+    """
+    tier = task.value.upper()
+    cfg = (_load_llm_config().get("models") or {}).get(task.value) or {}
+    model_id = (
+        os.getenv(f"BEDROCK_MODEL_{tier}")
+        or cfg.get("id")
+        or os.getenv("BEDROCK_MODEL_ID")
+        or "mistral.mistral-large-3-675b-instruct"
+    )
+    max_tokens = int(os.getenv(f"BEDROCK_MAX_TOKENS_{tier}", cfg.get("max_tokens", 256)))
+    temperature = float(os.getenv(f"BEDROCK_TEMP_{tier}", cfg.get("temperature", 0)))
+    return {"id": model_id, "max_tokens": max_tokens, "temperature": temperature}
 
 
 def _get_client():
@@ -30,63 +75,62 @@ def _get_client():
             region_name=os.getenv("AWS_REGION", "us-east-1"),
             config=_BEDROCK_CONFIG,
         )
-        _bedrock_model = os.getenv("BEDROCK_MODEL_ID", "mistral.mistral-large-3-675b-instruct")
+        _bedrock_model = os.getenv("BEDROCK_MODEL_ID") or (
+            (_load_llm_config().get("models") or {}).get("extraction", {}).get("id")
+            or "mistral.mistral-large-3-675b-instruct"
+        )
     return _bedrock_client, _bedrock_model
 
 
 class BedrockTextAdapter:
-    def __init__(self):
-        self.client, self.model_id = _get_client()
+    """Bedrock Converse client with per-task model resolution.
+
+    Pass task=TaskTier.EXTRACTION|GENERATION|LONG_FORM to pick model + limits
+    from config/llm.yaml. Omit task for legacy default behavior.
+    """
+
+    def __init__(self, task: Optional[TaskTier] = None):
+        self.client, default_model = _get_client()
+        if task is not None:
+            spec = model_for_task(task)
+            self.model_id = spec["id"]
+            self.max_tokens = spec["max_tokens"]
+            self.temperature = spec["temperature"]
+            self.task = task.value
+        else:
+            self.model_id = default_model
+            self.max_tokens = 256
+            self.temperature = 0.0
+            self.task = "legacy"
 
     def complete(self, messages, system=None):
-        prompt = ""
-        if system:
-            prompt += f"System: {system}\n"
-        for m in messages:
-            prompt += f"{m['role'].capitalize()}: {m['content']}\n"
-        prompt += "Assistant:"
-
-        t0 = time.time()
-
-        # Anthropic models via invoke_model
-        if self.model_id.startswith("anthropic."):
-            body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 256,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-            }
-            resp = self.client.invoke_model(
-                modelId=self.model_id,
-                body=json.dumps(body),
-            )
-            out = json.loads(resp["body"].read())
-            result = out.get("content", [{"text": ""}])[0]["text"]
-            _log.info("LATENCY bedrock model=%s ms=%.0f", self.model_id, (time.time() - t0) * 1000)
-            return result
-
-        # Non-anthropic models via Converse API
+        # Always route through the unified Converse API — Anthropic, Nova,
+        # DeepSeek, OpenAI (India Geo), Cohere, Mistral all support it and
+        # return the same response shape (output.message.content[].text).
         req = {
             "modelId": self.model_id,
             "messages": [
-                {
-                    "role": "user",
-                    "content": [{"text": prompt}],
-                }
+                {"role": m.get("role", "user"), "content": [{"text": m["content"]}]}
+                for m in messages
             ],
             "inferenceConfig": {
-                "maxTokens": 256,
-                "temperature": 0,
+                "maxTokens": self.max_tokens,
+                "temperature": self.temperature,
             },
         }
         if system:
             req["system"] = [{"text": system}]
 
+        t0 = time.time()
         resp = self.client.converse(**req)
         content = resp.get("output", {}).get("message", {}).get("content", [])
         result = content[0].get("text", "") if content and isinstance(content, list) else ""
-        _log.info("LATENCY bedrock model=%s ms=%.0f", self.model_id, (time.time() - t0) * 1000)
+        usage = resp.get("usage") or {}
+        _log.info(
+            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s",
+            self.task, self.model_id, (time.time() - t0) * 1000,
+            usage.get("inputTokens"), usage.get("outputTokens"),
+        )
         return result
 
 
@@ -177,7 +221,7 @@ def _safe_json_parse(s: str):
 
 
 def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
 
     messages = [
         {"role": "user", "content": build_prompt(text, context=context)}
@@ -248,7 +292,7 @@ _LANG_INSTRUCTIONS = {
 
 def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, language: str = "en") -> dict:
     import json as _json
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
     existing = existing_data or {}
     filled = {k: v for k, v in existing.items() if _has_value(v)}
     missing = [f for f in FARM_FIELDS if not _has_value(filled.get(f))]
@@ -321,7 +365,7 @@ def generate_seasonal_advisory(
     historical: dict,
 ) -> str:
     import json as _json
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.LONG_FORM)
 
     daily = forecast.get("daily") or {}
     dates = daily.get("time") or []
@@ -381,7 +425,7 @@ Requirements:
 
 def get_weather_recommendation(weather_data: dict, location_display: str = "") -> str:
     import json as _json
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.GENERATION)
     forecast = _json.dumps(weather_data.get("forecast_days") or [], indent=2, default=str)
     alerts = _json.dumps(weather_data.get("alerts") or [], indent=2, default=str)
     risk = weather_data.get("risk_level", "low")
@@ -421,7 +465,7 @@ def translate_to_english(text: str) -> str:
     if not src:
         return src
 
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
     system = (
         "You are a translation assistant for a livestock operations system. "
         "Translate user message to concise English. Preserve names, IDs, time, date, medicine names, and quantities exactly. "

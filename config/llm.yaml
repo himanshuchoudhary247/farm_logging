@@ -1,8 +1,52 @@
+# FarmHerd LLM routing.
+# Per-task tiering: extraction is hot-path (every voice turn), generation is
+# per-response text, long_form is for seasonal / multi-paragraph advisory.
+# Any hardcoded model id in code should read from here via
+# services.llm_service.bedrock_adapter.model_for_task().
+#
+# Override in prod via env:
+#   BEDROCK_MODEL_EXTRACTION, BEDROCK_MODEL_GENERATION, BEDROCK_MODEL_LONG_FORM
+#   BEDROCK_MODEL_EXTRACTION_ALT (Nova Micro toggle for A/B eval)
+region: ap-south-1
+provider: bedrock
+
+models:
+  extraction:
+    id: apac.anthropic.claude-haiku-4-5-20251001-v1:0
+    max_tokens: 256
+    temperature: 0
+    # Fastest structured-output model with prompt caching + tool use.
+    # For India in-country routing, prefer the `in.anthropic.*` inference
+    # profile once available in ap-south-1 (roll forward via env override).
+
+  extraction_alt:
+    id: amazon.nova-micro-v1:0
+    max_tokens: 256
+    temperature: 0
+    # A/B candidate: cheapest+fastest option. Flip via
+    # BEDROCK_MODEL_EXTRACTION=amazon.nova-micro-v1:0 for canary or full switch.
+
+  generation:
+    id: in.openai.gpt-5.6-luna
+    max_tokens: 512
+    temperature: 0.2
+    # India-Geo inference profile — data stays in-country. Handles the voice
+    # reply text + response summarization. Streaming supported.
+
+  long_form:
+    id: deepseek.deepseek-v3-1-v1:0
+    max_tokens: 1024
+    temperature: 0.3
+    # Seasonal + personalized advisory. Native ap-south-1, thinking-mode
+    # optional. Larger context, no prompt-caching needed for periodic runs.
+
+# Legacy: preserved for callers still reading text/voice.model. New code
+# should call model_for_task() instead.
 text:
   provider: bedrock
-  model: mistral.mistral-large-3-675b-instruct
+  model: apac.anthropic.claude-haiku-4-5-20251001-v1:0
   region: ap-south-1
 voice:
   provider: bedrock
-  model: mistral.mistral-large-3-675b-instruct
+  model: apac.anthropic.claude-haiku-4-5-20251001-v1:0
   region: ap-south-1
