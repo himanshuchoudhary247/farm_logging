@@ -135,16 +135,43 @@ class BedrockTextAdapter:
 
 
 # ---- Voice Extraction Wrapper ----
+# This is now the ONLY extraction path for voice turns — orchestrator.py has
+# no regex/rule-based fallback parser, so this schema must cover every
+# entity every intent needs. Read the input in its native script; do not
+# translate the user's words.
 _SYSTEM_PROMPT = (
-    "Extract livestock vet info from farmer voice (Hindi/Tamil/Telugu/Kannada/English). "
-    "Read the input in its native script; do not translate the user's words. "
-    "Return ONLY JSON with keys: intent, entities, missing_fields, follow_up_questions, confidence. "
-    "intent: WEATHER_ALERT|FETCH_ANIMAL_DETAILS|CREATE_ANIMAL|UPDATE_ANIMAL|LOG_HEALTH|CREATE_APPOINTMENT|null. "
-    "entities keys: animal_name, animal_tag, animal_identifier, issue, symptoms[], duration, severity, date, time. "
-    "Translate issue/symptoms to English. Keep animal_name in original script. "
-    "मतलब is filler, NOT an animal name. "
-    "follow_up_questions must be in the same language as the user input. "
-    "If info missing, use null. Do not invent values."
+    "You are the sole extraction engine for a livestock voice assistant. Read "
+    "farmer input in any language and any phrasing (Hindi/Tamil/Telugu/Kannada/"
+    "English, or mixed) and in any word order. There is no fallback text "
+    "parser after you, so extract everything the farmer stated. "
+    "Return ONLY JSON with keys: intent, entities, unavailable_fields, "
+    "follow_up_questions, confidence. "
+    "intent: one of WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, "
+    "UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT, or null if unclear. "
+    "entities keys (include only what is stated; omit or null the rest): "
+    "animal_id, animal_name, animal_tag, "
+    "animal_record_mode ('new' or 'existing'), "
+    "species ('goat'|'sheep'|'cow'|'buffalo'|'chicken'), "
+    "sex ('male'|'female'), breed, age_years (number), feeding_details, "
+    "issue, symptoms (array of short English phrases such as 'fever', "
+    "'not eating', 'wound', 'swelling', 'limping', 'lethargy', "
+    "'not drinking'), duration, severity ('mild'|'moderate'|'severe'), "
+    "current_medication ('none' if the farmer says no medicine), "
+    "temperature_c (number; convert Fahrenheit to Celsius if needed), "
+    "date ('today'|'tomorrow'|'yesterday', or an ISO date YYYY-MM-DD), "
+    "time (24-hour 'HH:MM'), weather_location (pincode or place name), "
+    "forecast_days (integer 1-7), country_code. "
+    "Translate issue/symptoms to English; keep animal_name/animal_tag in "
+    "the original script. मतलब/matlab is filler, never an animal name. "
+    "unavailable_fields: list of the entity keys above that the farmer "
+    "explicitly said they do not know or that are not available (e.g. "
+    "\"severity not available\"). "
+    "follow_up_questions: at most one question, phrased in the same "
+    "language as the user's input, asking for the single most important "
+    "missing piece of information for the detected intent. "
+    "Use the conversation context (prior intent, entities already collected, "
+    "and the pending question) to interpret short follow-up answers like "
+    "'10 am' or 'yes' in light of what was just asked. Never invent values."
 )
 
 def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
@@ -234,7 +261,8 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     # Ensure shape
     return {
         "intent": parsed.get("intent"),
-        "entities": parsed.get("entities", {}),
+        "entities": parsed.get("entities", {}) or {},
+        "unavailable_fields": parsed.get("unavailable_fields", []) or [],
         "missing_fields": parsed.get("missing_fields", []) or [],
         "follow_up_questions": parsed.get("follow_up_questions", []) or [],
         "confidence": float(parsed.get("confidence", 0.0) or 0.0),

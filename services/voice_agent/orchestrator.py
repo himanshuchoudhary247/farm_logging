@@ -1,5 +1,3 @@
-import os
-import re
 import time
 import logging
 from difflib import get_close_matches
@@ -16,17 +14,12 @@ from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.transcribe import transcribe_audio
 from storage import load_animals
 
-
-UNAVAILABLE_TOKENS = [
-    "not available",
-    "unavailable",
-    "unknown",
-    "don't know",
-    "do not know",
-    "not sure",
-    "n/a",
-]
-
+# No regex or keyword rules parse user input in this module. The farmer can
+# phrase a request in any language, script, or word order — call_bedrock()
+# (services/llm_service/bedrock_adapter.py) is the single extraction engine
+# for intent + every entity. Everything below this point only reshapes,
+# validates, and merges the LLM's structured output; it never re-reads the
+# raw text.
 
 INTENT_TABLE_MAP = {
     "WEATHER_ALERT": ["weather_alerts"],
@@ -42,18 +35,6 @@ def _resolve_tables(intent: Optional[str]) -> List[str]:
     if not intent:
         return []
     return INTENT_TABLE_MAP.get(intent, [])
-
-
-def _is_unavailable_text(text: str) -> bool:
-    t = (text or "").lower()
-    for token in UNAVAILABLE_TOKENS:
-        if token == "n/a":
-            if re.search(r"\bn\s*/\s*a\b", t):
-                return True
-            continue
-        if token in t:
-            return True
-    return False
 
 
 def _mark_fields_unavailable(entities: Dict[str, Any], fields: List[str]) -> Dict[str, Any]:
@@ -75,256 +56,11 @@ def _has_value_or_unavailable(entities: Dict[str, Any], field: str) -> bool:
     return field in unavailable
 
 
-def _apply_unavailable_mentions(text: str, entities: Dict[str, Any]) -> Dict[str, Any]:
-    t = (text or "").lower()
-    if not _is_unavailable_text(t):
-        return entities
-
-    field_aliases = {
-        "animal_name": ["animal name", "name", "tag"],
-        "species": ["species", "animal type", "type"],
-        "sex": ["sex", "gender", "male", "female"],
-        "breed": ["breed"],
-        "age_years": ["age", "years", "yrs"],
-        "feeding_details": ["feeding", "feed", "fodder"],
-        "issue": ["issue", "symptom", "problem", "complaint"],
-        "duration": ["duration", "since"],
-        "severity": ["severity", "mild", "moderate", "severe"],
-        "current_medication": ["medication", "medicine", "treatment"],
-        "date": ["date", "day", "tomorrow", "today"],
-        "time": ["time", "am", "pm", "o'clock"],
-    }
-
-    to_mark: List[str] = []
-    for field, aliases in field_aliases.items():
-        for alias in aliases:
-            if re.search(
-                rf"\b{re.escape(alias)}\b[^,.]*(?:not available|unavailable|unknown|don't know|do not know|not sure|n/a|\bna\b)",
-                t,
-            ) or re.search(
-                rf"(?:not available|unavailable|unknown|don't know|do not know|not sure|n/a|\bna\b)[^,.]*\b{re.escape(alias)}\b",
-                t,
-            ):
-                to_mark.append(field)
-                break
-
-    if to_mark:
-        entities = _mark_fields_unavailable(entities, list(set(to_mark)))
-
-    return entities
-
-
-def _normalize_text(text: str) -> str:
-    if not text:
-        return text
-    t = text.lower().strip()
-    replacements = {
-        "coat": "goat",
-        "route": "goat",
-        "boat": "goat",
-    }
-    for src, dst in replacements.items():
-        t = t.replace(src, dst)
-    return t
-
-
-def _has_native_indic_script(text: str) -> bool:
-    t = text or ""
-    for ch in t:
-        code = ord(ch)
-        if 0x0900 <= code <= 0x097F:  # Devanagari
-            return True
-        if 0x0C80 <= code <= 0x0CFF:  # Kannada
-            return True
-        if 0x0C00 <= code <= 0x0C7F:  # Telugu
-            return True
-    return False
-
-
-def _to_english_working_text(text: str) -> str:
-    # Deprecated: prior implementation ran a second Bedrock call to translate
-    # Indic input to English before extraction. The model now handles multi-
-    # lingual input directly via the system prompt. Kept as identity so the
-    # pipeline shape and latency-log positions stay stable.
-    return text
-
-
-def _detect_intent_rule(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    has_animal_context = any(
-        x in t for x in ["animal", "goat", "sheep", "cow", "buffalo", "cattle", "tag"]
-    )
-
-    if any(x in t for x in ["weather", "forecast", "rain alert", "temperature alert", "storm alert"]):
-        return "WEATHER_ALERT"
-    if any(x in t for x in ["get details", "show details", "details of"]) and has_animal_context:
-        return "FETCH_ANIMAL_DETAILS"
-    if any(x in t for x in ["update animal", "existing animal", "update details", "edit animal"]):
-        return "UPDATE_ANIMAL"
-    if any(x in t for x in ["appointment", "doctor", "vet"]):
-        return "CREATE_APPOINTMENT"
-    if "book" in t and any(x in t for x in ["appointment", "doctor", "vet"]):
-        return "CREATE_APPOINTMENT"
-    if has_animal_context and any(x in t for x in ["add", "register", "new animal", "add details"]):
-        return "CREATE_ANIMAL"
-    if has_animal_context and any(
-        x in t for x in ["details about my animal", "details about animal", "animal details"]
-    ):
-        return "CREATE_ANIMAL"
-    if any(x in t for x in ["sick", "not eating", "fever", "problem", "injury"]):
-        return "LOG_HEALTH"
-    return None
-
-
-def _extract_quick_entities(text: str, entities: Dict[str, Any]) -> Dict[str, Any]:
-    t = (text or "").lower()
-
-    if not entities.get("weather_location"):
-        weather_location = _extract_weather_location(t)
-        if weather_location:
-            entities["weather_location"] = weather_location
-
-    if not entities.get("forecast_days"):
-        forecast_days = _extract_forecast_days(t)
-        if forecast_days is not None:
-            entities["forecast_days"] = forecast_days
-
-    if not entities.get("country_code"):
-        country_code = _extract_country_code(t)
-        if country_code:
-            entities["country_code"] = country_code
-
-    mode = _extract_animal_record_mode(t)
-    if mode:
-        entities["animal_record_mode"] = mode
-
-    if not entities.get("animal_name"):
-        name = _extract_animal_name(t)
-        if name:
-            entities["animal_name"] = name
-
-    if not entities.get("breed"):
-        breed = _extract_breed(t)
-        if breed:
-            entities["breed"] = breed
-
-    if not entities.get("age_years"):
-        age_years = _extract_age_years(t)
-        if age_years is not None:
-            entities["age_years"] = age_years
-
-    if not entities.get("feeding_details"):
-        feeding_details = _extract_feeding_details(t)
-        if feeding_details:
-            entities["feeding_details"] = feeding_details
-
-    if not entities.get("issue"):
-        issue = _extract_issue(t)
-        if issue:
-            entities["issue"] = issue
-
-    if not entities.get("duration"):
-        duration = _extract_duration(t)
-        if duration:
-            entities["duration"] = duration
-
-    if not entities.get("severity"):
-        severity = _extract_severity(t)
-        if severity:
-            entities["severity"] = severity
-
-    if not entities.get("current_medication"):
-        current_medication = _extract_current_medication(t)
-        if current_medication:
-            entities["current_medication"] = current_medication
-
-    if not entities.get("temperature_c"):
-        temperature_c = _extract_temperature_c(t)
-        if temperature_c is not None:
-            entities["temperature_c"] = temperature_c
-
-    entities = _apply_unavailable_mentions(t, entities)
-
-    if not entities.get("species"):
-        for species in ["goat", "sheep", "cow", "buffalo"]:
-            if species in t:
-                entities["species"] = species
-                break
-
-    if not entities.get("sex"):
-        if "female" in t:
-            entities["sex"] = "female"
-        elif "male" in t:
-            entities["sex"] = "male"
-
-    if "not eating" in t:
-        symptoms = entities.get("symptoms") or []
-        if isinstance(symptoms, str):
-            symptoms = [symptoms]
-        if "not eating" not in symptoms:
-            symptoms.append("not eating")
-        entities["symptoms"] = symptoms
-
-    if not entities.get("date"):
-        date = _extract_date(t)
-        if date:
-            entities["date"] = date
-
-    if not entities.get("time"):
-        time = _extract_time(t)
-        if time:
-            entities["time"] = time
-
-    # Explicit id mention implies an existing animal update flow.
-    if not entities.get("animal_id"):
-        id_match = re.search(r"\b(?:animal\s*id|id)\s*(?:is|:)?\s*([a-z0-9-]+)\b", t)
-        if id_match:
-            entities["animal_id"] = id_match.group(1)
-            entities.setdefault("animal_record_mode", "existing")
-
-    return entities
-
-
-def _extract_weather_location(text: str) -> Optional[str]:
-    t = (text or "").strip()
-    pin = re.search(r"\b(\d{5,8})\b", t)
-    if pin:
-        return pin.group(1)
-
-    m = re.search(r"\b(?:for|in|at|near)\s+([a-z][a-z\s-]{2,})$", t)
-    if m:
-        loc = m.group(1).strip(" .,")
-        if loc:
-            return loc
-    return None
-
-
-def _extract_forecast_days(text: str) -> Optional[int]:
-    t = (text or "").lower()
-    m = re.search(r"\bnext\s+(\d)\s*days?\b", t)
-    if m:
-        return max(1, min(7, int(m.group(1))))
-    m2 = re.search(r"\b(\d)\s*day\s*forecast\b", t)
-    if m2:
-        return max(1, min(7, int(m2.group(1))))
-    return None
-
-
-def _extract_country_code(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    if " india" in f" {t} " or " in" == t.strip():
-        return "in"
-    return None
-
-
-def _contains_exact_token(text: str, token: str) -> bool:
-    if not token:
-        return False
-    return re.search(rf"(?<![a-z0-9]){re.escape(token.lower())}(?![a-z0-9])", text) is not None
-
-
-def _prefill_animal_details(text: str, entities: Dict[str, Any]) -> Dict[str, Any]:
-    t = (text or "").lower()
+def _prefill_animal_details(entities: Dict[str, Any]) -> Dict[str, Any]:
+    """Enrich a farmer's known animal profile once the LLM has identified an
+    animal_id, animal_name, or animal_tag. Matches by exact id/name and falls
+    back to fuzzy name matching (difflib) — no text scanning, this only
+    compares already-extracted entity values against stored records."""
     preferred_farmer_id = entities.get("farmer_id")
 
     try:
@@ -340,407 +76,35 @@ def _prefill_animal_details(text: str, entities: Dict[str, Any]) -> Dict[str, An
     if not animals:
         return entities
 
-    candidates = []
-    existing_animal_id = str(entities.get("animal_id") or "").strip().lower()
-    existing_animal_name = str(entities.get("animal_name") or "").strip().lower()
+    animal_id = str(entities.get("animal_id") or "").strip().lower()
+    animal_name = str(entities.get("animal_name") or entities.get("animal_tag") or "").strip().lower()
 
-    for animal in animals:
-        aid = animal.id.lower()
-        name = animal.tag_or_name.lower()
-        if existing_animal_id and aid == existing_animal_id:
-            candidates.append(animal)
-            continue
-        if existing_animal_name and name == existing_animal_name:
-            candidates.append(animal)
-            continue
-        if _contains_exact_token(t, aid) or _contains_exact_token(t, name):
-            candidates.append(animal)
+    match = None
+    if animal_id:
+        match = next((a for a in animals if a.id.lower() == animal_id), None)
+    if not match and animal_name:
+        by_name = {a.tag_or_name.lower(): a for a in animals}
+        match = by_name.get(animal_name)
+        if not match:
+            fuzzy = get_close_matches(animal_name, list(by_name.keys()), n=1, cutoff=0.75)
+            if fuzzy:
+                match = by_name[fuzzy[0]]
 
-    if not candidates:
-        id_match = re.search(r"\b(?:animal\s*id|id)\s*(?:is|:)?\s*([a-z0-9-]+)\b", t)
-        if id_match:
-            id_token = id_match.group(1)
-            candidates = [a for a in animals if a.id.lower() == id_token]
-
-    if not candidates:
-        name_match = re.search(r"\b(?:animal\s*name|name|tag)\s*(?:is|:)?\s*([a-z0-9-]+)\b", t)
-        if name_match:
-            name_token = name_match.group(1)
-            by_name = {a.tag_or_name.lower(): a for a in animals}
-            if name_token in by_name:
-                candidates = [by_name[name_token]]
-            else:
-                fuzzy = get_close_matches(name_token, list(by_name.keys()), n=1, cutoff=0.75)
-                if fuzzy:
-                    candidates = [by_name[fuzzy[0]]]
-
-    if not candidates:
+    if not match:
         return entities
 
     species_hint = str(entities.get("species") or "").strip().lower()
-    if species_hint:
-        species_filtered = [a for a in candidates if a.species.lower() == species_hint]
-        if species_filtered:
-            candidates = species_filtered
-
-    unique_candidates: Dict[str, Any] = {a.id: a for a in candidates}
-    if len(unique_candidates) != 1:
+    if species_hint and match.species.lower() != species_hint:
         return entities
 
-    animal = list(unique_candidates.values())[0]
-    entities.setdefault("animal_id", animal.id)
-    entities["animal_name"] = animal.tag_or_name
-    entities.setdefault("species", animal.species)
-    entities.setdefault("breed", animal.breed)
-    entities.setdefault("age_years", animal.age_years)
-    entities.setdefault("feeding_details", animal.feeding_details)
-    entities.setdefault("farmer_id", animal.farmer_id)
+    entities.setdefault("animal_id", match.id)
+    entities["animal_name"] = match.tag_or_name
+    entities.setdefault("species", match.species)
+    entities.setdefault("breed", match.breed)
+    entities.setdefault("age_years", match.age_years)
+    entities.setdefault("feeding_details", match.feeding_details)
+    entities.setdefault("farmer_id", match.farmer_id)
     entities.setdefault("animal_record_mode", "existing")
-
-    return entities
-
-
-def _extract_animal_record_mode(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    existing_markers = [
-        "existing",
-        "old animal",
-        "already present",
-        "already existing",
-        "update",
-        "change",
-        "edit",
-        "already registered",
-    ]
-    new_markers = ["new", "new animal", "register", "add new", "new registration"]
-
-    if any(marker in t for marker in existing_markers):
-        return "existing"
-    if any(marker in t for marker in new_markers):
-        return "new"
-    return None
-
-
-def _extract_animal_name(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-    m = re.search(r"\b(?:animal\s*name|name|tag)\s*(?:is|:)?\s*([a-z0-9-]+)\b", t)
-    if m:
-        return m.group(1)
-    return None
-
-
-def _extract_breed(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-    m = re.search(r"\bbreed\s*(?:is|:|to)?\s*([a-z][a-z0-9-]*)\b", t)
-    if m:
-        return m.group(1)
-    return None
-
-
-def _extract_age_years(text: str) -> Optional[float]:
-    t = (text or "").lower()
-
-    word_to_num = {
-        "zero": 0,
-        "one": 1,
-        "two": 2,
-        "three": 3,
-        "four": 4,
-        "five": 5,
-        "six": 6,
-        "seven": 7,
-        "eight": 8,
-        "nine": 9,
-        "ten": 10,
-    }
-
-    m_age_num = re.search(r"\bage\s*(?:is|:)?\s*(\d{1,2}(?:\.\d+)?)\b", t)
-    if m_age_num:
-        try:
-            return float(m_age_num.group(1))
-        except ValueError:
-            return None
-
-    m_age_word = re.search(r"\bage\s*(?:is|:)?\s*(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b", t)
-    if m_age_word:
-        return float(word_to_num[m_age_word.group(1)])
-
-    m = re.search(r"\b(\d{1,2}(?:\.\d+)?)\s*(?:years?|yrs?)\b", t)
-    if m:
-        try:
-            return float(m.group(1))
-        except ValueError:
-            return None
-
-    m_word_years = re.search(
-        r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:years?|yrs?)\b",
-        t,
-    )
-    if m_word_years:
-        return float(word_to_num[m_word_years.group(1)])
-
-    single_num = re.fullmatch(r"\d{1,2}(?:\.\d+)?", t.strip())
-    if single_num:
-        try:
-            return float(single_num.group(0))
-        except ValueError:
-            return None
-
-    single_word = re.fullmatch(
-        r"zero|one|two|three|four|five|six|seven|eight|nine|ten",
-        t.strip(),
-    )
-    if single_word:
-        return float(word_to_num[single_word.group(0)])
-
-    return None
-
-
-def _extract_feeding_details(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-
-    if "not feeding" in t:
-        return "not feeding"
-
-    explicit = re.search(r"\b(?:feeding\s*details?|feed\s*details?)\s*(?:is|are|:)?\s*(.+)$", t)
-    if explicit:
-        value = explicit.group(1).strip(" .,")
-        return value or None
-
-    if any(marker in t for marker in ["feed", "fodder", "silage", "hay", "concentrate"]):
-        if len(t) <= 120:
-            return t.strip(" .,")
-
-    return None
-
-
-def _extract_issue(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-
-    explicit = re.search(
-        r"\b(?:issue|problem|symptom|complaint)\s*(?:is|:)?\s*(.+?)(?:,|\bduration\b|\bseverity\b|\bdate\b|\btime\b|\bmedication\b|\bmedicine\b|$)",
-        t,
-    )
-    if explicit:
-        value = explicit.group(1).strip(" .,")
-        return value or None
-
-    symptom_phrases = [
-        "not eating",
-        "fever",
-        "cough",
-        "diarrhea",
-        "loose motion",
-        "vomit",
-        "injury",
-        "limping",
-        "weakness",
-        "not feeding",
-    ]
-    hits = [p for p in symptom_phrases if p in t]
-    if hits:
-        return ", ".join(hits)
-
-    return None
-
-
-def _extract_duration(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-
-    m_duration = re.search(r"\bduration\s*(?:is|:)?\s*(\d+\s*(?:hours?|days?|weeks?|months?))\b", t)
-    if m_duration:
-        return m_duration.group(1).strip()
-
-    m_since = re.search(r"\bsince\s+([a-z0-9\s-]+)$", t)
-    if m_since:
-        return f"since {m_since.group(1).strip(' .,')}"
-
-    m_for = re.search(r"\bfor\s+(\d+\s*(?:hours?|days?|weeks?|months?))\b", t)
-    if m_for:
-        return m_for.group(1).strip()
-
-    return None
-
-
-def _extract_severity(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    for level in ["mild", "moderate", "severe"]:
-        if re.search(rf"\b{level}\b", t):
-            return level
-    return None
-
-
-def _extract_current_medication(text: str) -> Optional[str]:
-    t = (text or "").lower().strip()
-
-    if any(x in t for x in ["no medicine", "not on medicine", "none", "no medication"]):
-        return "none"
-
-    m = re.search(r"\b(?:medicine|medication|drug|treatment)\s*(?:is|:)?\s*(.+)$", t)
-    if m:
-        value = m.group(1).strip(" .,")
-        return value or None
-
-    m_given = re.search(r"\bgiven\s+(.+)$", t)
-    if m_given and any(x in t for x in ["tablet", "injection", "syrup", "medicine"]):
-        value = m_given.group(1).strip(" .,")
-        return value or None
-
-    return None
-
-
-def _extract_temperature_c(text: str) -> Optional[float]:
-    t = (text or "").lower()
-    m = re.search(r"\b(\d{2,3}(?:\.\d+)?)\s*(?:°?\s*c|celsius)\b", t)
-    if m:
-        try:
-            return float(m.group(1))
-        except ValueError:
-            return None
-
-    m_f = re.search(r"\b(\d{2,3}(?:\.\d+)?)\s*(?:°?\s*f|fahrenheit)\b", t)
-    if m_f:
-        try:
-            f = float(m_f.group(1))
-            return round((f - 32.0) * 5.0 / 9.0, 1)
-        except ValueError:
-            return None
-
-    return None
-
-
-def _extract_date(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    for token in ["today", "tomorrow", "yesterday"]:
-        if re.search(rf"\b{token}\b", t):
-            return token
-
-    iso_match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", t)
-    if iso_match:
-        return iso_match.group(1)
-
-    return None
-
-
-def _extract_time(text: str) -> Optional[str]:
-    t = (text or "").lower()
-    t = re.sub(r"\b([ap])\s*\.\s*m\.?\b", r"\1m", t)
-
-    am_pm = re.search(r"\b([01]?\d|2[0-3])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b", t)
-    if am_pm:
-        hour = int(am_pm.group(1))
-        minute = int(am_pm.group(2) or "0")
-        meridiem = am_pm.group(3).replace(".", "")
-        if meridiem == "pm" and hour != 12:
-            hour += 12
-        if meridiem == "am" and hour == 12:
-            hour = 0
-        return f"{hour:02d}:{minute:02d}"
-
-    hh_mm = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", t)
-    if hh_mm:
-        hour = int(hh_mm.group(1))
-        minute = int(hh_mm.group(2))
-        return f"{hour:02d}:{minute:02d}"
-
-    return None
-
-
-def _apply_followup_answer(
-    text: str,
-    intent: Optional[str],
-    pending_questions: List[str],
-    entities: Dict[str, Any],
-) -> Dict[str, Any]:
-    t = (text or "").lower().strip()
-    if not pending_questions:
-        return entities
-
-    first_q = pending_questions[0].lower()
-
-    if "type of animal" in first_q and not entities.get("species"):
-        for species in ["goat", "sheep", "cow", "buffalo"]:
-            if species in t:
-                entities["species"] = species
-                break
-
-    if "male or female" in first_q and not entities.get("sex"):
-        if "female" in t:
-            entities["sex"] = "female"
-        elif "male" in t:
-            entities["sex"] = "male"
-
-    if intent == "LOG_HEALTH" and "symptoms" in first_q and not entities.get("symptoms"):
-        entities["symptoms"] = [text.strip()] if text.strip() else []
-
-    if "date" in first_q and not entities.get("date"):
-        date = _extract_date(t)
-        if date:
-            entities["date"] = date
-
-    if "time" in first_q and not entities.get("time"):
-        time = _extract_time(t)
-        if time:
-            entities["time"] = time
-
-    if "new animal registration" in first_q and not entities.get("animal_record_mode"):
-        mode = _extract_animal_record_mode(t)
-        if mode:
-            entities["animal_record_mode"] = mode
-
-    if ("animal id" in first_q or "animal name" in first_q) and not entities.get("animal_id"):
-        loose_id_match = re.fullmatch(r"[a-z0-9-]+", t)
-        if loose_id_match:
-            entities["animal_id"] = loose_id_match.group(0)
-
-    if ("details to update" in first_q or "animal name" in first_q) and not entities.get("animal_name"):
-        extracted_name = _extract_animal_name(t)
-        if extracted_name:
-            entities["animal_name"] = extracted_name
-
-    if ("details to update" in first_q or "feeding details" in first_q) and not entities.get("feeding_details"):
-        feeding_details = _extract_feeding_details(t)
-        if feeding_details:
-            entities["feeding_details"] = feeding_details
-
-    if _is_unavailable_text(t):
-        if "type of animal" in first_q or "species" in first_q:
-            entities = _mark_fields_unavailable(entities, ["species"])
-        if "male or female" in first_q or "sex" in first_q:
-            entities = _mark_fields_unavailable(entities, ["sex"])
-        if "animal name" in first_q or "tag" in first_q:
-            entities = _mark_fields_unavailable(entities, ["animal_name"])
-        if "breed" in first_q:
-            entities = _mark_fields_unavailable(entities, ["breed"])
-        if "age" in first_q:
-            entities = _mark_fields_unavailable(entities, ["age_years"])
-        if "feeding" in first_q:
-            entities = _mark_fields_unavailable(entities, ["feeding_details"])
-        if "issue" in first_q or "symptom" in first_q:
-            entities = _mark_fields_unavailable(entities, ["issue"])
-        if "duration" in first_q:
-            entities = _mark_fields_unavailable(entities, ["duration"])
-        if "severity" in first_q:
-            entities = _mark_fields_unavailable(entities, ["severity"])
-        if "medication" in first_q or "medicine" in first_q:
-            entities = _mark_fields_unavailable(entities, ["current_medication"])
-        if "date" in first_q:
-            entities = _mark_fields_unavailable(entities, ["date"])
-        if "time" in first_q:
-            entities = _mark_fields_unavailable(entities, ["time"])
-
-        # If user answers only "not available" for a combined follow-up, mark all requested fields.
-        if len(t.split()) <= 4:
-            if "details to update" in first_q:
-                entities = _mark_fields_unavailable(
-                    entities,
-                    ["species", "sex", "breed", "age_years", "feeding_details"],
-                )
-            if "issue/symptoms" in first_q:
-                entities = _mark_fields_unavailable(
-                    entities,
-                    ["issue", "duration", "severity", "current_medication", "date", "time"],
-                )
 
     return entities
 
@@ -761,6 +125,8 @@ def _sync_animal_intent(intent: Optional[str], entities: Dict[str, Any]) -> Opti
 
 
 def _canonicalize_entities(intent: Optional[str], entities: Dict[str, Any]) -> Dict[str, Any]:
+    """Fold alias keys an LLM might emit (gender/age/name/symptom) onto the
+    canonical schema. Pure dict reshaping, no text parsing."""
     out = dict(entities or {})
 
     if not out.get("sex"):
@@ -781,10 +147,11 @@ def _canonicalize_entities(intent: Optional[str], entities: Dict[str, Any]) -> D
         for key in ["age", "animal_age"]:
             value = out.get(key)
             if value not in (None, ""):
-                parsed = _extract_age_years(str(value))
-                if parsed is not None:
-                    out["age_years"] = parsed
+                try:
+                    out["age_years"] = float(value)
                     break
+                except (TypeError, ValueError):
+                    continue
 
     if intent in {"CREATE_ANIMAL", "UPDATE_ANIMAL"} and not out.get("feeding_details"):
         symptom = out.get("symptom")
@@ -806,35 +173,6 @@ def _canonicalize_entities(intent: Optional[str], entities: Dict[str, Any]) -> D
             out.pop(key, None)
 
     return out
-
-
-def _starts_new_request(text: str) -> bool:
-    t = (text or "").lower().strip()
-    if len(t) < 8:
-        return False
-
-    markers = [
-        "i want to",
-        "i need to",
-        "please",
-        "add details",
-        "animal details",
-        "get details",
-        "show details",
-        "update",
-        "book a vet",
-        "book an appointment",
-        "book appointment",
-        "appointment for",
-        "already present animal",
-        "existing animal",
-        "new animal",
-        "my animal",
-        "weather",
-        "forecast",
-        "rain alert",
-    ]
-    return any(m in t for m in markers)
 
 
 def _weather_missing_fields(entities: Dict[str, Any]) -> List[str]:
@@ -957,95 +295,62 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
 
 def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]:
     t0 = time.time()
-    normalized_text = _normalize_text(text)
-    t_norm = time.time()
-    working_text = _to_english_working_text(normalized_text)
-    t_translate = time.time()
+    working_text = text or ""
 
     session = get_session(session_id)
     entities = dict(session.get("entities") or {})
     pending_questions = list(session.get("pending_questions") or [])
     session_intent = session.get("intent")
-    detected_intent = _detect_intent_rule(working_text)
 
-    if not pending_questions and detected_intent and detected_intent != session_intent:
-        entities = {}
-        session_intent = None
-
-    if not pending_questions and _starts_new_request(working_text):
-        entities = {}
-        session_intent = None
-
-    llm_raw = None
-    confidence = 0.0
-    intent = session_intent or detected_intent
-    llm_followups: List[str] = []
-    llm_missing_fields: List[str] = []
-
-    # Fast path: for short English answers to pending questions, rules are enough.
-    # Skip the LLM entirely to cut ~1s per follow-up turn.
-    entities_before_rules = dict(entities)
-    rule_entities = _extract_quick_entities(working_text, dict(entities))
-    rule_entities = _prefill_animal_details(working_text, rule_entities)
-    rule_entities = _apply_followup_answer(working_text, intent, pending_questions, rule_entities)
-    fast_path = (
-        pending_questions
-        and not _has_native_indic_script(working_text)
-        and len(working_text) <= 60
-        and not detected_intent
-        and any(
-            rule_entities.get(k) not in (None, "", []) and rule_entities.get(k) != entities_before_rules.get(k)
-            for k in rule_entities
+    t_llm_start = time.time()
+    try:
+        llm_response = call_bedrock(
+            working_text,
+            context={
+                "intent": session_intent,
+                "entities": entities,
+                "pending_questions": pending_questions,
+            },
         )
-    )
+    except Exception as exc:
+        import traceback
+        _log.warning("LLM extraction failed: %s\n%s", exc, traceback.format_exc())
+        llm_response = {}
+    llm_ms = (time.time() - t_llm_start) * 1000
 
-    # Best-effort LLM enrichment
-    llm_ms = 0.0
-    if fast_path:
-        entities = rule_entities
-        _log.info("LLM fast-path hit (rules sufficient) session=%s", session_id)
-    else:
-        try:
-            t_llm_start = time.time()
-            llm_response = call_bedrock(
-                working_text,
-                context={
-                    "intent": session_intent,
-                    "entities": entities,
-                    "pending_questions": pending_questions,
-                },
-            )
-            llm_ms = (time.time() - t_llm_start) * 1000
-            llm_raw = llm_response.get("_raw")
-            confidence = float(llm_response.get("confidence", 0.0) or 0.0)
-            llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
-            llm_missing_fields = [str(x).strip() for x in (llm_response.get("missing_fields") or []) if str(x).strip()]
-            llm_intent = llm_response.get("intent")
-            if llm_intent and (not intent or confidence >= 0.55):
-                intent = llm_intent
-            llm_entities = llm_response.get("entities", {}) or {}
-            entities.update(llm_entities)
-        except Exception as exc:
-            import traceback
-            _log.warning("LLM enrichment failed: %s\n%s", exc, traceback.format_exc())
-            # Keep deterministic flow even if LLM is unavailable
-            pass
-    t_post_llm = time.time()
+    llm_raw = llm_response.get("_raw")
+    confidence = float(llm_response.get("confidence", 0.0) or 0.0)
+    llm_intent = llm_response.get("intent")
+    llm_entities = llm_response.get("entities") or {}
+    llm_unavailable = llm_response.get("unavailable_fields") or []
 
-    # Merge quick entities and direct follow-up answers (skip if fast-path already applied them)
-    if not fast_path:
-        entities = _extract_quick_entities(working_text, entities)
-        entities = _prefill_animal_details(working_text, entities)
-        entities = _apply_followup_answer(working_text, intent, pending_questions, entities)
+    # Adopt the LLM's intent. Mid-flow (an open follow-up question), only
+    # switch on high confidence so a stray word doesn't derail an in-progress
+    # booking; otherwise the LLM is free to set/replace the session intent.
+    intent = session_intent
+    if llm_intent and llm_intent != session_intent:
+        if not pending_questions or confidence >= 0.55:
+            intent = llm_intent
+            if not pending_questions:
+                entities = {}
+    elif not intent:
+        intent = llm_intent
+
+    entities.update(llm_entities)
+    if llm_unavailable:
+        entities = _mark_fields_unavailable(entities, list(llm_unavailable))
+
+    entities = _prefill_animal_details(entities)
     entities = normalize_entities(entities)
     intent = _sync_animal_intent(intent, entities)
     entities = _canonicalize_entities(intent, entities)
 
     followups = _generate_followups(intent, entities)
 
-    # Agentic enhancement: if deterministic rules are satisfied but LLM still asks
-    # for fields, include one compact follow-up to handle free-form user phrasing.
-    if not followups and llm_followups and llm_missing_fields:
+    # If deterministic rules are satisfied but the LLM still flagged a
+    # follow-up, surface its (free-form, correctly-phrased) question.
+    llm_followups = [str(x).strip() for x in (llm_response.get("follow_up_questions") or []) if str(x).strip()]
+    if not followups and llm_followups:
         followups = [llm_followups[0]]
 
     complete = bool(intent) and len(followups) == 0
@@ -1061,11 +366,9 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
     )
 
     total_ms = (time.time() - t0) * 1000
-    translate_ms = (t_translate - t_norm) * 1000
-    rule_ms = (t_post_llm - t_translate) * 1000 - llm_ms
     _log.info(
-        "LATENCY process_text_input total=%.0fms llm=%.0fms translate=%.0fms rules=%.0fms session=%s",
-        total_ms, llm_ms, translate_ms, rule_ms, session_id,
+        "LATENCY process_text_input total=%.0fms llm=%.0fms session=%s",
+        total_ms, llm_ms, session_id,
     )
 
     return {
@@ -1080,7 +383,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
         "follow_up_questions": followups,
         "complete": complete,
         "meta": {
-            "raw_text": normalized_text,
+            "raw_text": text,
             "working_text_en": working_text,
             "confidence": confidence,
             "session_id": session_id,
@@ -1088,8 +391,6 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
         "timing": {
             "total_ms": round(total_ms),
             "llm_ms": round(llm_ms),
-            "translate_ms": round(translate_ms),
-            "rule_ms": round(rule_ms),
         },
         "_raw": llm_raw,
     }

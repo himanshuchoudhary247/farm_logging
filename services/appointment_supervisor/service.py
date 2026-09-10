@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from base64 import b64encode
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -170,200 +169,6 @@ class AppointmentSupervisor:
         if target.get("issue") and not target.get("symptoms"):
                 target["symptoms"] = [target["issue"]]
 
-    _NUMBER_WORDS: dict[str, dict[str, int]] = {
-        "en": {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50},
-        "hi": {"एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5, "छह": 6, "छः": 6, "सात": 7, "आठ": 8, "नौ": 9, "दस": 10, "ग्यारह": 11, "बारह": 12, "तेरह": 13, "चौदह": 14, "पंद्रह": 15, "सोलह": 16, "सत्रह": 17, "अठारह": 18, "उन्नीस": 19, "बीस": 20, "तीस": 30, "पैंतालीस": 45, "पंतालीस": 45},
-        "ta": {"ஒன்று": 1, "இரண்டு": 2, "மூன்று": 3, "நான்கு": 4, "ஐந்து": 5, "ஆறு": 6, "ஏழு": 7, "எட்டு": 8, "ஒன்பது": 9, "பத்து": 10, "பதினொன்று": 11, "பன்னிரண்டு": 12, "பதிமூன்று": 13, "பதினான்கு": 14, "பதினைந்து": 15, "இருபது": 20, "முப்பது": 30, "நாற்பது": 40, "ஐம்பது": 50},
-        "te": {"ఒకటి": 1, "రెండు": 2, "మూడు": 3, "నాలుగు": 4, "ఐదు": 5, "ఆరు": 6, "ఏడు": 7, "ఎనిమిది": 8, "తొమ్మిది": 9, "పది": 10, "పదకొండు": 11, "పన్నెండు": 12, "పదమూడు": 13, "పధమూడు": 13, "పద్నాలుగు": 14, "పదిహేను": 15, "ఇరవై": 20, "ముప్పై": 30, "నలభై": 40, "యాభై": 50},
-        "kn": {"ಒಂದು": 1, "ಎರಡು": 2, "ಮೂರು": 3, "ನಾಲ್ಕು": 4, "ಐದು": 5, "ಆರು": 6, "ಏಳು": 7, "ಎಂಟು": 8, "ಒಂಬತ್ತು": 9, "ಹತ್ತು": 10, "ಹನ್ನೊಂದು": 11, "ಹನ್ನೆರಡು": 12, "ಹದಿಮೂರು": 13, "ಹದಿನಾಲ್ಕು": 14, "ಹದಿಐದು": 15, "ಇಪ್ಪತ್ತು": 20, "ಮೂವತ್ತು": 30, "ನಲವತ್ತು": 40, "ಐವತ್ತು": 50},
-    }
-
-    def _replace_number_words(self, text: str, lang: str) -> str:
-        """Replace spoken number words with digits so regex patterns can match."""
-        word_map = self._NUMBER_WORDS.get(lang)
-        if not word_map:
-            return text
-        result = text
-        for word, digit in sorted(word_map.items(), key=lambda kv: len(kv[0]), reverse=True):
-            result = result.replace(word, str(digit))
-        return result
-
-    def _localized_entities(self, text: str, language: str) -> dict[str, Any]:
-        """Fill common livestock phrases when translation/LLM is unavailable."""
-        t = text.strip().lower()
-        lang = _lang(language)
-        t = self._replace_number_words(t, lang)
-        entities: dict[str, Any] = {}
-        patterns = {
-            "en": {
-                "not eating": ["not eating", "off feed", "stopped eating"],
-                "fever": ["fever", "high temperature"],
-                "swelling": ["swelling", "swollen", "foot swelling"],
-                "lethargy": ["lethargic", "lethargy", "weak", "dull", "inactive"],
-                "limping": ["limping", "lame", "limps"],
-                "wound": ["wound", "injury", "cut"],
-                "not drinking": ["not drinking", "dehydrated"],
-            },
-            "hi": {
-                "not eating": ["खाना पीना बंद", "खाना बंद", "नहीं खा", "नहीं खाता", "खाना नहीं"],
-                "fever": ["बुखार", "तेज गर्मी"],
-                "swelling": ["सूजन", "फूल गया"],
-                "lethargy": ["सुस्त", "सोई सोई", "कमजोर"],
-                "limping": ["लंगड़ा", "लंगड़ाना"],
-                "wound": ["घाव", "ज़ख्म"],
-                "not drinking": ["पानी नहीं", "प्यास"],
-            },
-            "ta": {
-                "not eating": ["சாப்பிடவில்லை", "சாப்பிடாமல்"],
-                "fever": ["காய்ச்சல்"],
-                "swelling": ["வீக்கம்"],
-                "lethargy": ["சோர்வாக", "தூங்குகிறது", "சோர்வு"],
-                "limping": ["நொண்டுதல்"],
-                "wound": ["காயம்"],
-                "not drinking": ["குடிக்கவில்லை", "தண்ணீர் குடிக்கவில்லை"],
-            },
-            "te": {
-                "not eating": ["తినడం లేదు", "తినటం లేదు"],
-                "fever": ["జ్వరం"],
-                "swelling": ["వాపు"],
-                "lethargy": ["నీరసంగా", "బలహీనంగా", "నీరసం"],
-                "limping": ["కుంటు"],
-                "wound": ["గాయం"],
-                "not drinking": ["తాగడం లేదు", "నీరు తాగడం లేదు"],
-            },
-            "kn": {
-                "not eating": ["ತಿನ್ನುತ್ತಿಲ್ಲ", "ತಿನ್ನುವುದಿಲ್ಲ"],
-                "fever": ["ಜ್ವರ"],
-                "swelling": ["ಊತ"],
-                "lethargy": ["ಸುಸ್ತಾಗಿದೆ", "ದಣಿದಿದೆ", "ಸುಸ್ತು"],
-                "limping": ["ಕುಂಟು"],
-                "wound": ["ಗಾಯ"],
-                "not drinking": ["ಕುಡಿಯುತ್ತಿಲ್ಲ", "ನೀರು ಕುಡಿಯುತ್ತಿಲ್ಲ"],
-            },
-        }
-        for canonical, phrases in patterns.get(lang, {}).items():
-            if any(phrase in t for phrase in phrases):
-                entities["issue"] = canonical
-                entities.setdefault("symptoms", []).append(canonical)
-
-        name_patterns = {
-            "hi": r"नाम\s+(?:है\s+)?([\u0900-\u097f\w-]+)",
-            "ta": r"பெயர்\s+([^\s,]+)",
-            "te": r"పేరు\s+([^\s,]+)",
-            "kn": r"ಹೆಸರು\s+([^\s,]+)",
-        }
-        match = re.search(name_patterns.get(lang, r"$^"), t)
-        if match:
-            candidate = match.group(1).rstrip(",।.;!?")
-            _stopwords = {
-                "है", "हैं", "यह", "इसका", "पशु", "जानवर",
-                "मतलब", "वो", "मेरे", "मेरा", "का", "की", "नाम", "टैग",
-                "hai", "nam", "tag", "animal", "sheep", "goat",
-            }
-            if candidate not in _stopwords:
-                entities["animal_name"] = candidate
-                entities["animal_identifier"] = candidate
-
-        # Tag number detection: "टैग है 1234" / "tag is 1234" / "tag number 1234"
-        tag_patterns = {
-            "hi": r"टैग\s*(?:है\s*)?(?:नंबर\s*)?(\d[\d\s]{1,15})\d",
-            "en": r"tag\s*(?:is\s*)?(?:number\s*)?(\d[\d\s]{1,15})\d",
-        }
-        tag_match = re.search(tag_patterns.get(lang, r"$^"), t)
-        if tag_match:
-            tag_digits = re.sub(r"\s+", "", tag_match.group(1)) + tag_match.group(0)[-1]
-            tag_digits = re.sub(r"[^\d]", "", tag_digits)
-            if tag_digits:
-                entities["animal_tag"] = tag_digits
-                if not entities.get("animal_identifier"):
-                    entities["animal_identifier"] = f"tag-{tag_digits}"
-
-        # Also detect pure-digit tag when "टैग" appears with spelled-out English numbers
-        if lang == "hi" and "टैग" in t and not entities.get("animal_tag"):
-            # Transcribe often returns English words for digits: "वन टू थ्री फोर"
-            en_word_to_digit = {"वन": "1", "टू": "2", "्री": "3", "थ्री": "3", "फोर": "4",
-                                "फाइव": "5", "सिक्स": "6", "सेवन": "7", "एट": "8", "नाइन": "9", "जीरो": "0"}
-            words = t.split()
-            tag_parts = []
-            capturing = False
-            for w in words:
-                if "टैग" in w:
-                    capturing = True
-                    continue
-                if capturing:
-                    digit = en_word_to_digit.get(w)
-                    if digit:
-                        tag_parts.append(digit)
-                    elif w in {"है", "नंबर", "मेरे", "पास", "और"}:
-                        continue
-                    else:
-                        break
-            if tag_parts:
-                tag_digits = "".join(tag_parts)
-                entities["animal_tag"] = tag_digits
-                if not entities.get("animal_identifier"):
-                    entities["animal_identifier"] = f"tag-{tag_digits}"
-
-        tomorrow_words = {"hi": "कल", "ta": "நாளை", "te": "రేపు", "kn": "ನಾಳೆ", "en": "tomorrow"}
-        if tomorrow_words.get(lang) in t:
-            entities["date"] = (datetime.now().date() + timedelta(days=1)).isoformat()
-            entities["date_relative"] = "tomorrow"
-
-        time_patterns = {
-            "hi": r"(\d{1,2})\s*(?:वाजे|बजे|बजे|बज)",
-            "ta": r"(\d{1,2})\s*மணி",
-            "te": r"(\d{1,2})\s*గంటల",
-            "kn": r"(\d{1,2})\s*ಗಂಟೆ",
-            "en": r"(\d{1,2})\s*(?::\s*(\d{2}))?\s*(?:am|pm|morning|evening|afternoon|बजे)",
-        }
-        time_match = re.search(time_patterns.get(lang, r"$^"), t)
-        if time_match:
-            hour = int(time_match.group(1))
-            minute = 0
-            if time_match.lastindex and time_match.lastindex >= 2:
-                try:
-                    minute = int(time_match.group(2))
-                except (ValueError, TypeError):
-                    pass
-            if lang == "en" and "pm" in t and hour < 12:
-                hour += 12
-            if lang == "en" and "afternoon" in t and hour < 12:
-                hour += 12
-            if lang == "en" and "evening" in t and hour < 12:
-                hour += 12
-            if lang == "hi" and "शाम" in t and hour < 12:
-                hour += 12
-            if lang == "te" and "సాయంత్రం" in t and hour < 12:
-                hour += 12
-            if lang == "ta" and "மாலை" in t and hour < 12:
-                hour += 12
-            if lang == "kn" and "ಸಂಜೆ" in t and hour < 12:
-                hour += 12
-            entities["time"] = f"{hour:02d}:{minute:02d}"
-
-        if lang == "en" and "morning" in t:
-            morning_match = re.search(r"(\d{1,2})\s*morning", t)
-            if morning_match:
-                entities["time"] = f"{int(morning_match.group(1)):02d}:00"
-
-        date_patterns = {
-            "en": r"(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december)",
-            "hi": r"(\d{1,2})\s*(?:अगस्त|अगस्त|सितंबर|अक्टूबर|नवंबर|दिसंबर|जनवरी|फरवरी|मार्च|अप्रैल|मई|जून|जुलाई)",
-        }
-        month_map_en = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12}
-        month_map_hi = {"अगस्त": 8, "सितंबर": 9, "अक्टूबर": 10, "नवंबर": 11, "दिसंबर": 12, "जनवरी": 1, "फरवरी": 2, "मार्च": 3, "अप्रैल": 4, "मई": 5, "जून": 6, "जुलाई": 7}
-        date_match = re.search(date_patterns.get(lang, r"$^"), t)
-        if date_match:
-            day = int(date_match.group(1))
-            month_word = date_match.group(2) if date_match.lastindex and date_match.lastindex >= 2 else ""
-            month_map = month_map_en if lang == "en" else month_map_hi
-            month = month_map.get(month_word)
-            if month:
-                year = datetime.now().year
-                entities["date"] = f"{year}-{month:02d}-{day:02d}"
-
-        return entities
-
     def _missing(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
         return [field for field in REQUIRED_FIELDS if not values.get(field)]
@@ -434,10 +239,7 @@ class AppointmentSupervisor:
             return self.submit(farmer_id, session_id)
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}")
         before = dict(draft["draft"])
-        localized = self._localized_entities(text, draft["language"])
-        merged_entities = dict(localized)
-        merged_entities.update(result.get("entities") or {})
-        self._copy_entities(draft, merged_entities)
+        self._copy_entities(draft, result.get("entities") or {})
         if draft["draft"] == before and not self._missing(draft) == []:
             draft["state"] = "COLLECTING"
             message = self._message(draft["language"], "welcome")

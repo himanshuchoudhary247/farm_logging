@@ -48,9 +48,21 @@ def test_correction_keeps_draft_open(tmp_path, monkeypatch):
     assert corrected["language"] == "hi-IN"
 
 
-def test_hindi_fallback_extracts_common_symptoms(tmp_path, monkeypatch):
+def test_hindi_turn_uses_llm_extracted_entities(tmp_path, monkeypatch):
+    """No regex fallback exists — process_text_input (backed by call_bedrock)
+    is the only source of entities for any language, including Hindi."""
     monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
-    monkeypatch.setattr(service, "process_text_input", lambda text, session_id: {"entities": {}})
+    monkeypatch.setattr(
+        service,
+        "process_text_input",
+        lambda text, session_id: {
+            "entities": {
+                "animal_name": "सीमा",
+                "issue": "lethargy",
+                "symptoms": ["lethargy", "not eating"],
+            }
+        },
+    )
     supervisor = service.AppointmentSupervisor(tmp_path)
 
     result = supervisor.turn(
