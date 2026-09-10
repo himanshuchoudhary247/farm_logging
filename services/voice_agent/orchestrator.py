@@ -10,7 +10,7 @@ if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
-from services.llm_service.bedrock_adapter import call_bedrock, translate_to_english
+from services.llm_service.bedrock_adapter import call_bedrock
 from services.voice_agent.extractor import normalize_entities
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.transcribe import transcribe_audio
@@ -142,17 +142,11 @@ def _has_native_indic_script(text: str) -> bool:
 
 
 def _to_english_working_text(text: str) -> str:
-    use_translation = os.getenv("VOICE_TRANSLATE_TO_ENGLISH", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    if not use_translation:
-        return text
-    if not _has_native_indic_script(text):
-        return text
-    return _normalize_text(translate_to_english(text))
+    # Deprecated: prior implementation ran a second Bedrock call to translate
+    # Indic input to English before extraction. The model now handles multi-
+    # lingual input directly via the system prompt. Kept as identity so the
+    # pipeline shape and latency-log positions stay stable.
+    return text
 
 
 def _detect_intent_rule(text: str) -> Optional[str]:

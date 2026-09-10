@@ -436,75 +436,61 @@ def test_not_available_skips_severity_in_appointment(monkeypatch):
     assert "severity" in (out["entities"].get("unavailable_fields") or [])
 
 
-def test_hindi_script_uses_english_working_text(monkeypatch):
+def test_hindi_script_passed_through_to_llm(monkeypatch):
+    """Post-A2: no server-side translate hop. Model receives native script."""
     seen = {"text": None}
 
     def _stub_llm(text: str, **kwargs):
         seen["text"] = text
-        return {}
+        return {"intent": "CREATE_APPOINTMENT", "entities": {}, "confidence": 0.9}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
-    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
-    monkeypatch.setattr(
-        orchestrator,
-        "translate_to_english",
-        lambda text: "book appointment for animal name charlie tomorrow at 5 pm",
-    )
 
-    session_id = "test-hi-working-text"
+    session_id = "test-hi-native"
     clear_session(session_id)
-    out = orchestrator.process_text_input("कल शाम 5 बजे चार्ली के लिए अपॉइंटमेंट बुक करो", session_id=session_id)
+    raw = "कल शाम 5 बजे चार्ली के लिए अपॉइंटमेंट बुक करो"
+    out = orchestrator.process_text_input(raw, session_id=session_id)
 
-    assert out["meta"]["working_text_en"] == "book appointment for animal name charlie tomorrow at 5 pm"
-    assert seen["text"] == "book appointment for animal name charlie tomorrow at 5 pm"
+    assert out["meta"]["working_text_en"] == raw
+    assert seen["text"] == raw
     assert out["intent"] == "CREATE_APPOINTMENT"
 
 
-def test_kannada_script_uses_english_working_text(monkeypatch):
+def test_kannada_script_passed_through_to_llm(monkeypatch):
     seen = {"text": None}
 
     def _stub_llm(text: str, **kwargs):
         seen["text"] = text
-        return {}
+        return {"intent": "CREATE_ANIMAL", "entities": {}, "confidence": 0.8}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
-    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
-    monkeypatch.setattr(
-        orchestrator,
-        "translate_to_english",
-        lambda text: "add details about my animal new animal name gauri goat female",
-    )
 
-    session_id = "test-kn-working-text"
+    session_id = "test-kn-native"
     clear_session(session_id)
-    out = orchestrator.process_text_input("ನನ್ನ ಪ್ರಾಣಿಯ ವಿವರಗಳನ್ನು ಸೇರಿಸಿ", session_id=session_id)
+    raw = "ನನ್ನ ಪ್ರಾಣಿಯ ವಿವರಗಳನ್ನು ಸೇರಿಸಿ"
+    out = orchestrator.process_text_input(raw, session_id=session_id)
 
-    assert out["meta"]["working_text_en"] == "add details about my animal new animal name gauri goat female"
-    assert seen["text"] == "add details about my animal new animal name gauri goat female"
+    assert out["meta"]["working_text_en"] == raw
+    assert seen["text"] == raw
     assert out["intent"] == "CREATE_ANIMAL"
 
 
-def test_telugu_script_uses_english_working_text(monkeypatch):
+def test_telugu_script_passed_through_to_llm(monkeypatch):
     seen = {"text": None}
 
     def _stub_llm(text: str, **kwargs):
         seen["text"] = text
-        return {}
+        return {"intent": "UPDATE_ANIMAL", "entities": {}, "confidence": 0.8}
 
     monkeypatch.setattr(orchestrator, "call_bedrock", _stub_llm)
-    monkeypatch.setenv("VOICE_TRANSLATE_TO_ENGLISH", "true")
-    monkeypatch.setattr(
-        orchestrator,
-        "translate_to_english",
-        lambda text: "existing animal id a-f-001-99 update breed to jamunapari",
-    )
 
-    session_id = "test-te-working-text"
+    session_id = "test-te-native"
     clear_session(session_id)
-    out = orchestrator.process_text_input("ఇప్పటికే ఉన్న జంతువు వివరాలు మార్చాలి", session_id=session_id)
+    raw = "ఇప్పటికే ఉన్న జంతువు వివరాలు మార్చాలి"
+    out = orchestrator.process_text_input(raw, session_id=session_id)
 
-    assert out["meta"]["working_text_en"] == "existing animal id a-f-001-99 update breed to jamunapari"
-    assert seen["text"] == "existing animal id a-f-001-99 update breed to jamunapari"
+    assert out["meta"]["working_text_en"] == raw
+    assert seen["text"] == raw
     assert out["intent"] == "UPDATE_ANIMAL"
 
 

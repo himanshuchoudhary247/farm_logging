@@ -1,6 +1,8 @@
+import hashlib
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Optional, Tuple
 
 import boto3
@@ -38,6 +40,42 @@ def _infer_lang(text: str) -> str:
     if any("\u0900" <= ch <= "\u097F" for ch in t):
         return "hi"
     return "en"
+
+
+def _tts_cache_dir() -> Path:
+    override = os.getenv("TTS_CACHE_DIR")
+    if override:
+        return Path(override)
+    from storage import get_data_dir
+    return get_data_dir() / "tts_cache"
+
+
+def _tts_cache_key(text: str, voice_id: str, language_code: str, engine: str) -> str:
+    payload = f"{voice_id}|{language_code}|{engine}|{text}".encode("utf-8")
+    return hashlib.sha1(payload).hexdigest()
+
+
+def _tts_cache_read(cache_key: str) -> Optional[bytes]:
+    if os.getenv("TTS_CACHE_DISABLED", "").lower() in {"1", "true", "yes", "on"}:
+        return None
+    try:
+        path = _tts_cache_dir() / f"{cache_key}.mp3"
+        if path.exists():
+            return path.read_bytes()
+    except Exception as exc:
+        _log.debug("tts cache read failed: %s", exc)
+    return None
+
+
+def _tts_cache_write(cache_key: str, audio: bytes) -> None:
+    if os.getenv("TTS_CACHE_DISABLED", "").lower() in {"1", "true", "yes", "on"}:
+        return
+    try:
+        cache_dir = _tts_cache_dir()
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / f"{cache_key}.mp3").write_bytes(audio)
+    except Exception as exc:
+        _log.debug("tts cache write failed: %s", exc)
 
 
 def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Optional[bytes], Optional[str]]:
@@ -81,6 +119,11 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
 
     t0 = time.time()
     for v_id, lc, eng in fallback_chain:
+        cache_key = _tts_cache_key(text, v_id, lc, eng)
+        cached = _tts_cache_read(cache_key)
+        if cached is not None:
+            _log.info("LATENCY tts cache_hit voice=%s ms=%.0f bytes=%d", v_id, (time.time() - t0) * 1000, len(cached))
+            return cached, None
         try:
             resp = client.synthesize_speech(
                 Text=text,
@@ -93,6 +136,7 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
             if stream is None:
                 continue
             audio = stream.read()
+            _tts_cache_write(cache_key, audio)
             _log.info("LATENCY tts voice=%s ms=%.0f bytes=%d", v_id, (time.time() - t0) * 1000, len(audio))
             return audio, None
         except ClientError:

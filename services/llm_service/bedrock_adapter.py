@@ -93,11 +93,13 @@ class BedrockTextAdapter:
 # ---- Voice Extraction Wrapper ----
 _SYSTEM_PROMPT = (
     "Extract livestock vet info from farmer voice (Hindi/Tamil/Telugu/Kannada/English). "
+    "Read the input in its native script; do not translate the user's words. "
     "Return ONLY JSON with keys: intent, entities, missing_fields, follow_up_questions, confidence. "
     "intent: WEATHER_ALERT|FETCH_ANIMAL_DETAILS|CREATE_ANIMAL|UPDATE_ANIMAL|LOG_HEALTH|CREATE_APPOINTMENT|null. "
     "entities keys: animal_name, animal_tag, animal_identifier, issue, symptoms[], duration, severity, date, time. "
     "Translate issue/symptoms to English. Keep animal_name in original script. "
     "मतलब is filler, NOT an animal name. "
+    "follow_up_questions must be in the same language as the user input. "
     "If info missing, use null. Do not invent values."
 )
 

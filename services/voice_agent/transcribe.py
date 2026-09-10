@@ -16,11 +16,19 @@ class TranscribeService:
         )
         self.log = logging.getLogger("transcribe")
 
-    def transcribe_file(self, s3_uri: str, job_name: Optional[str] = None, media_format: str = "wav") -> str:
+    def transcribe_file(
+        self,
+        s3_uri: str,
+        job_name: Optional[str] = None,
+        media_format: str = "wav",
+        language_code: Optional[str] = None,
+    ) -> str:
         job_name = job_name or f"farmer-chat-{int(time.time())}"
 
         self.log.info(f"Starting transcription job {job_name} for {s3_uri}")
-        language_code = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-IN")
+        # Explicit language from the frontend selector skips IdentifyLanguage,
+        # cutting ~1-2s of language-detection latency per turn.
+        default_language_code = os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-IN")
         enable_multilingual = os.getenv("AWS_TRANSCRIBE_MULTILINGUAL", "true").lower() in {
             "1",
             "true",
@@ -34,20 +42,27 @@ class TranscribeService:
             "MediaFormat": media_format,
         }
 
-        if enable_multilingual:
+        if language_code:
+            req["LanguageCode"] = language_code
+        elif enable_multilingual:
             language_opts_raw = os.getenv("AWS_TRANSCRIBE_LANGUAGE_OPTIONS", "en-IN,hi-IN,kn-IN,te-IN")
             language_options = [x.strip() for x in language_opts_raw.split(",") if x.strip()]
             if language_options:
                 req["IdentifyLanguage"] = True
                 req["LanguageOptions"] = language_options
+            else:
+                req["LanguageCode"] = default_language_code
         else:
-            req["LanguageCode"] = language_code
+            req["LanguageCode"] = default_language_code
 
         self.client.start_transcription_job(
             **req,
         )
 
+        # Exponential-backoff polling: 200ms -> 300 -> 450 -> capped at 1s.
+        # Prior fixed 500ms sleep wasted ~500ms on jobs that completed under 1s.
         start = time.time()
+        delay = 0.2
         while True:
             status = self.client.get_transcription_job(TranscriptionJobName=job_name)
             state = status["TranscriptionJob"]["TranscriptionJobStatus"]
@@ -55,7 +70,8 @@ class TranscribeService:
                 break
             if time.time() - start > 300:
                 raise TimeoutError("Transcription timed out")
-            time.sleep(0.5)
+            time.sleep(delay)
+            delay = min(delay * 1.5, 1.0)
 
         if state == "FAILED":
             self.log.error(f"Transcription failed for {job_name}")
@@ -92,7 +108,7 @@ def _transcribe_local(audio_bytes: bytes) -> str:
 
 
 # ---- Orchestrator-friendly wrapper ----
-def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
+def transcribe_audio(audio_bytes: bytes, media_format: str = "wav", language_code: Optional[str] = None) -> str:
     """
     End-to-end transcription using AWS:
     1. Save temp file
@@ -138,7 +154,7 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav") -> str:
     # Step 3: transcribe
     service = TranscribeService()
     try:
-        text = service.transcribe_file(s3_uri, media_format=media_format)
+        text = service.transcribe_file(s3_uri, media_format=media_format, language_code=language_code)
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code", "")
         msg = e.response.get("Error", {}).get("Message", "")

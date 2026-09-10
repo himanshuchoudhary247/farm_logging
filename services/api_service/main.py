@@ -492,13 +492,22 @@ async def appointment_voice_turn(
     if len(data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Audio file is larger than 10 MB")
     try:
+        import asyncio
         from services.voice_agent.transcribe import transcribe_audio
 
         media_formats = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/ogg": "ogg-amr"}
         t0 = time.time()
-        text = transcribe_audio(data, media_format=media_formats[audio_type])
+        text = await asyncio.to_thread(
+            transcribe_audio,
+            data,
+            media_format=media_formats[audio_type],
+            language_code=language,
+        )
         t_transcribe = time.time()
-        result = appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        result = await asyncio.to_thread(
+            appointment_supervisor.turn,
+            farmer_id, session_id, text, language, include_audio,
+        )
         t_turn = time.time()
         result["audio_filename"] = audio.filename
         transcribe_ms = round((t_transcribe - t0) * 1000)
