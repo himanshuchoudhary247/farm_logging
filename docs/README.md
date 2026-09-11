@@ -16,6 +16,7 @@ Detailed guides for the **Farmer livestock assistant** codebase. Start with [Get
 | [10 – Security and operations](10-security-and-operations.md) | Secrets, production checklist, scaling caveats |
 | [11 – Repository file index](11-repository-file-index.md) | Maps each important repo path to the right guide |
 | [Service split plan](service-split-plan.md) | Plan + applied changes to divide app into services |
+| [Model evaluation 2026-09-11](model-evaluation-2026-09-11.md) | Extraction model selection: 10-model x 60-conversation x 6-language live eval, bugs found + fixed, why DeepSeek V3 |
 
 ### Config files, AWS bundle, and tooling (detailed)
 

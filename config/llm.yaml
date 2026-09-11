@@ -12,21 +12,27 @@ provider: bedrock
 
 models:
   extraction:
-    id: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    id: deepseek.v3-v1:0
     max_tokens: 256
     temperature: 0
-    # Fastest structured-output model with prompt caching + tool use.
-    # For India in-country routing, prefer the `in.anthropic.*` inference
-    # profile once available in ap-south-1 (roll forward via env override).
+    # Winner of the 10-model x 60-conversation x 6-language live eval,
+    # 2026-09-11: 100% turn-pass / 100% conversation-pass, 0 remaining
+    # failures after the schema + prompt fixes below. See
+    # docs/model-evaluation-2026-09-11.md for full methodology and results.
+    # Haiku 4.5 was the original pick but is blocked on this AWS account by
+    # ResourceNotFoundException: "Model use case details have not been
+    # submitted for this account" (Anthropic use-case form, not a code
+    # issue) — retry that once the form clears.
 
   extraction_alt:
-    id: apac.amazon.nova-micro-v1:0
+    id: mistral.ministral-3-14b-instruct
     max_tokens: 256
     temperature: 0
-    # A/B candidate: cheapest+fastest option. Flip via
-    # BEDROCK_MODEL_EXTRACTION=apac.amazon.nova-micro-v1:0 for canary or full switch.
-    # Verified working on this account 2026-09-11 (direct on-demand id fails;
-    # needs the apac. cross-region inference profile).
+    # A/B / cost-sensitive candidate: 92.5% turn-pass at 4x lower cost and
+    # ~40% lower P95 latency than DeepSeek V3. Flip via
+    # BEDROCK_MODEL_EXTRACTION=mistral.ministral-3-14b-instruct for canary.
+    # Weak spot: goat/sheep confusion on Kannada ಆಡು/Tamil ஆடு specifically —
+    # see the eval doc before promoting to default.
 
   generation:
     id: global.anthropic.claude-haiku-4-5-20251001-v1:0

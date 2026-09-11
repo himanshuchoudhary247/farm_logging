@@ -1,0 +1,56 @@
+mode: LIVE bedrock
+loaded 60 conversations from /Users/sudhanshu/code/farmer_chat/tests/eval/conversations.yaml
+
+=== summary ===
+{
+  "conversations": 60,
+  "conversations_passed": 60,
+  "turns": 146,
+  "turns_passed": 146,
+  "turn_pass_rate": 100.0,
+  "final_pass_rate": 100.0,
+  "avg_turn_ms": 751.94,
+  "p95_turn_ms": 1303.91,
+  "by_lang": {
+    "kn": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 26,
+      "turns_pass": 26
+    },
+    "hi": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 26,
+      "turns_pass": 26
+    },
+    "ta": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 23,
+      "turns_pass": 23
+    },
+    "te": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 23,
+      "turns_pass": 23
+    },
+    "en": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 24,
+      "turns_pass": 24
+    },
+    "ml": {
+      "convs": 10,
+      "convs_pass": 10,
+      "turns": 24,
+      "turns_pass": 24
+    }
+  }
+}
+
+no failures — all conversations green
+
+per-conversation trace: /Users/sudhanshu/code/farmer_chat/data/eval/conversations.jsonl

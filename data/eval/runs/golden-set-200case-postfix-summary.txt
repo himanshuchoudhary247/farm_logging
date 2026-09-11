@@ -1,0 +1,917 @@
+loaded 200 cases from /Users/sudhanshu/code/farmer_chat/tests/eval/golden_extraction.yaml
+  languages: hi-IN, kn-IN, ta-IN, te-IN
+
+=== running 200 cases against apac.amazon.nova-micro-v1:0 ===
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=506 in_tok=1056 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=497 in_tok=1048 out_tok=49
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=549 in_tok=1059 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=557 in_tok=1058 out_tok=68
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1524 in_tok=1047 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=521 in_tok=1047 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=535 in_tok=1055 out_tok=59
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=486 in_tok=1041 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=659 in_tok=1039 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=635 in_tok=1039 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=526 in_tok=1045 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=555 in_tok=1044 out_tok=54
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=492 in_tok=1045 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=477 in_tok=1053 out_tok=55
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=682 in_tok=1042 out_tok=70
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=511 in_tok=1039 out_tok=58
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=512 in_tok=1039 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=516 in_tok=1058 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=511 in_tok=1053 out_tok=55
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=812 in_tok=1057 out_tok=70
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=644 in_tok=1060 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=508 in_tok=1059 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=522 in_tok=1060 out_tok=59
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=672 in_tok=1054 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=498 in_tok=1052 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=525 in_tok=1047 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=613 in_tok=1038 out_tok=45
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=459 in_tok=1038 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=617 in_tok=1041 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=523 in_tok=1041 out_tok=42
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=537 in_tok=1055 out_tok=65
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=685 in_tok=1059 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=496 in_tok=1057 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=489 in_tok=1054 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=510 in_tok=1050 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=526 in_tok=1052 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=521 in_tok=1058 out_tok=59
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=506 in_tok=1046 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=519 in_tok=1054 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=536 in_tok=1046 out_tok=66
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=481 in_tok=1054 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=496 in_tok=1052 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=536 in_tok=1063 out_tok=71
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=526 in_tok=1057 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=639 in_tok=1054 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=555 in_tok=1062 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=644 in_tok=1047 out_tok=61
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=512 in_tok=1055 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=528 in_tok=1061 out_tok=68
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=554 in_tok=1044 out_tok=59
+  50/200
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=527 in_tok=1043 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=489 in_tok=1041 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=562 in_tok=1041 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=635 in_tok=1042 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=504 in_tok=1037 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=498 in_tok=1038 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=498 in_tok=1040 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=494 in_tok=1037 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=505 in_tok=1036 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=506 in_tok=1039 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=773 in_tok=1039 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=479 in_tok=1038 out_tok=54
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=501 in_tok=1040 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1582 in_tok=1040 out_tok=55
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1248 in_tok=1038 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=679 in_tok=1038 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=653 in_tok=1038 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=494 in_tok=1041 out_tok=66
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=499 in_tok=1041 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=502 in_tok=1043 out_tok=69
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=502 in_tok=1041 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=534 in_tok=1044 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=535 in_tok=1042 out_tok=69
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=524 in_tok=1041 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=508 in_tok=1044 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1205 in_tok=1039 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=590 in_tok=1038 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=695 in_tok=1038 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=471 in_tok=1036 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=500 in_tok=1041 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=493 in_tok=1042 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=519 in_tok=1040 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=525 in_tok=1043 out_tok=49
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=522 in_tok=1041 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=501 in_tok=1041 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=567 in_tok=1043 out_tok=66
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=494 in_tok=1037 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=683 in_tok=1042 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=610 in_tok=1043 out_tok=78
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=485 in_tok=1041 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=501 in_tok=1040 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=486 in_tok=1043 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=499 in_tok=1043 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=533 in_tok=1043 out_tok=67
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=687 in_tok=1040 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=603 in_tok=1041 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=515 in_tok=1041 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=522 in_tok=1043 out_tok=69
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=495 in_tok=1044 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=673 in_tok=1055 out_tok=67
+  100/200
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=657 in_tok=1055 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=485 in_tok=1050 out_tok=45
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=504 in_tok=1051 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=493 in_tok=1051 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=645 in_tok=1043 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=621 in_tok=1040 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=503 in_tok=1048 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=552 in_tok=1039 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=531 in_tok=1039 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=519 in_tok=1043 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=489 in_tok=1044 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=477 in_tok=1043 out_tok=54
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=534 in_tok=1046 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=511 in_tok=1048 out_tok=55
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=521 in_tok=1039 out_tok=58
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=618 in_tok=1043 out_tok=58
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=524 in_tok=1039 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=524 in_tok=1049 out_tok=66
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=520 in_tok=1049 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1367 in_tok=1055 out_tok=71
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=508 in_tok=1051 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=505 in_tok=1050 out_tok=62
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=524 in_tok=1048 out_tok=69
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=522 in_tok=1047 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=490 in_tok=1046 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1405 in_tok=1048 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=496 in_tok=1039 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=450 in_tok=1038 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=486 in_tok=1037 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=485 in_tok=1048 out_tok=65
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=500 in_tok=1049 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=465 in_tok=1043 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1079 in_tok=1048 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=643 in_tok=1045 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=625 in_tok=1048 out_tok=65
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=516 in_tok=1047 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=601 in_tok=1043 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=495 in_tok=1050 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=518 in_tok=1042 out_tok=73
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=732 in_tok=1044 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=476 in_tok=1045 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=507 in_tok=1044 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=634 in_tok=1046 out_tok=64
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1028 in_tok=1045 out_tok=74
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=476 in_tok=1053 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=488 in_tok=1044 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=510 in_tok=1046 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=524 in_tok=1048 out_tok=68
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=509 in_tok=1058 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=666 in_tok=1057 out_tok=68
+  150/200
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=507 in_tok=1052 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=473 in_tok=1052 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=608 in_tok=1050 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=632 in_tok=1050 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=482 in_tok=1044 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=502 in_tok=1044 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=673 in_tok=1055 out_tok=67
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=533 in_tok=1042 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=511 in_tok=1039 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=502 in_tok=1040 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=525 in_tok=1045 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=1452 in_tok=1043 out_tok=54
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=496 in_tok=1045 out_tok=56
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=496 in_tok=1050 out_tok=55
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=490 in_tok=1039 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=499 in_tok=1040 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=528 in_tok=1039 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=508 in_tok=1054 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=533 in_tok=1051 out_tok=61
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=624 in_tok=1060 out_tok=70
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=608 in_tok=1053 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=638 in_tok=1054 out_tok=63
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=878 in_tok=1056 out_tok=58
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=604 in_tok=1044 out_tok=55
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=486 in_tok=1049 out_tok=54
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=621 in_tok=1046 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=489 in_tok=1039 out_tok=42
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=611 in_tok=1038 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=528 in_tok=1040 out_tok=40
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=497 in_tok=1056 out_tok=59
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=623 in_tok=1048 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=609 in_tok=1045 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=457 in_tok=1050 out_tok=46
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=493 in_tok=1051 out_tok=57
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=643 in_tok=1057 out_tok=64
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=529 in_tok=1052 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=634 in_tok=1044 out_tok=56
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=550 in_tok=1054 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=490 in_tok=1042 out_tok=69
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=503 in_tok=1048 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=566 in_tok=1051 out_tok=53
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=537 in_tok=1046 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=494 in_tok=1050 out_tok=62
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=534 in_tok=1051 out_tok=71
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=492 in_tok=1058 out_tok=48
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=529 in_tok=1046 out_tok=61
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=547 in_tok=1055 out_tok=63
+.LATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=527 in_tok=1054 out_tok=77
+xLATENCY bedrock task=extraction model=apac.amazon.nova-micro-v1:0 ms=488 in_tok=1066 out_tok=56
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=439 in_tok=1054 out_tok=45
+  200/200
+
+{
+  "model": "apac.amazon.nova-micro-v1:0",
+  "cases": 200,
+  "errors": 0,
+  "field_f1_micro": 0.652,
+  "field_f1_macro": 0.691,
+  "latency_ms_p50": 530.0,
+  "latency_ms_p95": 887.0,
+  "cost_per_1000_turns_usd": 0.045
+}
+per-case output: /Users/sudhanshu/code/farmer_chat/data/eval/apac.amazon.nova-micro-v1_0.jsonl
+
+=== running 200 cases against zai.glm-4.7-flash ===
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=445 in_tok=1048 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=517 in_tok=1036 out_tok=76
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=413 in_tok=1054 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=660 in_tok=1054 out_tok=118
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=467 in_tok=1034 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=415 in_tok=1034 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=481 in_tok=1042 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=402 in_tok=1020 out_tok=53
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=310 in_tok=1020 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=432 in_tok=1020 out_tok=58
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=437 in_tok=1022 out_tok=60
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=426 in_tok=1028 out_tok=53
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=424 in_tok=1032 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=516 in_tok=1046 out_tok=73
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=363 in_tok=1022 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=356 in_tok=1020 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=424 in_tok=1020 out_tok=51
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=448 in_tok=1052 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=492 in_tok=1052 out_tok=74
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=461 in_tok=1046 out_tok=69
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=466 in_tok=1058 out_tok=64
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=482 in_tok=1052 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=472 in_tok=1052 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=557 in_tok=1046 out_tok=101
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=396 in_tok=1037 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=468 in_tok=1030 out_tok=70
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=413 in_tok=1018 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=326 in_tok=1018 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=353 in_tok=1020 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=342 in_tok=1020 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=445 in_tok=1042 out_tok=64
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=455 in_tok=1054 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=399 in_tok=1044 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=672 in_tok=1048 out_tok=128
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=549 in_tok=1038 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=707 in_tok=1042 out_tok=122
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=702 in_tok=1054 out_tok=122
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=484 in_tok=1032 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=426 in_tok=1042 out_tok=66
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=540 in_tok=1032 out_tok=81
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=364 in_tok=1042 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=505 in_tok=1038 out_tok=56
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=453 in_tok=1064 out_tok=71
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=420 in_tok=1052 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=412 in_tok=1036 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=450 in_tok=1056 out_tok=62
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=448 in_tok=1034 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=381 in_tok=1044 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=446 in_tok=1050 out_tok=67
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=950 in_tok=1033 out_tok=219
+  50/200
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=404 in_tok=1030 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=449 in_tok=1022 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=446 in_tok=1028 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=1056 in_tok=1024 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=439 in_tok=1018 out_tok=64
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=356 in_tok=1017 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=438 in_tok=1024 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=386 in_tok=1014 out_tok=53
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=398 in_tok=1014 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=456 in_tok=1017 out_tok=58
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=436 in_tok=1021 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=433 in_tok=1017 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=448 in_tok=1025 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=477 in_tok=1027 out_tok=66
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=609 in_tok=1016 out_tok=99
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=650 in_tok=1016 out_tok=125
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=686 in_tok=1018 out_tok=130
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=384 in_tok=1024 out_tok=64
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=509 in_tok=1028 out_tok=82
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=466 in_tok=1030 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=427 in_tok=1024 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=406 in_tok=1032 out_tok=62
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=457 in_tok=1026 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=498 in_tok=1025 out_tok=77
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=502 in_tok=1024 out_tok=65
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=409 in_tok=1020 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=471 in_tok=1016 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=374 in_tok=1017 out_tok=40
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=349 in_tok=1015 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=429 in_tok=1024 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=432 in_tok=1028 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=491 in_tok=1026 out_tok=69
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=429 in_tok=1027 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=406 in_tok=1027 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=583 in_tok=1027 out_tok=110
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=526 in_tok=1035 out_tok=93
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=426 in_tok=1018 out_tok=59
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=480 in_tok=1026 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=460 in_tok=1026 out_tok=75
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=407 in_tok=1022 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=369 in_tok=1021 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=486 in_tok=1029 out_tok=66
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=444 in_tok=1030 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=440 in_tok=1030 out_tok=62
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=390 in_tok=1028 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=407 in_tok=1021 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=733 in_tok=1030 out_tok=140
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=459 in_tok=1028 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=466 in_tok=1034 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=394 in_tok=1056 out_tok=55
+  100/200
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=423 in_tok=1053 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=689 in_tok=1045 out_tok=134
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=393 in_tok=1047 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=430 in_tok=1045 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=492 in_tok=1028 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=430 in_tok=1018 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=427 in_tok=1035 out_tok=64
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=387 in_tok=1019 out_tok=53
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=343 in_tok=1020 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=426 in_tok=1025 out_tok=58
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=399 in_tok=1032 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=416 in_tok=1028 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=447 in_tok=1033 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=467 in_tok=1040 out_tok=66
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=391 in_tok=1021 out_tok=50
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=499 in_tok=1029 out_tok=78
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=388 in_tok=1019 out_tok=51
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=477 in_tok=1035 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=479 in_tok=1040 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=447 in_tok=1055 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=475 in_tok=1046 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=423 in_tok=1047 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=462 in_tok=1036 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=411 in_tok=1038 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=440 in_tok=1028 out_tok=65
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=538 in_tok=1030 out_tok=88
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=379 in_tok=1020 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=362 in_tok=1017 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=384 in_tok=1017 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=445 in_tok=1033 out_tok=64
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=431 in_tok=1046 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=470 in_tok=1027 out_tok=70
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=427 in_tok=1034 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=408 in_tok=1033 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=467 in_tok=1038 out_tok=69
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=505 in_tok=1038 out_tok=78
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=459 in_tok=1027 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=561 in_tok=1041 out_tok=66
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=403 in_tok=1026 out_tok=55
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=409 in_tok=1027 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=398 in_tok=1031 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=424 in_tok=1033 out_tok=62
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=472 in_tok=1040 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=430 in_tok=1033 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=385 in_tok=1050 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=505 in_tok=1035 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=503 in_tok=1038 out_tok=80
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=454 in_tok=1042 out_tok=67
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=390 in_tok=1061 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=880 in_tok=1058 out_tok=192
+  150/200
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=456 in_tok=1044 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=442 in_tok=1042 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=472 in_tok=1046 out_tok=65
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=422 in_tok=1048 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=471 in_tok=1028 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=405 in_tok=1025 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=480 in_tok=1050 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=377 in_tok=1022 out_tok=41
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=419 in_tok=1020 out_tok=59
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=494 in_tok=1022 out_tok=58
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=434 in_tok=1036 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=426 in_tok=1032 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=430 in_tok=1034 out_tok=60
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=405 in_tok=1038 out_tok=58
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=451 in_tok=1020 out_tok=69
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=483 in_tok=1024 out_tok=62
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=448 in_tok=1020 out_tok=58
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=462 in_tok=1042 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=421 in_tok=1040 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=480 in_tok=1058 out_tok=68
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=432 in_tok=1050 out_tok=62
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=443 in_tok=1048 out_tok=61
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=450 in_tok=1052 out_tok=68
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=470 in_tok=1032 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=419 in_tok=1034 out_tok=53
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=584 in_tok=1034 out_tok=93
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=388 in_tok=1020 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=349 in_tok=1018 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=378 in_tok=1022 out_tok=41
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=490 in_tok=1048 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=397 in_tok=1040 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=401 in_tok=1038 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=472 in_tok=1040 out_tok=67
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=381 in_tok=1046 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=683 in_tok=1052 out_tok=130
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=498 in_tok=1054 out_tok=81
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=501 in_tok=1032 out_tok=59
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=507 in_tok=1048 out_tok=61
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=499 in_tok=1026 out_tok=76
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=386 in_tok=1034 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=422 in_tok=1042 out_tok=52
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=478 in_tok=1038 out_tok=62
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=510 in_tok=1042 out_tok=63
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=421 in_tok=1038 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=484 in_tok=1056 out_tok=54
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=430 in_tok=1038 out_tok=60
+xLATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=414 in_tok=1048 out_tok=55
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=456 in_tok=1042 out_tok=67
+.LATENCY bedrock task=extraction model=zai.glm-4.7-flash ms=425 in_tok=1072 out_tok=59
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1234 in_tok=1049 out_tok=136
+  200/200
+
+{
+  "model": "zai.glm-4.7-flash",
+  "cases": 200,
+  "errors": 0,
+  "field_f1_micro": 0.627,
+  "field_f1_macro": 0.655,
+  "latency_ms_p50": 451.0,
+  "latency_ms_p95": 667.0,
+  "cost_per_1000_turns_usd": 0.115
+}
+per-case output: /Users/sudhanshu/code/farmer_chat/data/eval/zai.glm-4.7-flash.jsonl
+
+=== running 200 cases against qwen.qwen3-32b-v1:0 ===
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=840 in_tok=1043 out_tok=117
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=974 in_tok=1034 out_tok=118
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=596 in_tok=1049 out_tok=91
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=643 in_tok=1048 out_tok=81
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=305 in_tok=1035 out_tok=55
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=274 in_tok=1033 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=353 in_tok=1043 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=283 in_tok=1023 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=301 in_tok=1023 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=343 in_tok=1022 out_tok=57
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=280 in_tok=1023 out_tok=37
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=371 in_tok=1028 out_tok=65
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=283 in_tok=1031 out_tok=37
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1132 in_tok=1042 out_tok=133
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=530 in_tok=1024 out_tok=77
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=400 in_tok=1022 out_tok=73
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=314 in_tok=1023 out_tok=58
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=459 in_tok=1050 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=844 in_tok=1046 out_tok=128
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=795 in_tok=1042 out_tok=120
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=261 in_tok=1052 out_tok=37
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=875 in_tok=1048 out_tok=120
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=297 in_tok=1049 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=364 in_tok=1043 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=329 in_tok=1039 out_tok=57
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=481 in_tok=1030 out_tok=79
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=382 in_tok=1021 out_tok=39
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=256 in_tok=1020 out_tok=28
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=311 in_tok=1022 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=245 in_tok=1022 out_tok=28
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=317 in_tok=1043 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1072 in_tok=1049 out_tok=148
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=270 in_tok=1041 out_tok=43
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=737 in_tok=1042 out_tok=128
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=573 in_tok=1036 out_tok=91
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=396 in_tok=1042 out_tok=58
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=724 in_tok=1049 out_tok=102
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=298 in_tok=1033 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=726 in_tok=1039 out_tok=110
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=423 in_tok=1034 out_tok=72
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=378 in_tok=1042 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=270 in_tok=1039 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=308 in_tok=1056 out_tok=69
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=302 in_tok=1048 out_tok=60
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1432 in_tok=1038 out_tok=176
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=689 in_tok=1051 out_tok=99
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=472 in_tok=1033 out_tok=74
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=338 in_tok=1044 out_tok=64
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=578 in_tok=1047 out_tok=89
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=368 in_tok=1038 out_tok=53
+  50/200
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=556 in_tok=1035 out_tok=113
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=271 in_tok=1029 out_tok=40
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=355 in_tok=1033 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=808 in_tok=1029 out_tok=129
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=263 in_tok=1022 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=314 in_tok=1022 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=328 in_tok=1028 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=260 in_tok=1018 out_tok=35
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=237 in_tok=1018 out_tok=37
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=420 in_tok=1021 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=854 in_tok=1026 out_tok=115
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=529 in_tok=1022 out_tok=87
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=727 in_tok=1030 out_tok=136
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=570 in_tok=1031 out_tok=97
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=290 in_tok=1021 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=403 in_tok=1020 out_tok=69
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=337 in_tok=1022 out_tok=62
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=305 in_tok=1029 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=439 in_tok=1032 out_tok=85
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=711 in_tok=1034 out_tok=116
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=269 in_tok=1028 out_tok=41
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=544 in_tok=1038 out_tok=88
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=311 in_tok=1030 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=441 in_tok=1030 out_tok=79
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=242 in_tok=1030 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=264 in_tok=1024 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=250 in_tok=1020 out_tok=39
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=247 in_tok=1022 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=262 in_tok=1019 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=330 in_tok=1028 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=667 in_tok=1033 out_tok=85
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=759 in_tok=1030 out_tok=117
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=565 in_tok=1032 out_tok=79
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=353 in_tok=1031 out_tok=58
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=390 in_tok=1032 out_tok=68
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=509 in_tok=1040 out_tok=81
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=270 in_tok=1022 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=753 in_tok=1030 out_tok=121
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=595 in_tok=1030 out_tok=97
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=270 in_tok=1026 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=268 in_tok=1025 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=579 in_tok=1035 out_tok=89
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=306 in_tok=1035 out_tok=60
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=648 in_tok=1034 out_tok=103
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=570 in_tok=1033 out_tok=92
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=398 in_tok=1025 out_tok=77
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=267 in_tok=1034 out_tok=61
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=308 in_tok=1033 out_tok=73
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=582 in_tok=1039 out_tok=91
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=340 in_tok=1052 out_tok=53
+  100/200
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=334 in_tok=1049 out_tok=68
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=350 in_tok=1042 out_tok=40
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=336 in_tok=1043 out_tok=53
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=794 in_tok=1042 out_tok=121
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=255 in_tok=1030 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=249 in_tok=1022 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=408 in_tok=1036 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=292 in_tok=1021 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=287 in_tok=1023 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=419 in_tok=1026 out_tok=65
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=429 in_tok=1031 out_tok=76
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=677 in_tok=1027 out_tok=97
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=376 in_tok=1032 out_tok=61
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=348 in_tok=1039 out_tok=64
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=374 in_tok=1022 out_tok=57
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1418 in_tok=1029 out_tok=198
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=354 in_tok=1021 out_tok=58
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=298 in_tok=1037 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1385 in_tok=1039 out_tok=180
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=351 in_tok=1051 out_tok=75
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=697 in_tok=1042 out_tok=110
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=768 in_tok=1044 out_tok=112
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=290 in_tok=1036 out_tok=55
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=380 in_tok=1036 out_tok=60
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=567 in_tok=1030 out_tok=92
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=336 in_tok=1030 out_tok=53
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=264 in_tok=1022 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=272 in_tok=1019 out_tok=28
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=270 in_tok=1019 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=274 in_tok=1032 out_tok=70
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=323 in_tok=1044 out_tok=68
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=359 in_tok=1027 out_tok=48
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1153 in_tok=1033 out_tok=140
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=333 in_tok=1032 out_tok=59
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=323 in_tok=1039 out_tok=59
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=307 in_tok=1038 out_tok=51
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=267 in_tok=1028 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=639 in_tok=1039 out_tok=115
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=519 in_tok=1028 out_tok=77
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=299 in_tok=1028 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=334 in_tok=1032 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=422 in_tok=1032 out_tok=58
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=290 in_tok=1038 out_tok=59
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1168 in_tok=1033 out_tok=159
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1108 in_tok=1046 out_tok=170
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=275 in_tok=1034 out_tok=57
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=444 in_tok=1037 out_tok=69
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=964 in_tok=1039 out_tok=134
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=353 in_tok=1058 out_tok=67
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=955 in_tok=1058 out_tok=117
+  150/200
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=552 in_tok=1042 out_tok=84
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=274 in_tok=1040 out_tok=40
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=493 in_tok=1046 out_tok=68
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=634 in_tok=1046 out_tok=105
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=280 in_tok=1030 out_tok=59
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=257 in_tok=1028 out_tok=28
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=312 in_tok=1049 out_tok=55
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=273 in_tok=1023 out_tok=46
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=262 in_tok=1023 out_tok=30
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1174 in_tok=1023 out_tok=143
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=333 in_tok=1038 out_tok=57
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1184 in_tok=1034 out_tok=153
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=380 in_tok=1034 out_tok=68
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=315 in_tok=1037 out_tok=56
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=391 in_tok=1022 out_tok=57
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=318 in_tok=1025 out_tok=58
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=316 in_tok=1022 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=264 in_tok=1043 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=511 in_tok=1039 out_tok=81
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=430 in_tok=1053 out_tok=74
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1404 in_tok=1049 out_tok=160
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1092 in_tok=1045 out_tok=144
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=268 in_tok=1052 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=563 in_tok=1034 out_tok=86
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=271 in_tok=1036 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=467 in_tok=1036 out_tok=76
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=256 in_tok=1022 out_tok=28
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=243 in_tok=1021 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=265 in_tok=1024 out_tok=30
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=271 in_tok=1045 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=360 in_tok=1038 out_tok=58
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=356 in_tok=1038 out_tok=65
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=1619 in_tok=1040 out_tok=175
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=625 in_tok=1043 out_tok=90
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=680 in_tok=1049 out_tok=94
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=852 in_tok=1050 out_tok=100
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=291 in_tok=1033 out_tok=44
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=723 in_tok=1045 out_tok=114
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=413 in_tok=1028 out_tok=76
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=310 in_tok=1035 out_tok=54
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=266 in_tok=1042 out_tok=39
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=624 in_tok=1039 out_tok=99
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=246 in_tok=1041 out_tok=50
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=422 in_tok=1038 out_tok=66
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=697 in_tok=1051 out_tok=95
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=332 in_tok=1039 out_tok=64
+xLATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=275 in_tok=1044 out_tok=60
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=492 in_tok=1041 out_tok=93
+.LATENCY bedrock task=extraction model=qwen.qwen3-32b-v1:0 ms=946 in_tok=1072 out_tok=123
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=582 in_tok=1046 out_tok=98
+  200/200
+
+{
+  "model": "qwen.qwen3-32b-v1:0",
+  "cases": 200,
+  "errors": 0,
+  "field_f1_micro": 0.658,
+  "field_f1_macro": 0.672,
+  "latency_ms_p50": 368.0,
+  "latency_ms_p95": 1144.0,
+  "cost_per_1000_turns_usd": 0.199
+}
+per-case output: /Users/sudhanshu/code/farmer_chat/data/eval/qwen.qwen3-32b-v1_0.jsonl
+
+=== running 200 cases against mistral.ministral-3-8b-instruct ===
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=439 in_tok=1042 out_tok=92
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=595 in_tok=1039 out_tok=98
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=628 in_tok=1043 out_tok=109
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1044 out_tok=73
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=510 in_tok=1037 out_tok=86
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=431 in_tok=1036 out_tok=103
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=576 in_tok=1042 out_tok=90
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=633 in_tok=1033 out_tok=98
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=420 in_tok=1034 out_tok=94
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=412 in_tok=1034 out_tok=78
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=382 in_tok=1036 out_tok=78
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=380 in_tok=1035 out_tok=78
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=396 in_tok=1035 out_tok=80
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=596 in_tok=1039 out_tok=88
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=409 in_tok=1034 out_tok=89
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=449 in_tok=1034 out_tok=71
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=474 in_tok=1035 out_tok=72
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=495 in_tok=1042 out_tok=117
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1041 out_tok=121
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=426 in_tok=1040 out_tok=91
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=364 in_tok=1042 out_tok=67
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=667 in_tok=1041 out_tok=120
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=645 in_tok=1043 out_tok=111
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=485 in_tok=1041 out_tok=111
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=512 in_tok=1043 out_tok=120
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=462 in_tok=1038 out_tok=106
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=301 in_tok=1034 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=340 in_tok=1033 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=726 in_tok=1034 out_tok=99
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=273 in_tok=1033 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=521 in_tok=1041 out_tok=80
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=977 in_tok=1043 out_tok=165
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=672 in_tok=1041 out_tok=94
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=572 in_tok=1041 out_tok=94
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=502 in_tok=1039 out_tok=78
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=393 in_tok=1042 out_tok=76
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=563 in_tok=1042 out_tok=82
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=641 in_tok=1037 out_tok=92
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=532 in_tok=1040 out_tok=85
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=670 in_tok=1038 out_tok=108
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=643 in_tok=1042 out_tok=90
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=482 in_tok=1039 out_tok=105
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=595 in_tok=1042 out_tok=96
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=612 in_tok=1043 out_tok=95
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=509 in_tok=1040 out_tok=103
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1087 in_tok=1045 out_tok=206
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=591 in_tok=1037 out_tok=84
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=407 in_tok=1043 out_tok=77
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=816 in_tok=1041 out_tok=126
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=544 in_tok=1040 out_tok=90
+  50/200
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=381 in_tok=1040 out_tok=81
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=550 in_tok=1037 out_tok=91
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1201 in_tok=1040 out_tok=223
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=695 in_tok=1037 out_tok=121
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=540 in_tok=1035 out_tok=80
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=456 in_tok=1035 out_tok=70
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=661 in_tok=1037 out_tok=107
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=451 in_tok=1033 out_tok=89
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=522 in_tok=1032 out_tok=88
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=401 in_tok=1034 out_tok=78
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=420 in_tok=1036 out_tok=86
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=533 in_tok=1034 out_tok=88
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=671 in_tok=1037 out_tok=175
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=658 in_tok=1036 out_tok=94
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=610 in_tok=1034 out_tok=107
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=455 in_tok=1034 out_tok=91
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=429 in_tok=1035 out_tok=94
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=473 in_tok=1040 out_tok=74
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=563 in_tok=1038 out_tok=100
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=714 in_tok=1038 out_tok=132
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=524 in_tok=1037 out_tok=112
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=375 in_tok=1040 out_tok=86
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=622 in_tok=1039 out_tok=77
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=379 in_tok=1037 out_tok=83
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=776 in_tok=1041 out_tok=143
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=488 in_tok=1034 out_tok=113
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=306 in_tok=1033 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=600 in_tok=1034 out_tok=96
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=419 in_tok=1033 out_tok=71
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=481 in_tok=1038 out_tok=77
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=473 in_tok=1038 out_tok=91
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=436 in_tok=1037 out_tok=100
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=579 in_tok=1040 out_tok=104
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=362 in_tok=1038 out_tok=78
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=554 in_tok=1038 out_tok=96
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=543 in_tok=1040 out_tok=91
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=508 in_tok=1033 out_tok=82
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=930 in_tok=1038 out_tok=179
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=598 in_tok=1039 out_tok=103
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=347 in_tok=1038 out_tok=71
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=431 in_tok=1037 out_tok=71
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=861 in_tok=1039 out_tok=82
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=559 in_tok=1039 out_tok=97
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=599 in_tok=1040 out_tok=100
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1130 in_tok=1038 out_tok=229
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=555 in_tok=1036 out_tok=90
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1039 out_tok=105
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=604 in_tok=1039 out_tok=107
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=621 in_tok=1042 out_tok=102
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=478 in_tok=1045 out_tok=102
+  100/200
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1170 in_tok=1042 out_tok=235
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=572 in_tok=1040 out_tok=93
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=371 in_tok=1042 out_tok=73
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=650 in_tok=1040 out_tok=113
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=678 in_tok=1036 out_tok=112
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=433 in_tok=1036 out_tok=104
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=575 in_tok=1042 out_tok=94
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=556 in_tok=1033 out_tok=87
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=530 in_tok=1034 out_tok=92
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=542 in_tok=1036 out_tok=108
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=467 in_tok=1036 out_tok=109
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=697 in_tok=1037 out_tok=106
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=638 in_tok=1036 out_tok=113
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=747 in_tok=1039 out_tok=120
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=428 in_tok=1034 out_tok=78
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=454 in_tok=1038 out_tok=74
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1035 out_tok=85
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=419 in_tok=1042 out_tok=94
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=652 in_tok=1040 out_tok=102
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=735 in_tok=1044 out_tok=134
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=748 in_tok=1044 out_tok=215
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=590 in_tok=1041 out_tok=94
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=524 in_tok=1042 out_tok=120
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=490 in_tok=1039 out_tok=81
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=595 in_tok=1041 out_tok=99
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=534 in_tok=1040 out_tok=93
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=370 in_tok=1034 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=304 in_tok=1034 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=688 in_tok=1033 out_tok=110
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=361 in_tok=1040 out_tok=64
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=528 in_tok=1041 out_tok=87
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=534 in_tok=1037 out_tok=93
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=436 in_tok=1040 out_tok=96
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=669 in_tok=1039 out_tok=84
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=538 in_tok=1039 out_tok=92
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=498 in_tok=1039 out_tok=80
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=353 in_tok=1036 out_tok=67
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=502 in_tok=1043 out_tok=119
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=488 in_tok=1036 out_tok=103
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=558 in_tok=1039 out_tok=95
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=650 in_tok=1040 out_tok=109
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=563 in_tok=1037 out_tok=101
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=534 in_tok=1040 out_tok=89
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=570 in_tok=1039 out_tok=99
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=675 in_tok=1042 out_tok=114
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1038 out_tok=85
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=504 in_tok=1039 out_tok=102
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=586 in_tok=1040 out_tok=139
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=474 in_tok=1048 out_tok=108
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=660 in_tok=1045 out_tok=109
+  150/200
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=445 in_tok=1040 out_tok=93
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=481 in_tok=1040 out_tok=101
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=434 in_tok=1040 out_tok=69
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=401 in_tok=1038 out_tok=85
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=683 in_tok=1037 out_tok=122
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=413 in_tok=1035 out_tok=62
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=473 in_tok=1042 out_tok=110
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=619 in_tok=1037 out_tok=94
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=414 in_tok=1034 out_tok=87
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=443 in_tok=1034 out_tok=90
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1250 in_tok=1036 out_tok=256
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=519 in_tok=1036 out_tok=83
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=578 in_tok=1036 out_tok=95
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=875 in_tok=1036 out_tok=256
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=576 in_tok=1035 out_tok=95
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=449 in_tok=1036 out_tok=101
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=465 in_tok=1034 out_tok=74
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=510 in_tok=1042 out_tok=123
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=574 in_tok=1039 out_tok=97
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=608 in_tok=1042 out_tok=103
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1123 in_tok=1039 out_tok=225
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=455 in_tok=1042 out_tok=88
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=364 in_tok=1043 out_tok=75
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=589 in_tok=1038 out_tok=87
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1245 in_tok=1042 out_tok=256
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1270 in_tok=1038 out_tok=256
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=301 in_tok=1034 out_tok=43
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=554 in_tok=1034 out_tok=96
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=375 in_tok=1034 out_tok=56
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=716 in_tok=1045 out_tok=105
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=552 in_tok=1040 out_tok=92
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=658 in_tok=1040 out_tok=114
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=450 in_tok=1041 out_tok=106
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=551 in_tok=1041 out_tok=80
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=508 in_tok=1043 out_tok=80
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=374 in_tok=1042 out_tok=83
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=422 in_tok=1038 out_tok=72
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=1031 in_tok=1040 out_tok=202
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=593 in_tok=1036 out_tok=143
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=349 in_tok=1039 out_tok=65
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=507 in_tok=1039 out_tok=113
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=472 in_tok=1037 out_tok=85
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=393 in_tok=1042 out_tok=80
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=497 in_tok=1039 out_tok=111
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=605 in_tok=1045 out_tok=95
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=513 in_tok=1039 out_tok=84
+xLATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=466 in_tok=1044 out_tok=88
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=630 in_tok=1044 out_tok=104
+.LATENCY bedrock task=extraction model=mistral.ministral-3-8b-instruct ms=480 in_tok=1049 out_tok=89
+.  200/200
+
+{
+  "model": "mistral.ministral-3-8b-instruct",
+  "cases": 200,
+  "errors": 0,
+  "field_f1_micro": 0.619,
+  "field_f1_macro": 0.572,
+  "latency_ms_p50": 533.0,
+  "latency_ms_p95": 939.0,
+  "cost_per_1000_turns_usd": 0.105
+}
+per-case output: /Users/sudhanshu/code/farmer_chat/data/eval/mistral.ministral-3-8b-instruct.jsonl
+
+=== comparison ===
+[
+  {
+    "model": "apac.amazon.nova-micro-v1:0",
+    "cases": 200,
+    "errors": 0,
+    "field_f1_micro": 0.652,
+    "field_f1_macro": 0.691,
+    "latency_ms_p50": 530.0,
+    "latency_ms_p95": 887.0,
+    "cost_per_1000_turns_usd": 0.045
+  },
+  {
+    "model": "zai.glm-4.7-flash",
+    "cases": 200,
+    "errors": 0,
+    "field_f1_micro": 0.627,
+    "field_f1_macro": 0.655,
+    "latency_ms_p50": 451.0,
+    "latency_ms_p95": 667.0,
+    "cost_per_1000_turns_usd": 0.115
+  },
+  {
+    "model": "qwen.qwen3-32b-v1:0",
+    "cases": 200,
+    "errors": 0,
+    "field_f1_micro": 0.658,
+    "field_f1_macro": 0.672,
+    "latency_ms_p50": 368.0,
+    "latency_ms_p95": 1144.0,
+    "cost_per_1000_turns_usd": 0.199
+  },
+  {
+    "model": "mistral.ministral-3-8b-instruct",
+    "cases": 200,
+    "errors": 0,
+    "field_f1_micro": 0.619,
+    "field_f1_macro": 0.572,
+    "latency_ms_p50": 533.0,
+    "latency_ms_p95": 939.0,
+    "cost_per_1000_turns_usd": 0.105
+  }
+]

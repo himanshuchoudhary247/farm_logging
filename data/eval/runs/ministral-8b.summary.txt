@@ -1,0 +1,196 @@
+mode: LIVE bedrock
+loaded 60 conversations from /Users/sudhanshu/code/farmer_chat/tests/eval/conversations.yaml
+
+=== summary ===
+{
+  "conversations": 60,
+  "conversations_passed": 46,
+  "turns": 146,
+  "turns_passed": 129,
+  "turn_pass_rate": 88.4,
+  "final_pass_rate": 76.7,
+  "avg_turn_ms": 619.01,
+  "p95_turn_ms": 977.11,
+  "by_lang": {
+    "kn": {
+      "convs": 10,
+      "convs_pass": 8,
+      "turns": 26,
+      "turns_pass": 23
+    },
+    "hi": {
+      "convs": 10,
+      "convs_pass": 8,
+      "turns": 26,
+      "turns_pass": 24
+    },
+    "ta": {
+      "convs": 10,
+      "convs_pass": 8,
+      "turns": 23,
+      "turns_pass": 21
+    },
+    "te": {
+      "convs": 10,
+      "convs_pass": 8,
+      "turns": 23,
+      "turns_pass": 21
+    },
+    "en": {
+      "convs": 10,
+      "convs_pass": 9,
+      "turns": 24,
+      "turns_pass": 23
+    },
+    "ml": {
+      "convs": 10,
+      "convs_pass": 5,
+      "turns": 24,
+      "turns_pass": 17
+    }
+  }
+}
+
+=== failures (15) ===
+
+kn-conv-01-booking-cow-fever  lang=kn-IN
+  . turn 1: 'ನನಗೆ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬೇಕು'  ms=909.4
+  x turn 2: 'ನನ್ನ ಹಸು'  ms=703.9
+      - species: missing (expected 'cow')
+  . turn 3: 'ಜ್ವರ'  ms=884.7
+  . turn 4: 'ನಾಳೆ ಬೆಳಗ್ಗೆ'  ms=1261.7
+  . turn 5: 'ಹೌದು'  ms=1099.1
+
+kn-conv-02-booking-goat-not-eating  lang=kn-IN
+  . turn 1: 'ಪಶು ವೈದ್ಯರನ್ನು ಕರೆಸಬೇಕು'  ms=464.7
+  x turn 2: 'ಆಡು'  ms=789.6
+      - species: expected 'goat', got 'chicken'
+  . turn 3: 'ತಿನ್ನುತ್ತಿಲ್ಲ'  ms=695.7
+  . turn 4: 'ಇಂದು ಸಂಜೆ ಆರು ಗಂಟೆ'  ms=513.7
+  FINAL FAIL:
+      - species: expected 'goat', got 'chicken'
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'animal_name': 'ಆಡು', 'species': 'chicken', 'issue': 'not eating', 'duration': None, 'severity': None, 'current_medication': None, 'date': '2026-09-11', 'time': '18:00', 'unavailable_fields': ['current_medication', 'duration', 'severity'], 'symptoms': ['not eating']}}
+
+hi-conv-01-booking-cow-fever  lang=hi-IN
+  . turn 1: 'मुझे अपॉइंटमेंट चाहिए'  ms=415.3
+  x turn 2: 'मेरी गाय'  ms=826.7
+      - species: missing (expected 'cow')
+  . turn 3: 'बुखार'  ms=593.4
+  . turn 4: 'कल सुबह'  ms=880.0
+  . turn 5: 'हाँ'  ms=788.6
+  FINAL FAIL:
+      - species: missing (expected 'cow')
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'animal_name': 'मेरी गाय', 'issue': 'fever', 'duration': None, 'severity': None, 'current_medication': None, 'date': '2026-09-12', 'time': '09:00', 'symptoms': ['fever'], 'unavailable_fields': ['current_medication', 'duration', 'severity']}}
+
+te-conv-01-booking-cow-fever  lang=te-IN
+  x turn 1: 'నాకు అపాయింట్మెంట్ కావాలి'  ms=886.2
+      - intent: expected 'CREATE_APPOINTMENT', got None
+  . turn 2: 'నా ఆవు'  ms=553.5
+  . turn 3: 'జ్వరం'  ms=468.2
+  . turn 4: 'రేపు ఉదయం'  ms=656.8
+  . turn 5: 'అవును'  ms=614.2
+  FINAL FAIL:
+      - intent: expected 'CREATE_APPOINTMENT', got 'LOG_HEALTH'
+      state: {'intent': 'LOG_HEALTH', 'entities': {'species': 'cow', 'animal_name': 'ఆవు', 'issue': 'fever', 'symptoms': ['fever'], 'date': '2026-09-12', 'time': '09:00'}}
+
+en-conv-01-booking-cow-fever  lang=en-IN
+  . turn 1: 'I want to book an appointment'  ms=346.7
+  x turn 2: 'my cow'  ms=1000.9
+      - species: missing (expected 'cow')
+  . turn 3: 'fever'  ms=450.0
+  . turn 4: 'tomorrow morning'  ms=527.2
+  . turn 5: '10 am'  ms=622.7
+  . turn 6: 'yes'  ms=632.4
+  FINAL FAIL:
+      - species: missing (expected 'cow')
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'animal_name': 'my cow', 'issue': 'fever', 'duration': None, 'severity': None, 'current_medication': None, 'date': '2026-09-12', 'time': '10:00', 'unavailable_fields': ['animal_id', 'animal_tag', 'current_medication', 'duration', 'severity', 'species'], 'symptoms': ['fever']}}
+
+kn-conv-09-fetch-animal-tag  lang=kn-IN
+  x turn 1: 'ನನ್ನ ಆಡಿನ ವಿವರ ಬೇಕು'  ms=532.0
+      - species: expected 'goat', got 'sheep'
+  . turn 2: 'ಟ್ಯಾಗ್ ನಂಬರ್ 1234'  ms=500.9
+  FINAL FAIL:
+      - species: expected 'goat', got 'sheep'
+      state: {'intent': 'FETCH_ANIMAL_DETAILS', 'entities': {'species': 'sheep', 'animal_name': 'ಆಡು', 'animal_tag': '1234'}}
+
+hi-conv-09-fetch-animal-tag  lang=hi-IN
+  x turn 1: 'मेरी बकरी का विवरण चाहिए'  ms=392.2
+      - species: missing (expected 'goat')
+  . turn 2: 'टैग नंबर 1234'  ms=451.7
+  FINAL FAIL:
+      - species: missing (expected 'goat')
+      state: {'intent': 'FETCH_ANIMAL_DETAILS', 'entities': {'animal_tag': '1234'}}
+
+ta-conv-06-fetch-animal-tag  lang=ta-IN
+  x turn 1: 'என் ஆட்டின் விவரம் வேண்டும்'  ms=468.0
+      - species: expected 'goat', got 'sheep'
+  . turn 2: 'டேக் எண் 1234'  ms=536.4
+  FINAL FAIL:
+      - species: expected 'goat', got 'sheep'
+      state: {'intent': 'FETCH_ANIMAL_DETAILS', 'entities': {'species': 'sheep', 'animal_name': 'ஆடு', 'animal_tag': '1234'}}
+
+ta-conv-08-update-existing-animal  lang=ta-IN
+  . turn 1: 'ஏற்கனவே உள்ள மாட்டின் விவரம் மாற்ற வேண்டும்'  ms=413.8
+  x turn 2: 'டேக் 5678 எடை புதுப்பிக்க வேண்டும்'  ms=547.4
+      - animal_tag: expected '5678', got 'டேக் 5678'
+  FINAL FAIL:
+      - animal_tag: expected '5678', got 'டேக் 5678'
+      state: {'intent': 'UPDATE_ANIMAL', 'entities': {'animal_record_mode': 'existing', 'animal_tag': 'டேக் 5678', 'feeding_details': 'weight'}}
+
+te-conv-06-fetch-animal-tag  lang=te-IN
+  x turn 1: 'నా మేక వివరాలు కావాలి'  ms=1036.3
+      - species: expected 'goat', got 'sheep'
+  . turn 2: 'టాగ్ నంబర్ 1234'  ms=1019.7
+  FINAL FAIL:
+      - species: expected 'goat', got 'sheep'
+      state: {'intent': 'FETCH_ANIMAL_DETAILS', 'entities': {'species': 'sheep', 'animal_name': None, 'animal_tag': '1234', 'animal_record_mode': None, 'sex': None, 'breed': None, 'age_years': None, 'feeding_details': None, 'issue': None, 'symptoms': [], 'duration': None, 'severity': None, 'current_medication': None, 'temperature_c': None, 'date': None, 'time': None, 'weather_location': None, 'forecast_days': None, 'country_code': None, 'animal_id': None}}
+
+ml-conv-01-booking-cow-fever  lang=ml-IN
+  . turn 1: 'എനിക്ക് അപ്പോയിന്റ്മെന്റ് വേണം'  ms=469.2
+  . turn 2: 'എന്റെ പശു'  ms=646.3
+  x turn 3: 'പനി ഉണ്ട്'  ms=1007.7
+      - issue: expected 'fever', got 'cold'
+  x turn 4: 'നാളെ രാവിലെ'  ms=850.8
+      - date: missing (expected 'tomorrow')
+  . turn 5: 'അതെ'  ms=962.5
+  FINAL FAIL:
+      - issue: expected 'fever', got 'cold'
+      - date: missing (expected 'tomorrow')
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'animal_name': 'എന്റെ പശു', 'species': 'cow', 'issue': 'cold', 'symptoms': ['cold'], 'pending_questions_answered': ['issue/symptoms'], 'unavailable_fields': ['current_medication', 'date', 'duration', 'severity', 'time'], 'animal_record_mode': 'existing'}}
+
+ml-conv-02-booking-goat-not-eating  lang=ml-IN
+  x turn 1: 'പശുവൈദ്യനെ വിളിക്കണം'  ms=977.1
+      - intent: expected 'CREATE_APPOINTMENT', got None
+  x turn 2: 'ആട്'  ms=582.8
+      - species: expected 'goat', got 'sheep'
+  . turn 3: 'തിന്നുന്നില്ല'  ms=419.1
+  . turn 4: 'ഇന്ന് വൈകുന്നേരം ആറു മണിക്ക്'  ms=470.5
+  FINAL FAIL:
+      - intent: expected 'CREATE_APPOINTMENT', got 'LOG_HEALTH'
+      - species: expected 'goat', got 'sheep'
+      state: {'intent': 'LOG_HEALTH', 'entities': {'species': 'sheep', 'animal_name': 'ആട്', 'issue': 'not eating', 'symptoms': ['not eating'], 'date': '2026-09-11', 'time': '18:00'}}
+
+ml-conv-03-vaccine-buffalo  lang=ml-IN
+  x turn 1: 'എരുമയ്ക്ക് വാക്സിൻ വേണം'  ms=438.4
+      - species: expected 'buffalo', got 'goat'
+  . turn 2: 'നാളെ പത്തു മണിക്ക്'  ms=656.4
+  FINAL FAIL:
+      - species: expected 'buffalo', got 'goat'
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'species': 'goat', 'issue': 'vaccine needed', 'symptoms': ['vaccine needed'], 'date': '2026-09-12', 'time': '10:00', 'unavailable_fields': ['animal_id', 'animal_name', 'animal_tag', 'current_medication', 'duration', 'severity']}}
+
+ml-conv-06-fetch-animal-tag  lang=ml-IN
+  x turn 1: 'എന്റെ ആടിന്റെ വിവരം വേണം'  ms=441.0
+      - species: expected 'goat', got 'sheep'
+  . turn 2: 'ടാഗ് നമ്പർ 1234'  ms=520.4
+  FINAL FAIL:
+      - species: expected 'goat', got 'sheep'
+      state: {'intent': 'FETCH_ANIMAL_DETAILS', 'entities': {'species': 'sheep', 'animal_name': 'ആട്', 'animal_tag': '1234'}}
+
+ml-conv-09-combined-single-turn  lang=ml-IN
+  x turn 1: 'എന്റെ പശുവിന് പനി ഉണ്ട് നാളെ രാവിലെ പത്തു മണിക്ക് അപ്പോയിന്റ്മെന്റ് വേണം'  ms=467.9
+      - species: expected 'cow', got 'buffalo'
+  FINAL FAIL:
+      - species: expected 'cow', got 'buffalo'
+      state: {'intent': 'CREATE_APPOINTMENT', 'entities': {'species': 'buffalo', 'issue': 'fever', 'date': '2026-09-12', 'time': '10:00', 'symptoms': ['fever']}}
+
+per-conversation trace: /Users/sudhanshu/code/farmer_chat/data/eval/conversations.jsonl
