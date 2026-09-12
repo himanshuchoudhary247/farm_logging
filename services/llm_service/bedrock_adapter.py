@@ -133,83 +133,63 @@ class BedrockTextAdapter:
         )
         return result
 
+    def converse_with_tool(self, messages, tool_spec, system=None, tool_choice_name=None):
+        """Bedrock Converse with a forced tool call. Returns the parsed tool
+        input dict directly, so callers never have to parse JSON out of text.
+
+        Verified working on DeepSeek V3, Nova Micro, Ministral 14B 2026-09-13.
+        tool_choice_name forces the named tool via toolChoice.tool; omit to
+        allow the model to choose any provided tool via toolChoice.any.
+        """
+        req = {
+            "modelId": self.model_id,
+            "messages": [
+                {"role": m.get("role", "user"), "content": [{"text": m["content"]}]}
+                for m in messages
+            ],
+            "inferenceConfig": {
+                "maxTokens": self.max_tokens,
+                "temperature": self.temperature,
+            },
+            "toolConfig": {
+                "tools": [{"toolSpec": tool_spec}],
+                "toolChoice": (
+                    {"tool": {"name": tool_choice_name}} if tool_choice_name
+                    else {"any": {}}
+                ),
+            },
+        }
+        if system:
+            req["system"] = [{"text": system}]
+
+        t0 = time.time()
+        resp = self.client.converse(**req)
+        content = resp.get("output", {}).get("message", {}).get("content", []) or []
+        tool_use = next((c["toolUse"] for c in content if "toolUse" in c), None)
+        usage = resp.get("usage") or {}
+        _log.info(
+            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s stop=%s tool=%s",
+            self.task, self.model_id, (time.time() - t0) * 1000,
+            usage.get("inputTokens"), usage.get("outputTokens"),
+            resp.get("stopReason"), tool_use["name"] if tool_use else None,
+        )
+        # Also return any text the model emitted alongside the tool call
+        # (some models put the follow-up question there).
+        text = next((c["text"] for c in content if "text" in c), None)
+        return {
+            "tool_name": tool_use["name"] if tool_use else None,
+            "tool_input": tool_use.get("input") if tool_use else {},
+            "text": text,
+            "stop_reason": resp.get("stopReason"),
+        }
+
 
 # ---- Voice Extraction Wrapper ----
-# This is now the ONLY extraction path for voice turns — orchestrator.py has
-# no regex/rule-based fallback parser, so this schema must cover every
-# entity every intent needs. Read the input in its native script; do not
-# translate the user's words.
-_SYSTEM_PROMPT = (
-    "You are the sole extraction engine for a livestock voice assistant. Read "
-    "farmer input in any language and any phrasing (Hindi/Tamil/Telugu/Kannada/"
-    "Malayalam/English, or mixed) and in any word order. There is no fallback "
-    "text parser after you, so extract everything the farmer stated. "
-    "Return ONLY JSON with keys: intent, entities, unavailable_fields, "
-    "follow_up_questions, confidence. "
-    "intent: one of WEATHER_ALERT, FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, "
-    "UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT, or null if unclear. "
-    "CREATE_ANIMAL/UPDATE_ANIMAL are ONLY for registering or editing an "
-    "animal's profile record (name, breed, age). A request to see a vet, "
-    "get treatment, or vaccinate an animal is CREATE_APPOINTMENT even if the "
-    "farmer never says the word 'appointment' — 'need vaccine for my sheep' "
-    "is CREATE_APPOINTMENT, not CREATE_ANIMAL. "
-    "entities keys (include only what is stated; omit or null the rest): "
-    "animal_id, animal_name, animal_tag, "
-    "animal_record_mode ('new' or 'existing'), "
-    "species ('goat'|'sheep'|'cow'|'buffalo'|'chicken'), "
-    "sex ('male'|'female'), breed, age_years (number), feeding_details, "
-    "issue, symptoms (array of short English phrases such as 'fever', "
-    "'not eating', 'wound', 'swelling', 'limping', 'lethargy', "
-    "'not drinking'), duration, severity ('mild'|'moderate'|'severe'), "
-    "current_medication ('none' if the farmer says no medicine), "
-    "temperature_c (number; convert Fahrenheit to Celsius if needed), "
-    "date ('today'|'tomorrow'|'yesterday', or an ISO date YYYY-MM-DD), "
-    "time (24-hour 'HH:MM' — if the farmer says only a period of day with "
-    "no exact hour, use these defaults: morning=09:00, afternoon=14:00, "
-    "evening=18:00, night=20:00), weather_location (pincode or place name), "
-    "forecast_days (integer 1-7), country_code. "
-    "Translate issue/symptoms to English; keep animal_name/animal_tag in "
-    "the original script. मतलब/matlab is filler, never an animal name. "
-    "unavailable_fields: list of the entity keys above that the farmer "
-    "explicitly said they do not know or that are not available (e.g. "
-    "\"severity not available\"). "
-    "follow_up_questions: a JSON array containing at most one question "
-    "string (or an empty array), phrased in the same language as the "
-    "user's input, asking for the single most important missing piece of "
-    "information for the detected intent. "
-    "confidence: a JSON number between 0 and 1 (e.g. 0.9) — never the "
-    "words 'high'/'medium'/'low'. "
-    "\n\n"
-    "CRITICAL RULE for short answers: the Context block below carries "
-    "pending_questions — a question the farmer was just asked. If the "
-    "current message is a single word or short phrase (an animal name, a "
-    "species word, a bare number, 'yes'/'no', a time, a date word) and "
-    "pending_questions is non-empty, that word IS the answer to the pending "
-    "field — extract it even with no other context. Never return empty "
-    "entities for a short reply just because the sentence alone seems "
-    "ambiguous; use pending_questions to resolve it. "
-    "\n\n"
-    "EXAMPLES (input -> output), including bare follow-up answers:\n"
-    "1) User: \"ನನ್ನ ಹಸು\" | pending_questions: [\"animal ID or animal "
-    "name/tag\"] -> entities: {\"species\": \"cow\", \"animal_name\": "
-    "\"ಹಸು\"}\n"
-    "2) User: \"my cow\" | pending_questions: [\"issue/symptoms\"] -> "
-    "entities: {\"species\": \"cow\", \"animal_name\": \"cow\"}\n"
-    "3) User: \"ఆవుకు జ్వరం\" (no prior context) -> intent: LOG_HEALTH, "
-    "entities: {\"species\": \"cow\", \"issue\": \"fever\"}\n"
-    "4) User: \"கால்நடை மருத்துவர் தேவை\" (need a vet) -> intent: "
-    "CREATE_APPOINTMENT (never CREATE_ANIMAL)\n"
-    "5) User: \"बकरी को टीका चाहिए\" (goat needs vaccine) -> intent: "
-    "CREATE_APPOINTMENT, entities: {\"species\": \"goat\"}\n"
-    "6) User: \"10 am\" | pending_questions: [\"appointment time\"] -> "
-    "entities: {\"time\": \"10:00\"}\n"
-    "\n"
-    "Use the conversation context (prior intent, entities already collected, "
-    "and the pending question) to interpret short follow-up answers. If the "
-    "current message states a NEW value for a field that already has a "
-    "value in the context, the new message wins — replace it, don't keep "
-    "the old one. Never invent values that were not stated."
-)
+# This is the ONLY extraction path for voice turns — orchestrator.py has no
+# regex/rule-based fallback parser. Since 2026-09-13 (commit adding tool-use)
+# extraction runs through a Bedrock Converse tool call rather than
+# JSON-in-text, so the schema lives in _EXTRACTION_TOOL_SPEC below (typed,
+# enum-validated) instead of a system-prompt string.
 
 def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
     from datetime import datetime, timedelta
@@ -236,116 +216,161 @@ Today: {today.isoformat()} Tomorrow: {tomorrow}
 Extract intent+entities. Return ONLY JSON."""
 
 
-def _safe_json_parse(s: str):
-    s = s.strip()
-    # Remove code fences like ```json ... ```
-    if "```" in s:
-        parts = s.split("```")
-        # pick the largest chunk that likely contains JSON
-        s = max(parts, key=len).strip()
-        if s.startswith("json"):
-            s = s[4:].strip()
-    # Try direct parse
-    try:
-        return json.loads(s)
-    except Exception:
-        pass
+# Bedrock Converse tool spec for extraction. The model calls this tool with
+# already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
+# strategies, no _coerce_confidence/_coerce_list shims. Verified working on
+# DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
+_EXTRACTION_TOOL_SPEC = {
+    "name": "record_farmer_intent",
+    "description": (
+        "Record everything the farmer stated in this turn. Populate ONLY the "
+        "fields the farmer actually stated (or, for short follow-up answers, "
+        "the field the pending question was asking about). Never invent "
+        "values. issue/symptoms should be short English phrases even when "
+        "the farmer spoke another language; animal_name and animal_tag stay "
+        "in the farmer's original script."
+    ),
+    "inputSchema": {
+        "json": {
+            "type": "object",
+            "properties": {
+                "intent": {
+                    "type": "string",
+                    "enum": ["WEATHER_ALERT", "FETCH_ANIMAL_DETAILS", "CREATE_ANIMAL",
+                             "UPDATE_ANIMAL", "LOG_HEALTH", "CREATE_APPOINTMENT"],
+                    "description": (
+                        "CREATE_ANIMAL / UPDATE_ANIMAL are ONLY for registering or editing "
+                        "an animal's profile record (name, breed, age). Any request for a "
+                        "vet, treatment, or vaccine is CREATE_APPOINTMENT even if the word "
+                        "'appointment' is never spoken."
+                    ),
+                },
+                "animal_id": {"type": "string"},
+                "animal_name": {"type": "string"},
+                "animal_tag": {"type": "string"},
+                "animal_record_mode": {"type": "string", "enum": ["new", "existing"]},
+                "species": {"type": "string", "enum": ["goat", "sheep", "cow", "buffalo", "chicken"]},
+                "sex": {"type": "string", "enum": ["male", "female"]},
+                "breed": {"type": "string"},
+                "age_years": {"type": "number"},
+                "feeding_details": {"type": "string"},
+                "issue": {"type": "string", "description": "Short English phrase, e.g. 'fever'"},
+                "symptoms": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Array of short English phrases: 'fever', 'not eating', 'wound', "
+                        "'swelling', 'limping', 'lethargy', 'not drinking', etc."
+                    ),
+                },
+                "duration": {"type": "string"},
+                "severity": {"type": "string", "enum": ["mild", "moderate", "severe"]},
+                "current_medication": {"type": "string", "description": "'none' if farmer says no medicine"},
+                "temperature_c": {"type": "number", "description": "Convert Fahrenheit to Celsius if needed"},
+                "date": {
+                    "type": "string",
+                    "description": (
+                        "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD"
+                    ),
+                },
+                "time": {
+                    "type": "string",
+                    "description": (
+                        "24-hour HH:MM. If farmer says only a period of day with no exact "
+                        "hour, use morning=09:00, afternoon=14:00, evening=18:00, night=20:00."
+                    ),
+                },
+                "weather_location": {"type": "string", "description": "Pincode or place name"},
+                "forecast_days": {"type": "integer", "minimum": 1, "maximum": 7},
+                "country_code": {"type": "string"},
+                "unavailable_fields": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Field names the farmer explicitly said are not available / "
+                        "unknown (e.g. 'severity' if the farmer said 'severity not available')."
+                    ),
+                },
+                "follow_up_question": {
+                    "type": "string",
+                    "description": (
+                        "The single most important missing piece of information for the "
+                        "detected intent, phrased in the SAME language as the user's input. "
+                        "Omit entirely if no follow-up is needed."
+                    ),
+                },
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            },
+        }
+    },
+}
 
-    # If no braces at all but contains intent key, wrap whole string
-    if '{' not in s and '"intent"' in s:
-        try:
-            candidate = '{' + s.strip().strip(',') + '}'
-            return json.loads(candidate)
-        except Exception:
-            pass
-
-    # Handle case where model returns key-values without outer braces
-    if s.startswith('"intent"') or s.startswith("'intent'") or '"intent"' in s:
-        try:
-            candidate = '{' + s + '}'
-            return json.loads(candidate)
-        except Exception:
-            pass
-
-    # Aggressive extraction: find first valid JSON object
-    start = s.find("{")
-    while start != -1:
-        end = s.rfind("}")
-        if end == -1 or end <= start:
-            break
-        candidate = s[start:end+1]
-        try:
-            return json.loads(candidate)
-        except Exception:
-            start = s.find("{", start + 1)
-            continue
-
-    # Fallback
-    return {
-        "intent": None,
-        "entities": {},
-        "confidence": 0.0,
-        "_raw": s,
-    }
-
-
-_CONFIDENCE_WORD_MAP = {"high": 0.9, "medium": 0.6, "low": 0.3, "none": 0.0}
-
-
-def _coerce_confidence(value: Any) -> float:
-    """Some models (observed: Nova Micro) ignore the numeric instruction and
-    return 'high'/'medium'/'low' despite the prompt asking for a 0-1 float.
-    Map those, and fail safe to 0.0 on anything else unparseable — never let
-    a malformed confidence value discard an otherwise-valid intent/entities
-    payload."""
-    if value is None:
-        return 0.0
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        s = value.strip().lower()
-        if s in _CONFIDENCE_WORD_MAP:
-            return _CONFIDENCE_WORD_MAP[s]
-        try:
-            return float(s)
-        except ValueError:
-            return 0.0
-    return 0.0
-
-
-def _coerce_list(value: Any) -> list:
-    """Some models return a bare string for a field documented as an array
-    (observed: Nova Micro on follow_up_questions). A bare string must never
-    be iterated character-by-character downstream."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        return [value] if value.strip() else []
-    return []
+_TOOL_SYSTEM_PROMPT = (
+    "You are the sole extraction engine for a livestock voice assistant. Read "
+    "farmer input in any language and script (Hindi/Tamil/Telugu/Kannada/"
+    "Malayalam/English, or mixed) and in any word order. There is no fallback "
+    "text parser after you.\n"
+    "\n"
+    "ALWAYS call the record_farmer_intent tool exactly once. Populate ONLY "
+    "the fields the farmer stated. For short follow-up answers ('yes', "
+    "'my cow', '10 am', 'ನಾಳೆ'), the pending question in the Context block "
+    "tells you which field the reply is answering — populate that field even "
+    "with zero surrounding context. If the current message states a new "
+    "value for a field that already has a value in the context, the new "
+    "message wins.\n"
+    "\n"
+    "Examples:\n"
+    "1) User: \"ನನ್ನ ಹಸು\" | pending_questions: [\"animal name/tag\"] "
+    "-> tool call: {species: 'cow', animal_name: 'ಹಸು'}\n"
+    "2) User: \"ఆవుకు జ్వరం\" (no prior context) -> "
+    "{intent: 'LOG_HEALTH', species: 'cow', issue: 'fever', symptoms: ['fever']}\n"
+    "3) User: \"கால்நடை மருத்துவர் தேவை\" (need a vet) -> "
+    "{intent: 'CREATE_APPOINTMENT'} (never CREATE_ANIMAL)\n"
+    "4) User: \"बकरी को टीका चाहिए\" (goat needs vaccine) -> "
+    "{intent: 'CREATE_APPOINTMENT', species: 'goat'}\n"
+    "5) User: \"10 am\" | pending_questions: [\"appointment time\"] -> "
+    "{time: '10:00'}\n"
+    "\n"
+    "Never invent values. Never populate fields the farmer did not state."
+)
 
 
 def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
+    """Extract intent + entities from a farmer voice turn via a Bedrock
+    Converse tool call. Returns the same shape prior JSON-parsing versions
+    of this function returned, so orchestrator + tests stay unchanged."""
     adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
 
     messages = [
         {"role": "user", "content": build_prompt(text, context=context)}
     ]
 
-    raw = adapter.complete(messages=messages, system=_SYSTEM_PROMPT)
+    result = adapter.converse_with_tool(
+        messages=messages,
+        tool_spec=_EXTRACTION_TOOL_SPEC,
+        system=_TOOL_SYSTEM_PROMPT,
+        tool_choice_name="record_farmer_intent",
+    )
+    tool_input = result.get("tool_input") or {}
 
-    parsed = _safe_json_parse(raw)
+    # Split the tool args back into the {intent, entities, ...} shape the
+    # orchestrator already consumes.
+    intent = tool_input.pop("intent", None)
+    unavailable_fields = tool_input.pop("unavailable_fields", None) or []
+    follow_up_question = tool_input.pop("follow_up_question", None)
+    confidence = tool_input.pop("confidence", None)
+    # Whatever's left in tool_input is the entities dict — every key was
+    # declared in the tool schema, so no coercion or key-check needed.
+    entities = tool_input
 
-    # Ensure shape
     return {
-        "intent": parsed.get("intent"),
-        "entities": parsed.get("entities", {}) or {},
-        "unavailable_fields": _coerce_list(parsed.get("unavailable_fields")),
-        "missing_fields": _coerce_list(parsed.get("missing_fields")),
-        "follow_up_questions": _coerce_list(parsed.get("follow_up_questions")),
-        "confidence": _coerce_confidence(parsed.get("confidence")),
-        "_raw": raw,
+        "intent": intent,
+        "entities": entities,
+        "unavailable_fields": list(unavailable_fields) if isinstance(unavailable_fields, list) else [],
+        "missing_fields": [],
+        "follow_up_questions": [follow_up_question] if follow_up_question else [],
+        "confidence": float(confidence) if isinstance(confidence, (int, float)) else 0.0,
+        "_raw": result.get("text"),
     }
 
 
