@@ -136,6 +136,7 @@ export type VoiceAppointmentResponse = {
   response_text: string;
   response_audio_base64?: string | null;
   audio_error?: string | null;
+  timing?: { total_ms: number };
 };
 
 export function speechSynthesisSupported() {

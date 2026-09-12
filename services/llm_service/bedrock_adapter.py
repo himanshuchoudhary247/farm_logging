@@ -245,11 +245,44 @@ _EXTRACTION_TOOL_SPEC = {
                         "'appointment' is never spoken."
                     ),
                 },
-                "animal_id": {"type": "string"},
+                "animal_id": {
+                    "type": "string",
+                    "description": (
+                        "Internal system record id the farmer read out, e.g. 'a-f-001-2'. "
+                        "Use this ONLY when the value looks like an internal id format "
+                        "(letters+numbers+dashes). For a bare number or a physical ear-tag "
+                        "number, use animal_tag instead, not this field."
+                    ),
+                },
                 "animal_name": {"type": "string"},
-                "animal_tag": {"type": "string"},
+                "animal_tag": {
+                    "type": "string",
+                    "description": (
+                        "The physical ear-tag number the farmer reads off the animal "
+                        "(digits, e.g. '1234'). Use this whenever the farmer says a word "
+                        "meaning 'tag' or 'tag number' followed by digits, in any language "
+                        "(e.g. Tamil 'டேக் எண் 1234', Hindi 'टैग नंबर 1234')."
+                    ),
+                },
                 "animal_record_mode": {"type": "string", "enum": ["new", "existing"]},
-                "species": {"type": "string", "enum": ["goat", "sheep", "cow", "buffalo", "chicken"]},
+                "species": {
+                    "type": "string",
+                    "enum": ["goat", "sheep", "cow", "buffalo", "chicken"],
+                    "description": (
+                        "Only set this when the farmer's words name an animal type. Native-"
+                        "script vocabulary for each value, so a bare single word in any of "
+                        "these languages still maps correctly: "
+                        "cow: गाय (hi), ఆవు (te), பசு (ta), ಹಸು (kn), പശു (ml). "
+                        "goat: बकरी (hi), మేక (te), ஆடு (ta), ಆಡು (kn), ആട് (ml). "
+                        "sheep: भेड़ (hi), గొర్రె (te), செம்மறியாடு (ta), ಕುರಿ (kn), "
+                        "ചെമ്മരിയാട് (ml). "
+                        "buffalo: भैंस (hi), గేదె (te), எருமை (ta), ಎಮ್ಮೆ (kn), എരുമ (ml). "
+                        "chicken: मुर्गी (hi), కోడి (te), கோழி (ta), ಕೋಳಿ (kn), കോഴി (ml). "
+                        "Do NOT guess a species when no animal word is present at all — a "
+                        "phrase like 'call a vet' or 'need an appointment' with no animal "
+                        "named must leave this field empty, not default to any species."
+                    ),
+                },
                 "sex": {"type": "string", "enum": ["male", "female"]},
                 "breed": {"type": "string"},
                 "age_years": {"type": "number"},
@@ -324,12 +357,34 @@ _TOOL_SYSTEM_PROMPT = (
     "-> tool call: {species: 'cow', animal_name: 'ಹಸು'}\n"
     "2) User: \"ఆవుకు జ్వరం\" (no prior context) -> "
     "{intent: 'LOG_HEALTH', species: 'cow', issue: 'fever', symptoms: ['fever']}\n"
-    "3) User: \"கால்நடை மருத்துவர் தேவை\" (need a vet) -> "
-    "{intent: 'CREATE_APPOINTMENT'} (never CREATE_ANIMAL)\n"
+    "3) User: \"கால்நடை மருத்துவர் தேவை\" (need a vet, no animal named) -> "
+    "{intent: 'CREATE_APPOINTMENT'} — species is OMITTED, never CREATE_ANIMAL\n"
     "4) User: \"बकरी को टीका चाहिए\" (goat needs vaccine) -> "
     "{intent: 'CREATE_APPOINTMENT', species: 'goat'}\n"
     "5) User: \"10 am\" | pending_questions: [\"appointment time\"] -> "
     "{time: '10:00'}\n"
+    "6) User: \"ആട്\" | context species already set to 'cow' from an earlier "
+    "guess -> {species: 'goat'} — a bare word naming an animal ALWAYS "
+    "overrides a previously-guessed species, even a single word with no "
+    "other context.\n"
+    "\n"
+    "STRICT NO-GUESS RULE: a field with no corresponding word anywhere in "
+    "the farmer's utterance must be left out of the tool call entirely — "
+    "including on the very first turn of a conversation. 'Call a vet' or "
+    "'I need an appointment' names no animal, so species/animal_name/"
+    "animal_tag must all be omitted; wait for a later turn to name the "
+    "animal rather than guessing one now. An omitted field you fill in "
+    "later is normal and expected; a wrongly-guessed field is a bug you "
+    "must not create.\n"
+    "\n"
+    "COMPOUND-WORD CAVEAT: several Indic languages build job-title/compound "
+    "words out of an animal-word root plus a suffix — e.g. Malayalam "
+    "'പശുവൈദ്യൻ' (veterinarian) is built from 'പശു' (cow) + 'വൈദ്യൻ' "
+    "(physician), but the whole word means 'veterinarian', NOT 'cow'. A "
+    "species root appearing only as part of a longer compound word (a job "
+    "title, a place name, etc.) is NOT a species mention — only a standalone "
+    "species word, or the species word as a separate token in the sentence, "
+    "counts as the farmer naming that animal.\n"
     "\n"
     "Never invent values. Never populate fields the farmer did not state."
 )

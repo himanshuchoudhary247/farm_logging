@@ -1,4 +1,6 @@
+import asyncio
 import os
+import subprocess
 import time
 import logging
 from typing import Optional
@@ -88,6 +90,74 @@ class TranscribeService:
         return text
 
 
+def _to_pcm16k_mono(audio_bytes: bytes) -> bytes:
+    """Decode any container ffmpeg understands (wav/webm/mp3/mp4/ogg) to raw
+    16kHz mono signed-16-bit PCM — what Transcribe Streaming requires.
+    Input format is auto-detected by ffmpeg from the byte stream; no need to
+    pass the upload's declared media_format, which is occasionally wrong."""
+    proc = subprocess.run(
+        ["ffmpeg", "-y", "-i", "pipe:0", "-ar", "16000", "-ac", "1", "-f", "s16le", "pipe:1"],
+        input=audio_bytes, capture_output=True, check=True,
+    )
+    return proc.stdout
+
+
+async def _transcribe_streaming_async(pcm_bytes: bytes, language_code: str) -> str:
+    """AWS Transcribe Streaming: no S3 upload, no job-poll loop. Audio is
+    sent over a bidirectional HTTP/2 stream and the final transcript arrives
+    as soon as AWS finishes processing — measured ~700-900ms for short
+    farmer utterances vs 8-12s for the batch job API (see
+    docs/model-evaluation-2026-09-11.md, STT section, for the batch-mode
+    measurement this replaces)."""
+    from amazon_transcribe.client import TranscribeStreamingClient
+    from amazon_transcribe.handlers import TranscriptResultStreamHandler
+    from amazon_transcribe.model import TranscriptEvent
+
+    client = TranscribeStreamingClient(region=os.getenv("AWS_REGION", "ap-south-1"))
+    stream = await client.start_stream_transcription(
+        language_code=language_code,
+        media_sample_rate_hz=16000,
+        media_encoding="pcm",
+    )
+
+    collected = {"text": ""}
+
+    class _Handler(TranscriptResultStreamHandler):
+        async def handle_transcript_event(self, transcript_event: TranscriptEvent):
+            for result in transcript_event.transcript.results:
+                if not result.is_partial:
+                    for alt in result.alternatives:
+                        collected["text"] = alt.transcript
+
+    async def _write_chunks():
+        chunk_size = 1024 * 8  # SDK max is 32KB per send_audio_event
+        for i in range(0, len(pcm_bytes), chunk_size):
+            await stream.input_stream.send_audio_event(audio_chunk=pcm_bytes[i:i + chunk_size])
+        await stream.input_stream.end_stream()
+
+    handler = _Handler(stream.output_stream)
+    await asyncio.gather(_write_chunks(), handler.handle_events())
+    return collected["text"]
+
+
+def transcribe_audio_streaming(audio_bytes: bytes, language_code: str = "en-IN") -> str:
+    """Sync wrapper around the async Transcribe Streaming client. Safe to
+    call from a worker thread (e.g. via asyncio.to_thread from a FastAPI
+    handler) since asyncio.run() opens its own event loop per call."""
+    t0 = time.time()
+    pcm_bytes = _to_pcm16k_mono(audio_bytes)
+    t_decode = time.time()
+    text = asyncio.run(_transcribe_streaming_async(pcm_bytes, language_code))
+    t_transcribe = time.time()
+    logging.getLogger("transcribe").info(
+        "LATENCY transcribe_streaming total=%dms decode=%dms stream=%dms",
+        round((t_transcribe - t0) * 1000),
+        round((t_decode - t0) * 1000),
+        round((t_transcribe - t_decode) * 1000),
+    )
+    return text
+
+
 def _transcribe_local(audio_bytes: bytes) -> str:
     try:
         import tempfile
@@ -128,6 +198,11 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav", language_cod
     # -------- Local (dev) mode using Whisper --------
     if mode == "local":
         return _transcribe_local(audio_bytes)
+
+    # -------- AWS streaming mode (no S3, no job-poll loop) --------
+    if mode == "aws-streaming":
+        lang = language_code or os.getenv("AWS_TRANSCRIBE_LANGUAGE_CODE", "en-IN")
+        return transcribe_audio_streaming(audio_bytes, language_code=lang)
 
     # -------- AWS (prod) mode --------
     import tempfile

@@ -12,3 +12,5 @@ AST/
 *.egg-info/
 .DS_Store
 data/*.lock
+data/voice_sessions/
+data/appointment_intakes/

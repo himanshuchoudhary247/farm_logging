@@ -635,6 +635,14 @@ function VoiceAppointment() {
   const chunks = useRef<Blob[]>([]);
   const recognition = useRef<any>(null);
   const speechSupported = useRef(false);
+  // Client-side latency instrumentation for the primary (browser STT) path.
+  // recordStart -> sttFinal is local recognition time; sttFinal -> response
+  // is the network + backend round trip. Logged to console, not sent
+  // anywhere, so this never touches the backend LATENCY log format.
+  const timingRef = useRef<{ recordStart: number; sttFinal: number }>({
+    recordStart: 0,
+    sttFinal: 0,
+  });
 
   // Detect Web Speech API support once
   useEffect(() => {
@@ -663,6 +671,7 @@ function VoiceAppointment() {
     };
     rec.onend = () => {
       if (activity === "recording") {
+        timingRef.current.sttFinal = performance.now();
         setActivity("processing");
         // transcript was set in onresult; send it
         const said = textRef.current;
@@ -704,10 +713,19 @@ function VoiceAppointment() {
   async function sendSaidText(said: string) {
     setError("");
     setActivity("processing");
+    const fetchStart = performance.now();
     try {
-      setResponse(
-        await appointmentVoiceText(farmerId, sessionId, said, language),
+      const result = await appointmentVoiceText(farmerId, sessionId, said, language);
+      const fetchEnd = performance.now();
+      const { recordStart, sttFinal } = timingRef.current;
+      const sttMs = recordStart ? Math.round(sttFinal - recordStart) : null;
+      const roundTripMs = Math.round(fetchEnd - fetchStart);
+      const totalMs = recordStart ? Math.round(fetchEnd - recordStart) : null;
+      // eslint-disable-next-line no-console
+      console.log(
+        `LATENCY primary_path stt_ms=${sttMs} network_roundtrip_ms=${roundTripMs} total_ms=${totalMs} server_total_ms=${result?.timing?.total_ms ?? "n/a"}`,
       );
+      setResponse(result);
       setText("");
     } catch (err) {
       setError(
@@ -719,6 +737,7 @@ function VoiceAppointment() {
   }
   async function startRecording() {
     setError("");
+    timingRef.current.recordStart = performance.now();
     if (speechSupported.current && recognition.current) {
       try {
         recognition.current.lang = language;
