@@ -186,12 +186,18 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav", language_cod
     3. Run Transcribe job
     4. Return text
     """
-    # Auto dev mode: if not explicitly set, fallback to local unless AWS is fully configured
+    # Auto dev mode: if not explicitly set, fall back to config/llm.yaml's
+    # stt.provider (env STT_PROVIDER > yaml > "aws-transcribe"), then to
+    # local unless AWS is fully configured.
     mode = os.getenv("TRANSCRIBE_MODE")
     if not mode:
-        if os.getenv("VOICE_S3_BUCKET"):
-            mode = "aws"
-        else:
+        from services.llm_service.bedrock_adapter import get_stt_provider
+        provider = get_stt_provider()
+        mode = {
+            "aws-transcribe": "aws",
+            "aws-transcribe-streaming": "aws-streaming",
+        }.get(provider, provider)
+        if mode == "aws" and not os.getenv("VOICE_S3_BUCKET"):
             mode = "local"
     mode = mode.lower()
 

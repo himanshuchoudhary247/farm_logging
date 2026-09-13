@@ -103,7 +103,7 @@ LLM turns ~1.2s. LATENCY-prefixed logs are emitted across the pipeline.
 
 ## Setup
 
-Requires Python 3.9+.
+Requires Python 3.12+ (bumped from 3.9 on 2026-09-13 — `aws_sdk_bedrock_runtime`, used for Nova Sonic probing, requires 3.12+).
 
 ```bash
 cd /path/to/farmer_chat

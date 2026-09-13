@@ -61,3 +61,53 @@ voice:
   provider: bedrock
   model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   region: ap-south-1
+
+# STT/TTS provider selection (voice pipeline, separate from the text models
+# above). Read via services.llm_service.bedrock_adapter.get_stt_provider() /
+# get_tts_provider(). Env overrides: STT_PROVIDER, TTS_PROVIDER.
+stt:
+  provider: aws-transcribe
+  # Options: aws-transcribe (batch, current default) | aws-transcribe-streaming
+  # (needs transcribe:StartStreamTranscription IAM grant, not yet on this
+  # account) | nova-sonic (see below — NOT wired into transcribe.py yet).
+
+tts:
+  provider: aws-polly
+  # Options: aws-polly (current default) | nova-sonic (NOT wired into tts.py
+  # yet — see nova_sonic block below for why).
+
+# Amazon Nova Sonic (speech-to-speech). Verified live 2026-09-13:
+#   - Access: CONFIRMED. Real InvokeModelWithBidirectionalStream calls
+#     succeed and bill usage tokens on this account, in us-east-1 and
+#     ap-northeast-1 only. NOT available in ap-south-1 (where FarmHerd is
+#     hosted) or ap-southeast-1/2. ap-south-2 check errored
+#     (UnrecognizedClientException / InvalidClientTokenId) — that region is
+#     simply not enabled on this account, unrelated to Sonic access.
+#   - Language coverage, tested with real audio turns (gTTS-synthesized,
+#     English/Hindi/Kannada/Tamil/Telugu/Malayalam prompts):
+#       en: correct ASR + relevant conversational replies.
+#       hi: correct ASR, but replies sometimes came back in English instead
+#           of Hindi — language-fidelity is not reliable without an explicit
+#           "always reply in the input language" system instruction (untested
+#           whether that instruction fixes it).
+#       kn/ta/te/ml: ASR degraded to phonetic garbage or bare transcript
+#           echo with no generated reply at all. Not usable.
+#   - Reliability: one English turn out of ~5 produced an empty response
+#     with no error — server-side turn-taking (VAD) on synthetic audio is
+#     not 100% consistent.
+#   - Architecture blocker: the only Nova Sonic SDK (aws_sdk_bedrock_runtime,
+#     for the bidirectional-stream API — plain boto3 does not support it)
+#     requires Python >=3.12. This app's venv is Python 3.9. Integrating
+#     Sonic as a real STT/TTS backend needs a runtime upgrade first; these
+#     settings exist so the knob is ready when that happens, not because
+#     it's wired up today.
+#   - Even after a runtime upgrade, Sonic would only be a viable *drop-in*
+#     STT/TTS backend for en/hi traffic — kn/ta/te/ml would still need the
+#     existing Transcribe+Bedrock+Polly path, so it'd be an additional
+#     per-language branch, not a wholesale replacement.
+nova_sonic:
+  model_id: amazon.nova-sonic-v1:0
+  region: us-east-1
+  voice_id: matthew
+  allowed_languages: [en, hi]
+  # Env overrides: NOVA_SONIC_MODEL_ID, NOVA_SONIC_REGION, NOVA_SONIC_VOICE_ID

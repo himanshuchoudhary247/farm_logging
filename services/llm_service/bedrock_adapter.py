@@ -67,6 +67,35 @@ def model_for_task(task: TaskTier) -> Dict[str, Any]:
     return {"id": model_id, "max_tokens": max_tokens, "temperature": temperature}
 
 
+def get_stt_provider() -> str:
+    """STT backend name. Env STT_PROVIDER > config/llm.yaml stt.provider >
+    'aws-transcribe'. See config/llm.yaml for the option list."""
+    cfg = _load_llm_config().get("stt") or {}
+    return os.getenv("STT_PROVIDER") or cfg.get("provider") or "aws-transcribe"
+
+
+def get_tts_provider() -> str:
+    """TTS backend name. Env TTS_PROVIDER > config/llm.yaml tts.provider >
+    'aws-polly'. See config/llm.yaml for the option list."""
+    cfg = _load_llm_config().get("tts") or {}
+    return os.getenv("TTS_PROVIDER") or cfg.get("provider") or "aws-polly"
+
+
+def get_nova_sonic_config() -> Dict[str, Any]:
+    """Nova Sonic settings: model id, region, voice, allowed languages.
+    Env NOVA_SONIC_MODEL_ID / NOVA_SONIC_REGION / NOVA_SONIC_VOICE_ID >
+    config/llm.yaml nova_sonic.* > defaults. Not wired into transcribe.py or
+    tts.py yet — see the nova_sonic comment block in config/llm.yaml for why
+    (Python 3.12+ SDK requirement, en/hi-only language coverage)."""
+    cfg = _load_llm_config().get("nova_sonic") or {}
+    return {
+        "model_id": os.getenv("NOVA_SONIC_MODEL_ID") or cfg.get("model_id") or "amazon.nova-sonic-v1:0",
+        "region": os.getenv("NOVA_SONIC_REGION") or cfg.get("region") or "us-east-1",
+        "voice_id": os.getenv("NOVA_SONIC_VOICE_ID") or cfg.get("voice_id") or "matthew",
+        "allowed_languages": cfg.get("allowed_languages") or ["en", "hi"],
+    }
+
+
 def _get_client():
     global _bedrock_client, _bedrock_model
     if _bedrock_client is None:
