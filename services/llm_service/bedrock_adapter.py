@@ -81,6 +81,28 @@ def get_tts_provider() -> str:
     return os.getenv("TTS_PROVIDER") or cfg.get("provider") or "aws-polly"
 
 
+def get_tts_polly_languages() -> set:
+    """Languages Polly actually has real voice support for. Any language
+    outside this set should route straight to get_tts_fallback_provider() —
+    a capability table, not a per-language branch in the caller.
+    Env TTS_POLLY_LANGUAGES (comma list) > config/llm.yaml
+    tts.polly_languages > {en, hi}."""
+    env = os.getenv("TTS_POLLY_LANGUAGES")
+    if env:
+        return {lang.strip().lower() for lang in env.split(",") if lang.strip()}
+    cfg = _load_llm_config().get("tts") or {}
+    langs = cfg.get("polly_languages")
+    return {str(lang).lower() for lang in langs} if langs else {"en", "hi"}
+
+
+def get_tts_fallback_provider() -> str:
+    """TTS provider for any language outside get_tts_polly_languages(), or
+    when the primary provider errors. Env TTS_FALLBACK_PROVIDER >
+    config/llm.yaml tts.fallback_provider > 'gtts'."""
+    cfg = _load_llm_config().get("tts") or {}
+    return os.getenv("TTS_FALLBACK_PROVIDER") or cfg.get("fallback_provider") or "gtts"
+
+
 def get_nova_sonic_config() -> Dict[str, Any]:
     """Nova Sonic settings: model id, region, voice, allowed languages.
     Env NOVA_SONIC_MODEL_ID / NOVA_SONIC_REGION / NOVA_SONIC_VOICE_ID >

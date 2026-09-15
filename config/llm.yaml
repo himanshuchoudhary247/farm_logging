@@ -66,15 +66,37 @@ voice:
 # above). Read via services.llm_service.bedrock_adapter.get_stt_provider() /
 # get_tts_provider(). Env overrides: STT_PROVIDER, TTS_PROVIDER.
 stt:
-  provider: aws-transcribe
-  # Options: aws-transcribe (batch, current default) | aws-transcribe-streaming
-  # (needs transcribe:StartStreamTranscription IAM grant, not yet on this
-  # account) | nova-sonic (see below — NOT wired into transcribe.py yet).
+  provider: aws-transcribe-streaming
+  # Options: aws-transcribe-streaming (default since 2026-09-16 — verified
+  # live across all 6 languages: 1.0-3.1s vs 8-12s for batch, ~6-8x faster,
+  # transcripts correct in every language tested) | aws-transcribe (batch,
+  # previous default — job-submit-then-poll design, dominated voice-turn
+  # latency) | nova-sonic (see below — NOT wired into transcribe.py yet).
 
 tts:
   provider: aws-polly
   # Options: aws-polly (current default) | nova-sonic (NOT wired into tts.py
   # yet — see nova_sonic block below for why).
+  #
+  # polly_languages: languages Polly actually has real voice support for in
+  # this app. Any language NOT in this list routes straight to
+  # fallback_provider — this is a capability table, not a per-language
+  # special case in code. Verified live 2026-09-16: Polly has no Kannada/
+  # Tamil/Telugu/Malayalam voices. Forcing that text through a Hindi/English
+  # voice doesn't transliterate it — produces near-silent audio (514 bytes
+  # for a full sentence via Aditi+hi-IN) or gibberish (Raveena+en-IN reading
+  # native script as English phonemes). No SSML/voice trick fixes a voice
+  # that was never trained on the language.
+  polly_languages: [en, hi]
+  # fallback_provider: for any language not in polly_languages, or if Polly
+  # itself errors (ThrottlingException etc). gtts (Google Translate's TTS,
+  # unofficial/free, not paid/SLA'd — real reliability/ToS tradeoff vs
+  # Polly) is validated: ~500-900ms, real full-length audio for kn/ta/te/ml,
+  # already proven intelligible all session as the input-audio generator for
+  # every non-English Nova Sonic test (Bedrock's ASR correctly transcribed
+  # its output multiple times).
+  fallback_provider: gtts
+  # Env overrides: TTS_POLLY_LANGUAGES (comma list), TTS_FALLBACK_PROVIDER
 
 # Amazon Nova Sonic (speech-to-speech). Verified live 2026-09-13:
 #   - Access: CONFIRMED. Real InvokeModelWithBidirectionalStream calls
@@ -95,12 +117,12 @@ tts:
 #   - Reliability: one English turn out of ~5 produced an empty response
 #     with no error — server-side turn-taking (VAD) on synthetic audio is
 #     not 100% consistent.
-#   - Architecture blocker: the only Nova Sonic SDK (aws_sdk_bedrock_runtime,
-#     for the bidirectional-stream API — plain boto3 does not support it)
-#     requires Python >=3.12. This app's venv is Python 3.9. Integrating
-#     Sonic as a real STT/TTS backend needs a runtime upgrade first; these
-#     settings exist so the knob is ready when that happens, not because
-#     it's wired up today.
+#   - Architecture blocker (resolved 2026-09-13): the only Nova Sonic SDK
+#     (aws_sdk_bedrock_runtime, for the bidirectional-stream API — plain
+#     boto3 does not support it) requires Python >=3.12. App venv bumped
+#     3.9 -> 3.13 for this. Still not wired into transcribe.py/tts.py as a
+#     real backend — the language-coverage gap above is the blocker now,
+#     not the runtime.
 #   - Even after a runtime upgrade, Sonic would only be a viable *drop-in*
 #     STT/TTS backend for en/hi traffic — kn/ta/te/ml would still need the
 #     existing Transcribe+Bedrock+Polly path, so it'd be an additional

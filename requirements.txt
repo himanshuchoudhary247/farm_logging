@@ -11,6 +11,7 @@ uvicorn>=0.30.0
 requests>=2.32.0
 python-multipart>=0.0.9
 pytest>=7.4.0
+amazon-transcribe>=0.6.2
 # Nova Sonic (speech-to-speech, InvokeModelWithBidirectionalStream) test/eval
 # path. Requires Python >=3.12 — the reason the app venv moved to 3.13.
 aws_sdk_bedrock_runtime>=0.11.0

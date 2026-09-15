@@ -14,3 +14,4 @@ AST/
 data/*.lock
 data/voice_sessions/
 data/appointment_intakes/
+data/tts_cache/
