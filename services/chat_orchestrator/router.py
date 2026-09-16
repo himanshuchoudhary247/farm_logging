@@ -15,7 +15,10 @@ UPDATE_ANIMAL, LOG_HEALTH, CREATE_APPOINTMENT):
 
   CREATE_APPOINTMENT, LOG_HEALTH  -> appointment_supervisor (real,
                                       multi-turn state machine, tested)
-  WEATHER_ALERT                   -> weather_alert.get_weather_alert
+  WEATHER_ALERT                   -> pincode_store.get_pincode_data (in-memory
+                                      cache, shared with every other agent
+                                      that needs weather/feed-market context
+                                      for the same PIN)
   everything else (FETCH_ANIMAL_DETAILS, CREATE_ANIMAL, UPDATE_ANIMAL,
   general farm questions, advisory/recommendation asks -- none of which
   have a real intent value today, see below) -> query_agent as a
@@ -35,9 +38,9 @@ import logging
 from typing import Any, Optional
 
 from services.appointment_supervisor import AppointmentSupervisor
+from services.pincode_store import get_pincode_data
 from services.query_agent.agent import process_query
 from services.voice_agent.orchestrator import process_text_input
-from services.weather_alert.service import get_weather_alert
 from storage import get_farmer_by_id
 
 _log = logging.getLogger("chat_orchestrator")
@@ -104,9 +107,8 @@ def route_turn(
                 "agent": "weather_alert", "intent": intent,
                 "result": {"error": "no_location", "message": "Need a PIN code or place name to check the weather."},
             }
-        days = entities.get("forecast_days") or 3
         try:
-            result = get_weather_alert(str(location), days=int(days))
+            result = get_pincode_data(str(location))
             return {"agent": "weather_alert", "intent": intent, "result": result}
         except Exception as exc:
             _log.warning("weather_alert failed farmer=%s location=%s err=%s", farmer_id, location, exc)
