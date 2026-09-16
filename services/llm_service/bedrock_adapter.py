@@ -733,3 +733,101 @@ def translate_to_english(text: str) -> str:
         return (out or "").strip() or src
     except Exception:
         return src
+
+
+_HEALTH_RECOMMENDATION_TOOL_SPEC = {
+    "name": "give_health_recommendation",
+    "description": (
+        "Give preliminary, non-diagnostic first-aid guidance to a farmer "
+        "whose animal has a health issue, while their vet appointment is "
+        "being processed."
+    ),
+    "inputSchema": {
+        "json": {
+            "type": "object",
+            "properties": {
+                "diagnosis_suggestion": {
+                    "type": "string",
+                    "description": (
+                        "One or two sentences on what this could plausibly be, "
+                        "phrased as a possibility ('could be a sign of...'), "
+                        "never a definitive diagnosis. Must not claim certainty "
+                        "a real vet exam would be needed to confirm."
+                    ),
+                },
+                "potential_ailments": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "2-4 short names of plausible conditions given the symptoms, most likely first.",
+                },
+                "first_aid_advice": {
+                    "type": "string",
+                    "description": (
+                        "Safe, general care the farmer can do right now while "
+                        "waiting for the vet (e.g. isolate the animal, ensure "
+                        "water access, keep warm/shaded). Never suggest a "
+                        "specific drug, dosage, or injection. Must end by "
+                        "telling the farmer this is not a substitute for the "
+                        "vet visit already booked, and to seek immediate "
+                        "in-person help if the animal is in acute distress."
+                    ),
+                },
+            },
+            "required": ["diagnosis_suggestion", "potential_ailments", "first_aid_advice"],
+        }
+    },
+}
+
+_HEALTH_RECOMMENDATION_SYSTEM = (
+    "You are a veterinary assistant giving PRELIMINARY guidance to a farmer "
+    "in India, in the same language as their input, while a real vet "
+    "appointment they already booked is pending. You are NOT the vet and "
+    "must never present anything as a confirmed diagnosis or a treatment "
+    "plan. Never name a specific drug or dosage — only general, safe care "
+    "actions. If symptoms suggest an emergency (e.g. severe bleeding, "
+    "collapse, difficulty breathing), say so plainly and tell the farmer to "
+    "seek in-person help immediately rather than waiting. Call "
+    "give_health_recommendation exactly once."
+)
+
+
+def generate_health_recommendation(
+    species: str,
+    symptoms: list,
+    issue: str,
+    severity: str = "",
+    duration: str = "",
+    language: str = "en",
+) -> Dict[str, Any]:
+    """Second agent in the appointment-booking handoff: once
+    appointment_supervisor has finished collecting the farmer's details,
+    this generates preliminary first-aid guidance to show the farmer while
+    they wait for the real vet visit. Always non-diagnostic by prompt
+    design — see _HEALTH_RECOMMENDATION_SYSTEM. Never raises; caller gets
+    empty strings/list on any failure, same best-effort contract as the
+    rest of the generation-tier helpers in this module."""
+    adapter = BedrockTextAdapter(task=TaskTier.GENERATION)
+    prompt = (
+        f"Species: {species or 'unknown'}\n"
+        f"Symptoms: {', '.join(symptoms) if symptoms else issue or 'not specified'}\n"
+        f"Reported issue: {issue or 'not specified'}\n"
+        f"Severity: {severity or 'not specified'}\n"
+        f"Duration: {duration or 'not specified'}\n"
+        f"Respond in language code: {language}"
+    )
+    try:
+        result = adapter.converse_with_tool(
+            messages=[{"role": "user", "content": prompt}],
+            tool_spec=_HEALTH_RECOMMENDATION_TOOL_SPEC,
+            system=_HEALTH_RECOMMENDATION_SYSTEM,
+            tool_choice_name="give_health_recommendation",
+        )
+        tool_input = result.get("tool_input") or {}
+        return {
+            "diagnosis_suggestion": tool_input.get("diagnosis_suggestion", "") or "",
+            "potential_ailments": tool_input.get("potential_ailments") or [],
+            "first_aid_advice": tool_input.get("first_aid_advice", "") or "",
+        }
+    except Exception as exc:
+        _log.warning("generate_health_recommendation failed: %s", exc)
+        return {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""}

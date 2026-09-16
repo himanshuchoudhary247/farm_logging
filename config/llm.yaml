@@ -35,13 +35,20 @@ models:
     # see the eval doc before promoting to default.
 
   generation:
-    id: global.anthropic.claude-haiku-4-5-20251001-v1:0
+    id: deepseek.v3-v1:0
     max_tokens: 512
     temperature: 0.2
-    # TEMP: in.openai.gpt-5.6-luna returned AccessDeniedException on this
-    # account 2026-09-11 ("not available for this account") — needs a model
-    # access request in the Bedrock console before it can be used. Falls
-    # back to the same Haiku profile as extraction until granted.
+    # Was global.anthropic.claude-haiku-4-5-20251001-v1:0 — confirmed still
+    # blocked live 2026-09-16 (ResourceNotFoundException: Anthropic use-case
+    # form not submitted on this account). The comment here previously said
+    # this tier "falls back to Haiku until granted" but it was pointed
+    # straight at the blocked model with no actual fallback — every
+    # TaskTier.GENERATION caller (translate_to_english,
+    # generate_health_recommendation) was silently failing. Switched to
+    # DeepSeek V3 (same proven model as extraction/long_form) as the working
+    # default. in.openai.gpt-5.6-luna also still blocked
+    # (AccessDeniedException, needs a model access request) — same story.
+    # Revisit both once their account access clears.
 
   long_form:
     id: deepseek.v3-v1:0

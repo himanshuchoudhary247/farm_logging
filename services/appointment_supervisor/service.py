@@ -10,6 +10,7 @@ from typing import Any
 from filelock import FileLock
 
 from services.flokiq_sync import client as flokiq_sync
+from services.llm_service.bedrock_adapter import generate_health_recommendation
 from services.voice_agent.orchestrator import process_text_input
 from services.voice_agent.tts import synthesize_speech
 from storage import (
@@ -315,18 +316,38 @@ class AppointmentSupervisor:
         draft["submitted"] = True
         self._save(draft)
 
+        # Second agent in the handoff: appointment_supervisor has finished
+        # collecting details, now hand the symptoms off to a dedicated
+        # generation-tier agent for preliminary, non-diagnostic guidance to
+        # show the farmer while they wait for the real vet visit already
+        # booked above. Never raises -- returns empty fields on any failure,
+        # so a generation-agent problem never blocks the booking that
+        # already succeeded.
+        recommendation = generate_health_recommendation(
+            species=str(values.get("species") or ""),
+            symptoms=values.get("symptoms") or [],
+            issue=str(values.get("issue") or ""),
+            severity=str(values.get("severity") or ""),
+            duration=str(values.get("duration") or ""),
+            language=_lang(draft["language"]),
+        )
+
         # Our own AI-health-log record, shaped like flokiq's real
         # health_logs table but stored locally -- always on, independent of
         # FLOKIQ_SYNC_ENABLED. Lets us accumulate real data and iterate
         # without needing flokiq's team to first confirm it's safe to write
         # AI-generated diagnosis/risk fields into their shared table.
         severity_to_risk = {"mild": "Low", "moderate": "Medium", "severe": "High"}
+        risk_level = severity_to_risk.get(str(values.get("severity") or "").lower())
         append_ai_health_log(
             farmer_id=farmer_id,
             animal_id=animal_id,
             pincode=str(values.get("weather_location") or ""),
             symptoms=values.get("symptoms") or [],
-            risk_level=severity_to_risk.get(str(values.get("severity") or "").lower()),
+            risk_level=risk_level,
+            ai_diagnosis_suggestion=recommendation["diagnosis_suggestion"],
+            potential_ailments=recommendation["potential_ailments"],
+            first_aid_advice=recommendation["first_aid_advice"],
         )
 
         # Best-effort sync to flokiq's DB. Local write above is already the
@@ -338,7 +359,10 @@ class AppointmentSupervisor:
             pincode=str(values.get("weather_location") or ""),
             symptoms=values.get("symptoms") or [],
             animal_id=animal_id,
-            risk_level=severity_to_risk.get(str(values.get("severity") or "").lower()),
+            risk_level=risk_level,
+            ai_diagnosis_suggestion=recommendation["diagnosis_suggestion"],
+            potential_ailments=recommendation["potential_ailments"],
+            first_aid_advice=recommendation["first_aid_advice"],
         )
         flokiq_sync.create_appointment(
             farmer_id=farmer_id,
@@ -348,7 +372,31 @@ class AppointmentSupervisor:
             health_log_id=(flokiq_health_log or {}).get("log_id"),
         )
 
-        return {"status": "submitted", "intake": draft, "health_log": health.model_dump(), "appointment": appointment.model_dump()}
+        # Show the recommendation to the farmer -- spoken via TTS same as
+        # every other response, plus returned as structured data for the
+        # frontend to render (e.g. clearly labeled "AI suggestion, not a
+        # diagnosis" the way the data model's source=ai_unverified marker
+        # already implies).
+        recommendation_audio, recommendation_audio_error = (None, None)
+        if recommendation["first_aid_advice"]:
+            recommendation_audio, recommendation_audio_error = synthesize_speech(
+                recommendation["first_aid_advice"], target_lang=_lang(draft["language"]),
+            )
+
+        return {
+            "status": "submitted",
+            "intake": draft,
+            "health_log": health.model_dump(),
+            "appointment": appointment.model_dump(),
+            "ai_recommendation": {
+                **recommendation,
+                "source": "ai_unverified",
+                "response_audio_base64": (
+                    b64encode(recommendation_audio).decode("ascii") if recommendation_audio else None
+                ),
+                "audio_error": recommendation_audio_error,
+            },
+        }
 
     def attach(self, farmer_id: str, session_id: str, attachment: dict[str, Any]) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
