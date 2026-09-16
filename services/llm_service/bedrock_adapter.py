@@ -309,10 +309,14 @@ _EXTRACTION_TOOL_SPEC = {
                 "animal_tag": {
                     "type": "string",
                     "description": (
-                        "The physical ear-tag number the farmer reads off the animal "
-                        "(digits, e.g. '1234'). Use this whenever the farmer says a word "
-                        "meaning 'tag' or 'tag number' followed by digits, in any language "
-                        "(e.g. Tamil 'டேக் எண் 1234', Hindi 'टैग नंबर 1234')."
+                        "The physical ear-tag number the farmer reads off the animal, as a "
+                        "PLAIN DIGIT STRING with no separators, e.g. '1234'. Use this "
+                        "whenever the farmer says a word meaning 'tag' or 'tag number' "
+                        "followed by digits, in any language (e.g. Tamil 'டேக் எண் 1234', "
+                        "Hindi 'टैग नंबर 1234'). If the number was transcribed spelled out as "
+                        "words (e.g. 'five thousand six hundred seventy eight') or with comma "
+                        "grouping (e.g. '5,678'), convert it to the bare digit string '5678' — "
+                        "never copy the words or commas into this field."
                     ),
                 },
                 "animal_record_mode": {"type": "string", "enum": ["new", "existing"]},
@@ -364,7 +368,16 @@ _EXTRACTION_TOOL_SPEC = {
                         "hour, use morning=09:00, afternoon=14:00, evening=18:00, night=20:00."
                     ),
                 },
-                "weather_location": {"type": "string", "description": "Pincode or place name"},
+                "weather_location": {
+                    "type": "string",
+                    "description": (
+                        "Pincode or place name. A pincode is a PLAIN DIGIT STRING with no "
+                        "separators, e.g. '583101'. If the transcript has it spelled out as "
+                        "words (e.g. 'five lakh eighty three thousand one hundred one') or "
+                        "with comma grouping (e.g. '5,83,101'), convert it to the bare digit "
+                        "string '583101' — never copy the words or commas into this field."
+                    ),
+                },
                 "forecast_days": {"type": "integer", "minimum": 1, "maximum": 7},
                 "country_code": {"type": "string"},
                 "unavailable_fields": {
@@ -418,6 +431,12 @@ _TOOL_SYSTEM_PROMPT = (
     "guess -> {species: 'goat'} — a bare word naming an animal ALWAYS "
     "overrides a previously-guessed species, even a single word with no "
     "other context.\n"
+    "7) User: \"5,83,101 மூன்று நாட்களுக்கு\" (speech-to-text often renders a "
+    "spoken pincode with comma grouping, or fully spelled out as words) -> "
+    "{weather_location: '583101', forecast_days: 3} — strip commas/spaces "
+    "and convert spelled-out numbers to a bare digit string for any numeric "
+    "field (weather_location, animal_tag); never copy the commas or words "
+    "in verbatim.\n"
     "\n"
     "STRICT NO-GUESS RULE: a field with no corresponding word anywhere in "
     "the farmer's utterance must be left out of the tool call entirely — "

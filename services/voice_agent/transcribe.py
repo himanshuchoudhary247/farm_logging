@@ -120,14 +120,19 @@ async def _transcribe_streaming_async(pcm_bytes: bytes, language_code: str) -> s
         media_encoding="pcm",
     )
 
-    collected = {"text": ""}
+    # AWS Transcribe streaming finalizes a long utterance as MULTIPLE
+    # separate result segments (split at natural pauses), each identified
+    # by result_id. Keying on result_id and joining in start_time order
+    # covers both cases correctly: a single-segment short utterance (one
+    # id) and a multi-segment long one (several ids) — no assumption about
+    # utterance length or segment count baked in.
+    segments: dict = {}
 
     class _Handler(TranscriptResultStreamHandler):
         async def handle_transcript_event(self, transcript_event: TranscriptEvent):
             for result in transcript_event.transcript.results:
-                if not result.is_partial:
-                    for alt in result.alternatives:
-                        collected["text"] = alt.transcript
+                if not result.is_partial and result.alternatives:
+                    segments[result.result_id] = (result.start_time, result.alternatives[0].transcript)
 
     async def _write_chunks():
         chunk_size = 1024 * 8  # SDK max is 32KB per send_audio_event
@@ -137,7 +142,8 @@ async def _transcribe_streaming_async(pcm_bytes: bytes, language_code: str) -> s
 
     handler = _Handler(stream.output_stream)
     await asyncio.gather(_write_chunks(), handler.handle_events())
-    return collected["text"]
+    ordered = [text for _, text in sorted(segments.values(), key=lambda x: x[0])]
+    return " ".join(ordered)
 
 
 def transcribe_audio_streaming(audio_bytes: bytes, language_code: str = "en-IN") -> str:
