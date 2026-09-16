@@ -1,0 +1,24 @@
+# Disposable local mirror of the 6 flokiq-sandbox tables farmer_chat's
+# voice pipeline writes to. Schema only, from data/flokiq_mirror_schema.sql
+# — never loads real sandbox data. Use this to test INSERT/UPDATE payload
+# shapes and constraint behavior (species enum, doctorId/addedByUserId FKs)
+# before anything touches the real sandbox.
+#
+# Usage:
+#   docker compose -f services/flokiq_sync/docker-compose.yml up -d
+#   docker compose -f services/flokiq_sync/docker-compose.yml down -v   # wipe and start fresh
+services:
+  flokiq-mirror-db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: localtest
+      MYSQL_DATABASE: flokiq_mirror
+    ports:
+      - "3399:3306"
+    volumes:
+      - ../../data/flokiq_mirror_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-plocaltest"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
