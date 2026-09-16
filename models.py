@@ -41,6 +41,27 @@ class HealthLog(BaseModel):
     notes: str = ""
 
 
+class AIHealthLog(BaseModel):
+    """AI-generated health record, shaped to match flokiq-sandbox's real
+    health_logs table column-for-column (log_id/user_id/pincode/
+    symptoms_reported/ai_diagnosis_suggestion/potential_ailments/
+    first_aid_advice/risk_level/log_timestamp) so it's a zero-remap sync
+    target once flokiq's team confirms it's safe to write AI output there.
+    Until then this is farmer_chat's own store — clearly AI-generated,
+    clearly unverified, not sent anywhere external by default."""
+    log_id: str
+    farmer_id: str
+    animal_id: Optional[str] = None
+    pincode: str = ""
+    symptoms_reported: list[str] = Field(default_factory=list)
+    ai_diagnosis_suggestion: str = ""
+    potential_ailments: list[str] = Field(default_factory=list)
+    first_aid_advice: str = ""
+    risk_level: Optional[Literal["Low", "Medium", "High"]] = None
+    source: Literal["ai_unverified"] = "ai_unverified"
+    log_timestamp: str = Field(default_factory=utc_now_iso)
+
+
 class Appointment(BaseModel):
     id: str
     farmer_id: str

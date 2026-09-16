@@ -9,6 +9,7 @@ from filelock import FileLock
 
 from models import (
     Appointment,
+    AIHealthLog,
     Animal,
     ChatMessage,
     Consultation,
@@ -263,6 +264,42 @@ def append_health_log(
             issue=issue,
             params=params,
             notes=notes,
+        )
+        rows.append(row.model_dump())
+        atomic_write_json(path, rows)
+        return row
+
+    return _with_file_lock(path, work)
+
+
+def append_ai_health_log(
+    farmer_id: str,
+    animal_id: Optional[str],
+    pincode: str,
+    symptoms: list[str],
+    risk_level: Optional[str] = None,
+    ai_diagnosis_suggestion: str = "",
+    potential_ailments: Optional[list[str]] = None,
+    first_aid_advice: str = "",
+) -> AIHealthLog:
+    """Our own AI-generated health record, shaped to match flokiq-sandbox's
+    real health_logs table (see models.AIHealthLog). Always-on, unlike
+    services.flokiq_sync (which is disabled by default and calls an
+    external endpoint) — this never leaves farmer_chat's own storage."""
+    path = _path("ai_health_logs.json")
+
+    def work() -> AIHealthLog:
+        rows = _load_json_list(path)
+        row = AIHealthLog(
+            log_id=str(uuid.uuid4()),
+            farmer_id=farmer_id,
+            animal_id=animal_id,
+            pincode=pincode,
+            symptoms_reported=symptoms,
+            risk_level=risk_level,
+            ai_diagnosis_suggestion=ai_diagnosis_suggestion,
+            potential_ailments=potential_ailments or [],
+            first_aid_advice=first_aid_advice,
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)

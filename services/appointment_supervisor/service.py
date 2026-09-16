@@ -13,6 +13,7 @@ from services.flokiq_sync import client as flokiq_sync
 from services.voice_agent.orchestrator import process_text_input
 from services.voice_agent.tts import synthesize_speech
 from storage import (
+    append_ai_health_log,
     append_appointment,
     append_health_log,
     atomic_write_json,
@@ -314,6 +315,20 @@ class AppointmentSupervisor:
         draft["submitted"] = True
         self._save(draft)
 
+        # Our own AI-health-log record, shaped like flokiq's real
+        # health_logs table but stored locally -- always on, independent of
+        # FLOKIQ_SYNC_ENABLED. Lets us accumulate real data and iterate
+        # without needing flokiq's team to first confirm it's safe to write
+        # AI-generated diagnosis/risk fields into their shared table.
+        severity_to_risk = {"mild": "Low", "moderate": "Medium", "severe": "High"}
+        append_ai_health_log(
+            farmer_id=farmer_id,
+            animal_id=animal_id,
+            pincode=str(values.get("weather_location") or ""),
+            symptoms=values.get("symptoms") or [],
+            risk_level=severity_to_risk.get(str(values.get("severity") or "").lower()),
+        )
+
         # Best-effort sync to flokiq's DB. Local write above is already the
         # source of truth for this booking -- a sync failure here is logged
         # and swallowed inside flokiq_sync, never raised, never loses the
@@ -323,7 +338,7 @@ class AppointmentSupervisor:
             pincode=str(values.get("weather_location") or ""),
             symptoms=values.get("symptoms") or [],
             animal_id=animal_id,
-            risk_level={"mild": "Low", "moderate": "Medium", "severe": "High"}.get(str(values.get("severity") or "").lower()),
+            risk_level=severity_to_risk.get(str(values.get("severity") or "").lower()),
         )
         flokiq_sync.create_appointment(
             farmer_id=farmer_id,
