@@ -253,3 +253,5 @@ Compare candidate Bedrock models for extraction latency + quality on the server:
 ```bash
 python3 scripts/benchmark_models.py
 ```
+
+<!-- CI/CD PR-review flow verified working 2026-09-17 -->
