@@ -9,6 +9,7 @@ from typing import Any
 
 from filelock import FileLock
 
+from services.flokiq_sync import client as flokiq_sync
 from services.voice_agent.orchestrator import process_text_input
 from services.voice_agent.tts import synthesize_speech
 from storage import (
@@ -312,6 +313,26 @@ class AppointmentSupervisor:
         draft["state"] = "SUBMITTED"
         draft["submitted"] = True
         self._save(draft)
+
+        # Best-effort sync to flokiq's DB. Local write above is already the
+        # source of truth for this booking -- a sync failure here is logged
+        # and swallowed inside flokiq_sync, never raised, never loses the
+        # farmer's appointment.
+        flokiq_health_log = flokiq_sync.create_health_log(
+            user_id=farmer_id,
+            pincode=str(values.get("weather_location") or ""),
+            symptoms=values.get("symptoms") or [],
+            animal_id=animal_id,
+            risk_level={"mild": "Low", "moderate": "Medium", "severe": "High"}.get(str(values.get("severity") or "").lower()),
+        )
+        flokiq_sync.create_appointment(
+            farmer_id=farmer_id,
+            date=str(values.get("date")),
+            time=str(values.get("time")),
+            notes=str(values.get("miscellaneous_notes") or values.get("notes") or ""),
+            health_log_id=(flokiq_health_log or {}).get("log_id"),
+        )
+
         return {"status": "submitted", "intake": draft, "health_log": health.model_dump(), "appointment": appointment.model_dump()}
 
     def attach(self, farmer_id: str, session_id: str, attachment: dict[str, Any]) -> dict[str, Any]:
