@@ -56,6 +56,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
+from services.chat_orchestrator import router as chat_router
 from storage import get_data_dir
 
 
@@ -239,6 +240,13 @@ class PersonalizedAdvisoryRequest(BaseModel):
 
 
 class AppointmentVoiceTextRequest(BaseModel):
+    session_id: str
+    text: str
+    language: str = "en-IN"
+    include_audio: bool = True
+
+
+class ChatTurnRequest(BaseModel):
     session_id: str
     text: str
     language: str = "en-IN"
@@ -471,6 +479,23 @@ def create_preconsult_appointment(
         "health_log": health.model_dump(),
         "appointment": appt.model_dump(),
     }
+
+
+@app.post("/farmers/{farmer_id}/chat/turn")
+def chat_turn(farmer_id: str, req: ChatTurnRequest) -> dict[str, Any]:
+    """Single entry point for any farmer query -- weather, appointment
+    booking, health logging, farm data questions. The main orchestrator
+    agent classifies intent and dispatches to the right sub-agent; see
+    services/chat_orchestrator/router.py for the dispatch table."""
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+    try:
+        t0 = time.time()
+        result = chat_router.route_turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        result["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
