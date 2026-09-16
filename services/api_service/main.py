@@ -5,10 +5,12 @@ from datetime import datetime
 from pathlib import Path
 import json
 import logging
+import os
 import time
 import uuid
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from utils.env_check import validate_env
 
 _log = logging.getLogger("api")
@@ -58,6 +60,23 @@ from storage import get_data_dir
 
 
 app = FastAPI(title="Farmer Chat API Service", version="0.1.0")
+
+# CORS_ALLOWED_ORIGINS: comma-separated list, e.g.
+# "https://app.example.com,http://localhost:5173". "*" allows any origin
+# (fine for a public read-mostly API with no cookie/session auth — this
+# service uses none — but not with allow_credentials=True). Defaults to
+# "*" so browser clients aren't blocked out of the box; tighten via env in
+# any deployment that needs to restrict origins.
+_cors_origins_raw = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+_cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 appointment_supervisor = AppointmentSupervisor()
 
 # Validate env at startup
