@@ -5,6 +5,10 @@ real constraint behavior (species enum, doctorId/addedByUserId FKs)
 against flokiq's actual schema, entirely locally — zero risk to the shared
 sandbox, zero real farmer data involved.
 
+For running this alongside flokiquser's Chocolate assistant UI end-to-end
+(both dev servers, CORS, login bypass), see
+`flokiquser/docs/chocolate-local-dev.md` in the flokiquser repo.
+
 ## Pieces
 
 - `docker-compose.yml` — disposable MySQL 8 container, auto-loads
