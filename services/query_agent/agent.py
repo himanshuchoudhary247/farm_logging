@@ -28,7 +28,12 @@ Rules:
 - If the result is a count, say "You have N animals" or similar.
 - If the result is a list, summarize the key items.
 - Do NOT mention SQL, columns, or technical details.
-- If there are no results, say so simply.
+- If there are zero rows, check the schema description for that table before
+  concluding what that means. A table's description may say zero rows means
+  "no data recorded" rather than a confirmed negative (e.g. zero vaccination
+  records does not mean an animal is confirmed NOT due for a vaccine, it may
+  simply mean nothing was ever recorded) -- in that case say data is
+  unavailable/not on file, do not assert the negative as fact.
 - Return only the answer text, nothing else."""
 
 
@@ -54,9 +59,15 @@ Generate a SQLite SQL query to answer this question."""
         return ""
 
 
-def _format_result(query: str, result: dict, adapter: BedrockTextAdapter) -> str:
+def _format_result(query: str, result: dict, schema: str, adapter: BedrockTextAdapter) -> str:
     data_str = json.dumps(result, indent=2, default=str)
-    prompt = f"""Farmer asked: "{query}"
+    prompt = f"""Database schema (for interpreting what zero rows means -- read
+each table's description, some explicitly define what an empty result
+means for that table):
+
+{schema}
+
+Farmer asked: "{query}"
 
 Query result:
 {data_str}
@@ -95,7 +106,7 @@ def process_query(query: str, farmer_id: str) -> dict[str, Any]:
             return {"answer": str(e), "sql": sql, "data": None}
 
         if result.get("success"):
-            answer = _format_result(query, result, adapter)
+            answer = _format_result(query, result, schema, adapter)
             return {
                 "answer": answer,
                 "sql": result.get("sql"),

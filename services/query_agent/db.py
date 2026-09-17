@@ -2,9 +2,9 @@ import json
 import sqlite3
 import threading
 import re
-from typing import Any, Optional
+from typing import Any, Optional, get_type_hints
 
-from services.query_agent.schema import QUERY_TABLES, table_names
+from services.query_agent.schema import QUERY_TABLES, table_names, _resolve_sql_type
 from storage import (
     load_farmers,
     ai_health_logs_for_farmer,
@@ -72,7 +72,19 @@ def _build_db(farmer_id: str) -> sqlite3.Connection:
         rows = data.get(table_name, [])
 
         model_fields = list(model.model_fields.keys())
-        cols = ", ".join(f'"{c}"' for c in model_fields)
+        # TEXT columns get COLLATE NOCASE so a generated `WHERE name = 'Gauri'`
+        # still matches a stored 'GAURI' -- LLM-written SQL uses whatever
+        # casing the farmer said, not necessarily the casing data was stored
+        # in. Fixed at the schema/table level (not the prompt) so it applies
+        # uniformly to every table/column without relying on the LLM to
+        # remember LOWER()/LIKE everywhere.
+        hints = get_type_hints(model)
+        col_defs = []
+        for c in model_fields:
+            sql_type = _resolve_sql_type(hints.get(c, str))
+            collate = " COLLATE NOCASE" if sql_type == "TEXT" else ""
+            col_defs.append(f'"{c}"{collate}')
+        cols = ", ".join(col_defs)
         placeholders = ", ".join("?" for _ in model_fields)
         conn.execute(f'CREATE TABLE "{table_name}" ({cols})')
 
