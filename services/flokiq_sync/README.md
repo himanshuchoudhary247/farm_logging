@@ -24,11 +24,24 @@ docker compose -f services/flokiq_sync/docker-compose.yml up -d
 #   docker run -d -e MYSQL_ROOT_PASSWORD=localtest -e MYSQL_DATABASE=flokiq_mirror \
 #     -p 3399:3306 -v $(pwd)/data/flokiq_mirror_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro mysql:8
 
+python services/flokiq_sync/seed_mirror.py   # parent rows for the demo farmer (FK targets)
 uvicorn services.flokiq_sync.mock_server:app --port 8077
 ```
 
 Then point whatever's testing the integration at `http://localhost:8077`
-instead of the real sandbox.
+instead of the real sandbox. To exercise it from farmer_chat itself, set
+(locally, not committed):
+
+```
+FLOKIQ_SYNC_ENABLED=true
+FLOKIQ_API_BASE_URL=http://localhost:8077
+FLOKIQ_PLACEHOLDER_DOCTOR_ID=demo-vet-user
+FLOKIQ_PLACEHOLDER_ADDED_BY_USER_ID=demo-vet-user
+```
+
+and run `scripts/seed_demo_user.py` first so `farmer_id=demo-farmer` and
+its animals exist in the local JSON store too (their ids match what
+`seed_mirror.py` seeds into MySQL).
 
 ## What's been proven against this, live
 
@@ -39,12 +52,18 @@ instead of the real sandbox.
   `('sheep','goat')` only, not a misreading of the dump.
 - Both mock endpoints tested via real HTTP calls, real INSERTs landed in
   the mirror DB.
+- 2026-09-17: full loop re-verified end-to-end through the real app, not
+  just direct calls to `mock_server.py` — a real `/chat/turn` voice/text
+  booking conversation for the demo farmer, through
+  `appointment_supervisor.submit()`, landed real rows in both
+  `appointments` (doctorId/addedByUserId resolved via the placeholder
+  users seeded by `seed_mirror.py`) and `health_logs` (once the turn
+  included a pincode -- `client.py` correctly skips the health-log sync,
+  logging a warning, when pincode is unset, since it's NOT NULL on
+  flokiq's side).
 
 ## Still needed before this is a real integration, not just a test rig
 
-- The actual `services/flokiq_sync/client.py` adapter that farmer_chat's
-  `appointment_supervisor.submit()` calls — not built yet, this is the
-  test harness it'll be tested against.
 - Auth: how farmer_chat gets a valid token for the outbound call to real
   flokiq — still an open question for the flokiq/mobile team.
 - The real `doctorId`/`addedByUserId` placeholder `users` row — needs
