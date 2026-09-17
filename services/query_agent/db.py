@@ -7,11 +7,13 @@ from typing import Any, Optional
 from services.query_agent.schema import QUERY_TABLES, table_names
 from storage import (
     load_farmers,
+    ai_health_logs_for_farmer,
     animals_for_farmer,
     appointments_for_farmer,
     farms_for_farmer,
     health_logs_for_farmer,
     load_weather_notifications,
+    vaccination_records_for_farmer,
     weather_notifications_for_farmer,
 )
 
@@ -44,6 +46,8 @@ def _load_data_for_farmer(farmer_id: str) -> dict[str, list]:
         "farms": [fm.model_dump() for fm in farms_for_farmer(farmer_id)],
         "farmers": farmer_rows,
         "weather_notifications": [w.model_dump() for w in weather_notifications_for_farmer(farmer_id)],
+        "ai_health_logs": [a.model_dump() for a in ai_health_logs_for_farmer(farmer_id)],
+        "vaccination_records": [v.model_dump() for v in vaccination_records_for_farmer(farmer_id)],
     }
 
 

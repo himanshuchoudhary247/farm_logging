@@ -70,7 +70,7 @@ def test_execute_bad_sql_returns_error():
 def test_farmer_scoped_tables_queryable():
     """All farmer-scoped tables should be queryable without error (data is
     pre-filtered to the farmer's rows at DB-build time)."""
-    for table in ["animals", "health_logs", "appointments", "farms", "weather_notifications"]:
+    for table in ["animals", "health_logs", "appointments", "farms", "weather_notifications", "ai_health_logs", "vaccination_records"]:
         result = query_db.execute_query(f"SELECT COUNT(*) as c FROM {table}", "f-test")
         assert result["success"], f"{table} query failed: {result.get('error')}"
 
@@ -142,5 +142,5 @@ def test_multiple_farmers_isolated():
 
 def test_schema_describes_all_tables():
     schema = generate_schema_for_prompt()
-    for name in ["animals", "farmers", "health_logs", "appointments", "farms", "weather_notifications"]:
+    for name in ["animals", "farmers", "health_logs", "appointments", "farms", "weather_notifications", "ai_health_logs", "vaccination_records"]:
         assert name in schema, f"{name} missing from schema"
