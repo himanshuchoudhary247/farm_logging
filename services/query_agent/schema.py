@@ -1,11 +1,13 @@
 from typing import Any, Optional, Union, get_type_hints, get_origin, get_args
 
 from models import (
+    AIHealthLog,
     Animal,
     Appointment,
     Farm,
     Farmer,
     HealthLog,
+    VaccinationRecord,
     WeatherNotification,
 )
 from models import utc_now_iso
@@ -53,6 +55,38 @@ QUERY_TABLES = {
         "model": WeatherNotification,
         "description": "Weather alert notifications generated for farmers. Each row is one notification.",
         "joins": {
+            "farmer_id": "farmers.id",
+        },
+    },
+    "ai_health_logs": {
+        "model": AIHealthLog,
+        "description": (
+            "AI-generated (unverified) health assessments: symptoms reported, "
+            "the AI's diagnosis suggestion, potential ailments, first-aid "
+            "advice, and risk level. NOT a vet-confirmed diagnosis -- source "
+            "is always 'ai_unverified'. Each row is one AI assessment. "
+            "symptoms_reported and potential_ailments are stored as JSON "
+            "text (a list serialized into one column); read/display the "
+            "whole field, do not attempt to filter on individual items "
+            "with WHERE."
+        ),
+        "joins": {
+            "animal_id": "animals.id",
+            "farmer_id": "farmers.id",
+        },
+    },
+    "vaccination_records": {
+        "model": VaccinationRecord,
+        "description": (
+            "Vaccination bookkeeping per animal. status='administered' means "
+            "the vaccine was already given (administered_date set); "
+            "status='pending' means it is due/scheduled but not yet given "
+            "(due_date set). An animal with zero rows here has no "
+            "vaccination data on record at all -- do not assume zero rows "
+            "means unvaccinated, say so is unknown/not recorded."
+        ),
+        "joins": {
+            "animal_id": "animals.id",
             "farmer_id": "farmers.id",
         },
     },

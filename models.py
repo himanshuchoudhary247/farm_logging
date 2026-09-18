@@ -62,6 +62,28 @@ class AIHealthLog(BaseModel):
     log_timestamp: str = Field(default_factory=utc_now_iso)
 
 
+class VaccinationRecord(BaseModel):
+    """Locally-owned vaccination bookkeeping, field-shaped to line up with
+    flokiq-sandbox's vaccination_schedule table (id/addedByUserId/animalId/
+    appointmentId/vaccineName/dueDate/veterinarianNotes) so it's a
+    zero-remap sync target later, same strategy as AIHealthLog. Represents
+    ONE vaccine (past-administered OR future-due) for one animal.
+    flokiq's own schema splits this across two real tables --
+    vaccination_schedule for 'due' and animals_health_records for 'done' --
+    but farmer_chat doesn't have a second events table to mirror that yet,
+    so `status` covers both here for now; split into two tables if/when
+    reconciling with flokiq for real."""
+    id: str
+    farmer_id: str
+    animal_id: str
+    vaccine_name: str
+    status: Literal["pending", "administered"] = "pending"
+    due_date: Optional[str] = None
+    administered_date: Optional[str] = None
+    veterinarian_notes: str = ""
+    created_at: str = Field(default_factory=utc_now_iso)
+
+
 class Appointment(BaseModel):
     id: str
     farmer_id: str
