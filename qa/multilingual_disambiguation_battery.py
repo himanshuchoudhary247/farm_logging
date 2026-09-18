@@ -124,6 +124,68 @@ def build_scenarios() -> list:
             ],
         ))
 
+    # Second failure class: changing an ALREADY-GIVEN field after the
+    # farmer already confirmed, plus a genuinely ambiguous reply that
+    # answers nothing -- the supervisor must not fabricate a value or
+    # silently submit, and must not lose already-collected fields.
+    change_and_ambiguous_phrases = {
+        "en-IN": ("1122, fever, tomorrow at 9am", "actually change the time to 10am", "not sure, whenever works for you"),
+        "hi-IN": ("1122, बुखार, कल सुबह 9 बजे", "समय बदलकर 10 बजे कर दो", "पता नहीं, जब भी ठीक हो"),
+        "ta-IN": ("1122, காய்ச்சல், நாளை காலை 9 மணி", "நேரத்தை 10 மணிக்கு மாற்று", "தெரியாது, எப்போது வேண்டுமானாலும் சரி"),
+        "te-IN": ("1122, జ్వరం, రేపు ఉదయం 9 గంటలకు", "సమయాన్ని 10 గంటలకు మార్చండి", "తెలియదు, ఎప్పుడైనా సరే"),
+        "kn-IN": ("1122, ಜ್ವರ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 9 ಗಂಟೆಗೆ", "ಸಮಯವನ್ನು 10 ಗಂಟೆಗೆ ಬದಲಾಯಿಸಿ", "ಗೊತ್ತಿಲ್ಲ, ಯಾವಾಗಲಾದರೂ ಸರಿ"),
+    }
+
+    for lang, (full_info, change_time, ambiguous) in change_and_ambiguous_phrases.items():
+
+        def check_full_info(reply, result, idx):
+            draft = result.get("draft", {})
+            missing = result.get("missing_fields", [])
+            if missing:
+                return f"single-turn full info still shows missing fields: {missing}, draft={draft}"
+            return None
+
+        def check_confirm_yes(reply, result, idx):
+            if result.get("state") != "READY_TO_SUBMIT":
+                return f"expected READY_TO_SUBMIT after 'yes', got state={result.get('state')}"
+            return None
+
+        def check_change_time(reply, result, idx):
+            err = _no_welcome_reset(reply)
+            if err:
+                return err
+            draft = result.get("draft", {})
+            if result.get("state") == "SUBMITTED":
+                return "changing the time prematurely submitted the appointment"
+            if draft.get("time") != "10:00":
+                return f"time was not updated to 10:00 after an explicit change request, draft={draft}"
+            if not draft.get("animal_identifier") or not draft.get("issue") or not draft.get("date"):
+                return f"an already-collected field was lost while changing a different field, draft={draft}"
+            return None
+
+        def check_ambiguous(reply, result, idx):
+            err = _no_welcome_reset(reply)
+            if err:
+                return err
+            draft = result.get("draft", {})
+            if result.get("state") == "SUBMITTED":
+                return "an ambiguous, non-answering reply caused a premature submit"
+            if draft.get("time") != "10:00":
+                return f"an ambiguous reply corrupted a previously-set field, draft={draft}"
+            return None
+
+        scenarios.append(Scenario(
+            name=f"appointment_change_and_ambiguous_{lang}",
+            language=lang,
+            turns=[
+                ("one of my animals is sick", None),
+                (full_info, check_full_info),
+                ("yes", check_confirm_yes),
+                (change_time, check_change_time),
+                (ambiguous, check_ambiguous),
+            ],
+        ))
+
     return scenarios
 
 
