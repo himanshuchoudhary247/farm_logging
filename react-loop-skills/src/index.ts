@@ -92,6 +92,15 @@ export { SkillChat, SkillChatProps } from './react/components/SkillChat';
 export * as WeatherSkill from './skills/weather';
 export * as AppointmentsSkill from './skills/appointments';
 export * as MarketPricesSkill from './skills/market-prices';
+export * as FarmQASkill from './skills/farm-qa';
+
+// Enhanced ADK exports
+export {
+  EnhancedAgentLoop,
+  EnhancedAgentLoopConfig,
+  EnhancedAgentEvent,
+  createEnhancedAgentLoop,
+} from './adk/EnhancedAgentLoop';
 
 // Version
 export const VERSION = '1.0.0';

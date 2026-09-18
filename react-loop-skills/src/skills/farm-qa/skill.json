@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "id": "farm-qa",
+    "name": "Farm Q&A",
+    "version": "1.0.0",
+    "description": "Answer questions about farm data, animals, crops, and farmer information from the database",
+    "category": "information",
+    "tags": ["farm", "qna", "query", "database", "animals", "crops", "farmer", "information"],
+    "icon": "🌾"
+  },
+  "activation": {
+    "intents": [
+      "farm",
+      "animal",
+      "crop",
+      "cow",
+      "buffalo",
+      "goat",
+      "sheep",
+      "field",
+      "land",
+      "farmer",
+      "my farm",
+      "my animals",
+      "my crops",
+      "show me",
+      "tell me about",
+      "what is",
+      "how many",
+      "when did",
+      "where is"
+    ],
+    "confidence_threshold": 0.5,
+    "keywords": [
+      "farm",
+      "animal",
+      "crop",
+      "cow",
+      "buffalo",
+      "goat",
+      "sheep",
+      "field",
+      "land",
+      "farmer",
+      "health",
+      "vaccination",
+      "milk",
+      "production",
+      "area",
+      "size",
+      "count",
+      "total",
+      "my"
+    ]
+  },
+  "tools": [
+    "query_farmer_profile",
+    "query_animals",
+    "query_animal_details",
+    "query_crops",
+    "query_farm_land",
+    "query_health_records",
+    "query_production_data",
+    "query_vaccination_schedule",
+    "ask_database",
+    "get_summary"
+  ],
+  "dependencies": [],
+  "config": {
+    "db_connection_required": true,
+    "query_timeout_ms": 10000,
+    "max_results": 50,
+    "allowed_tables": [
+      "farmers",
+      "animals",
+      "animal_health",
+      "vaccinations",
+      "production",
+      "farms",
+      "crops",
+      "fields"
+    ]
+  }
+}

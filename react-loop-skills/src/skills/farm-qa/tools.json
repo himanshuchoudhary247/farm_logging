@@ -1,0 +1,499 @@
+{
+  "tools": [
+    {
+      "name": "query_farmer_profile",
+      "description": "Get farmer profile information including personal details, contact info, and farm summary",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID or phone number"
+          },
+          "include_farm_summary": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include farm summary in response"
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "farmer": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "phone": { "type": "string" },
+              "email": { "type": "string" },
+              "address": { "type": "string" },
+              "village": { "type": "string" },
+              "district": { "type": "string" },
+              "state": { "type": "string" },
+              "registration_date": { "type": "string" }
+            }
+          },
+          "farm_summary": {
+            "type": "object",
+            "properties": {
+              "total_animals": { "type": "number" },
+              "total_land_area": { "type": "number" },
+              "active_crops": { "type": "number" },
+              "last_visit": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "query_animals",
+      "description": "Query animals belonging to a farmer with optional filters",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "animal_type": {
+            "type": "string",
+            "enum": ["cow", "buffalo", "goat", "sheep", "chicken", "bull", "all"],
+            "default": "all",
+            "description": "Filter by animal type"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "sold", "deceased", "all"],
+            "default": "active"
+          },
+          "limit": {
+            "type": "number",
+            "default": 20,
+            "description": "Maximum number of animals to return"
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "animals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "tag_number": { "type": "string" },
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "breed": { "type": "string" },
+                "age": { "type": "number" },
+                "gender": { "type": "string" },
+                "health_status": { "type": "string" },
+                "last_checkup": { "type": "string" }
+              }
+            }
+          },
+          "count": { "type": "number" },
+          "by_type": { "type": "object" }
+        }
+      }
+    },
+    {
+      "name": "query_animal_details",
+      "description": "Get detailed information about a specific animal including health, production, and history",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "animal_id": {
+            "type": "string",
+            "description": "Animal ID or tag number"
+          },
+          "include_health": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_production": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_vaccinations": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": ["animal_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "animal": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "tag_number": { "type": "string" },
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "breed": { "type": "string" },
+              "date_of_birth": { "type": "string" },
+              "age": { "type": "number" },
+              "gender": { "type": "string" },
+              "color": { "type": "string" },
+              "weight": { "type": "number" },
+              "health_status": { "type": "string" },
+              "acquisition_date": { "type": "string" },
+              "purchase_price": { "type": "number" }
+            }
+          },
+          "health_records": {
+            "type": "array"
+          },
+          "production_data": {
+            "type": "object"
+          },
+          "vaccination_history": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "name": "query_crops",
+      "description": "Query crops planted on the farm",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "season": {
+            "type": "string",
+            "enum": ["kharif", "rabi", "summer", "all"],
+            "default": "all"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planted", "growing", "harvested", "all"],
+            "default": "all"
+          },
+          "year": {
+            "type": "number",
+            "description": "Filter by year"
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "crops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "variety": { "type": "string" },
+                "field_name": { "type": "string" },
+                "area_acres": { "type": "number" },
+                "planting_date": { "type": "string" },
+                "expected_harvest": { "type": "string" },
+                "status": { "type": "string" },
+                "yield_expected": { "type": "number" }
+              }
+            }
+          },
+          "total_area": { "type": "number" },
+          "crop_count": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "query_farm_land",
+      "description": "Get information about farm land and fields",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "include_fields": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "farm": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "total_area": { "type": "number" },
+              "area_unit": { "type": "string" },
+              "soil_type": { "type": "string" },
+              "irrigation_type": { "type": "string" },
+              "address": { "type": "string" },
+              "coordinates": { "type": "string" }
+            }
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "area": { "type": "number" },
+                "current_crop": { "type": "string" },
+                "soil_quality": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "query_health_records",
+      "description": "Query health records for animals",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "animal_id": {
+            "type": "string",
+            "description": "Animal ID (optional, if not provided queries all animals of farmer)"
+          },
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "from_date": {
+            "type": "string",
+            "description": "Start date (YYYY-MM-DD)"
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date (YYYY-MM-DD)"
+          },
+          "record_type": {
+            "type": "string",
+            "enum": ["checkup", "treatment", "disease", "all"],
+            "default": "all"
+          },
+          "limit": {
+            "type": "number",
+            "default": 10
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "animal_id": { "type": "string" },
+                "animal_name": { "type": "string" },
+                "date": { "type": "string" },
+                "type": { "type": "string" },
+                "symptoms": { "type": "string" },
+                "diagnosis": { "type": "string" },
+                "treatment": { "type": "string" },
+                "vet_name": { "type": "string" },
+                "follow_up_required": { "type": "boolean" }
+              }
+            }
+          },
+          "count": { "type": "number" },
+          "pending_followups": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "query_production_data",
+      "description": "Query milk production or other production data",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "animal_id": {
+            "type": "string",
+            "description": "Animal ID (for specific animal) or 'all' for all animals"
+          },
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "from_date": {
+            "type": "string",
+            "description": "Start date (YYYY-MM-DD)"
+          },
+          "to_date": {
+            "type": "string",
+            "description": "End date (YYYY-MM-DD)"
+          },
+          "group_by": {
+            "type": "string",
+            "enum": ["day", "week", "month", "animal"],
+            "default": "day"
+          }
+        },
+        "required": ["farmer_id", "from_date", "to_date"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total_quantity": { "type": "number" },
+              "average_daily": { "type": "number" },
+              "unit": { "type": "string" },
+              "best_animal": { "type": "string" },
+              "best_animal_avg": { "type": "number" }
+            }
+          },
+          "records": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "name": "query_vaccination_schedule",
+      "description": "Get vaccination schedule and history for animals",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "animal_id": {
+            "type": "string",
+            "description": "Animal ID"
+          },
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID (to get all vaccinations)"
+          },
+          "upcoming_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "Show only upcoming vaccinations"
+          },
+          "days_ahead": {
+            "type": "number",
+            "default": 30,
+            "description": "Number of days to look ahead for upcoming vaccinations"
+          }
+        }
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "vaccinations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "animal_id": { "type": "string" },
+                "animal_name": { "type": "string" },
+                "vaccine_name": { "type": "string" },
+                "scheduled_date": { "type": "string" },
+                "completed_date": { "type": "string" },
+                "status": { "type": "string" },
+                "next_due": { "type": "string" },
+                "vet_name": { "type": "string" }
+              }
+            }
+          },
+          "upcoming_count": { "type": "number" },
+          "overdue_count": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "ask_database",
+      "description": "Ask a natural language question that gets translated to a database query (for complex questions)",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "Natural language question about farm data"
+          },
+          "farmer_id": {
+            "type": "string",
+            "description": "Context: Farmer ID"
+          },
+          "context": {
+            "type": "string",
+            "description": "Additional context for the query"
+          }
+        },
+        "required": ["question", "farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "sql_query": { "type": "string" },
+          "answer": { "type": "string" },
+          "data": { "type": "object" },
+          "confidence": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "get_summary",
+      "description": "Get a comprehensive summary of the farm",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["animals", "crops", "production", "health", "vaccinations"]
+            },
+            "default": ["animals", "crops", "production"]
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "farmer_name": { "type": "string" },
+          "generated_at": { "type": "string" },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total_animals": { "type": "number" },
+              "total_land": { "type": "number" },
+              "active_crops": { "type": "number" },
+              "monthly_production": { "type": "number" },
+              "health_alerts": { "type": "number" },
+              "upcoming_vaccinations": { "type": "number" }
+            }
+          },
+          "sections": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}
