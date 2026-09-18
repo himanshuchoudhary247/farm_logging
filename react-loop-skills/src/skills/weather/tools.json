@@ -1,0 +1,153 @@
+{
+  "tools": [
+    {
+      "name": "get_current_weather",
+      "description": "Get the current weather conditions for a location",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name, village name, or coordinates (lat,long)"
+          },
+          "units": {
+            "type": "string",
+            "enum": ["celsius", "fahrenheit"],
+            "default": "celsius",
+            "description": "Temperature units"
+          }
+        },
+        "required": ["location"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "temperature": {
+            "type": "number",
+            "description": "Current temperature"
+          },
+          "conditions": {
+            "type": "string",
+            "description": "Weather conditions (e.g., sunny, cloudy, rainy)"
+          },
+          "humidity": {
+            "type": "number",
+            "description": "Humidity percentage"
+          },
+          "wind_speed": {
+            "type": "number",
+            "description": "Wind speed in km/h"
+          },
+          "location": {
+            "type": "string",
+            "description": "Location name"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Time of the weather data"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_forecast",
+      "description": "Get weather forecast for the next few days",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name, village name, or coordinates"
+          },
+          "days": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 7,
+            "default": 3,
+            "description": "Number of days for forecast"
+          },
+          "units": {
+            "type": "string",
+            "enum": ["celsius", "fahrenheit"],
+            "default": "celsius"
+          }
+        },
+        "required": ["location"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string"
+          },
+          "forecast": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "temperature_high": {
+                  "type": "number"
+                },
+                "temperature_low": {
+                  "type": "number"
+                },
+                "conditions": {
+                  "type": "string"
+                },
+                "rain_chance": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "check_weather_alerts",
+      "description": "Check for weather warnings and alerts in a location",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City or region name"
+          }
+        },
+        "required": ["location"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "has_alerts": {
+            "type": "boolean"
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "severe"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "valid_until": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

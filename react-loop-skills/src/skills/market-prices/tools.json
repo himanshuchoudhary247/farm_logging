@@ -1,0 +1,120 @@
+{
+  "tools": [
+    {
+      "name": "get_market_prices",
+      "description": "Get current market prices for crops and commodities",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string",
+            "description": "Name of the commodity (e.g., wheat, rice, cotton)"
+          },
+          "market": {
+            "type": "string",
+            "description": "Market name or location",
+            "default": "nearest"
+          },
+          "state": {
+            "type": "string",
+            "description": "State name"
+          }
+        },
+        "required": ["commodity"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string"
+          },
+          "market": {
+            "type": "string"
+          },
+          "min_price": {
+            "type": "number"
+          },
+          "max_price": {
+            "type": "number"
+          },
+          "modal_price": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_price_history",
+      "description": "Get historical price data for a commodity",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string"
+          },
+          "market": {
+            "type": "string",
+            "default": "nearest"
+          },
+          "days": {
+            "type": "number",
+            "default": 7,
+            "description": "Number of days of history"
+          }
+        },
+        "required": ["commodity"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string"
+          },
+          "market": {
+            "type": "string"
+          },
+          "history": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    {
+      "name": "compare_prices",
+      "description": "Compare prices across different markets",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string"
+          },
+          "markets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of market names to compare"
+          }
+        },
+        "required": ["commodity", "markets"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "commodity": {
+            "type": "string"
+          },
+          "comparisons": {
+            "type": "array"
+          }
+        }
+      }
+    }
+  ]
+}

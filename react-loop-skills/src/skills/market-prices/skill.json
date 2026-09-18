@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "id": "market-prices",
+    "name": "Market Prices",
+    "version": "1.0.0",
+    "description": "Get current market prices for agricultural commodities",
+    "category": "information",
+    "tags": ["market", "price", "mandi", "commodity", "crop", "sell", "buy"],
+    "icon": "💰"
+  },
+  "activation": {
+    "intents": [
+      "price",
+      "market",
+      "mandi",
+      "rate",
+      "cost",
+      "sell",
+      "buy",
+      "commodity"
+    ],
+    "confidence_threshold": 0.6,
+    "keywords": ["price", "market", "mandi", "rate", "cost", "sell", "buy", "rupees", "rs", "₹", "quintal", "kg"]
+  },
+  "tools": [
+    "get_market_prices",
+    "get_price_history",
+    "compare_prices"
+  ],
+  "dependencies": [],
+  "config": {
+    "default_market": "local",
+    "update_frequency_hours": 6
+  }
+}

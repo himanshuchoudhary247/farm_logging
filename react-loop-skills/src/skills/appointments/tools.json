@@ -1,0 +1,149 @@
+{
+  "tools": [
+    {
+      "name": "get_appointments",
+      "description": "Get upcoming appointments for a farmer",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string",
+            "description": "Farmer ID"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "completed", "cancelled", "all"],
+            "default": "all"
+          },
+          "limit": {
+            "type": "number",
+            "default": 10,
+            "description": "Maximum number of appointments to return"
+          }
+        },
+        "required": ["farmer_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "appointments": {
+            "type": "array"
+          },
+          "count": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
+      "name": "book_appointment",
+      "description": "Book a new appointment",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "farmer_id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["veterinary", "agricultural", "consultation"]
+          },
+          "date": {
+            "type": "string",
+            "description": "Date in YYYY-MM-DD format"
+          },
+          "time": {
+            "type": "string",
+            "description": "Time in HH:MM format"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "animal_id": {
+            "type": "string",
+            "description": "Optional: ID of animal for veterinary appointment"
+          }
+        },
+        "required": ["farmer_id", "type", "date", "time"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "cancel_appointment",
+      "description": "Cancel an existing appointment",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "appointment_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["appointment_id"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "check_availability",
+      "description": "Check available appointment slots",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["veterinary", "agricultural", "consultation"]
+          },
+          "date": {
+            "type": "string",
+            "description": "Date in YYYY-MM-DD format"
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Start time in HH:MM format"
+          },
+          "end_time": {
+            "type": "string",
+            "description": "End time in HH:MM format"
+          }
+        },
+        "required": ["type", "date"]
+      },
+      "returns": {
+        "type": "object",
+        "properties": {
+          "available_slots": {
+            "type": "array"
+          },
+          "date": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "metadata": {
+    "id": "weather",
+    "name": "Weather Service",
+    "version": "1.0.0",
+    "description": "Get weather information and alerts for your location",
+    "category": "information",
+    "tags": ["weather", "forecast", "rain", "temperature", "climate"],
+    "icon": "🌤️"
+  },
+  "activation": {
+    "intents": [
+      "weather",
+      "forecast",
+      "rain",
+      "temperature",
+      "will it rain",
+      "how hot",
+      "how cold",
+      "weather report",
+      "climate"
+    ],
+    "confidence_threshold": 0.6,
+    "keywords": ["weather", "rain", "sunny", "cloudy", "storm", "temperature", "humidity", "forecast"]
+  },
+  "tools": [
+    "get_current_weather",
+    "get_forecast",
+    "check_weather_alerts"
+  ],
+  "dependencies": [],
+  "config": {
+    "api_key_required": true,
+    "rate_limit": 100,
+    "default_units": "celsius"
+  }
+}

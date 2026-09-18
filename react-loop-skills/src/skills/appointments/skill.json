@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "id": "appointments",
+    "name": "Appointment Manager",
+    "version": "1.0.0",
+    "description": "Manage veterinary and agricultural appointments",
+    "category": "management",
+    "tags": ["appointment", "vet", "veterinary", "doctor", "schedule", "booking"],
+    "icon": "📅"
+  },
+  "activation": {
+    "intents": [
+      "appointment",
+      "schedule",
+      "book",
+      "vet",
+      "veterinary",
+      "doctor",
+      "visit",
+      "checkup"
+    ],
+    "confidence_threshold": 0.6,
+    "keywords": ["appointment", "schedule", "book", "vet", "doctor", "visit", "time", "slot"]
+  },
+  "tools": [
+    "get_appointments",
+    "book_appointment",
+    "cancel_appointment",
+    "check_availability"
+  ],
+  "dependencies": [],
+  "config": {
+    "max_booking_days_ahead": 30,
+    "slots_per_hour": 4
+  }
+}
