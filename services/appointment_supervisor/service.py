@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from filelock import FileLock
 
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import generate_health_recommendation
-from services.voice_agent.orchestrator import process_text_input
+from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
 from services.voice_agent.tts import synthesize_speech
 from storage import (
     append_ai_health_log,
@@ -128,6 +129,8 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+
+
 class AppointmentSupervisor:
     def __init__(self, data_dir: Path | None = None) -> None:
         self.data_dir = data_dir or get_data_dir()
@@ -137,10 +140,7 @@ class AppointmentSupervisor:
         safe = "".join(ch for ch in session_id if ch.isalnum() or ch in "-_")
         return self.intake_dir / f"{safe}.json"
 
-    def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
-        path = self._path(session_id)
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
+    def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
             "session_id": session_id,
             "farmer_id": farmer_id,
@@ -155,6 +155,12 @@ class AppointmentSupervisor:
             "updated_at": _now(),
         }
 
+    def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
+        path = self._path(session_id)
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+        return self._fresh(session_id, farmer_id, language)
+
     def _save(self, draft: dict[str, Any]) -> None:
         path = self._path(draft["session_id"])
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,14 +173,29 @@ class AppointmentSupervisor:
         for key, value in entities.items():
             if value not in (None, "", []):
                 target[key] = value
-        if target.get("animal_name") and not target.get("animal_identifier"):
-            target["animal_identifier"] = target["animal_name"]
+        if not target.get("animal_identifier"):
+            # animal_tag is the extraction schema's field for a bare
+            # ear-tag/ID number (see bedrock_adapter.py's _EXTRACTION_TOOL_SPEC);
+            # animal_name is a name. REQUIRED_FIELDS only checks
+            # animal_identifier, so either one must bridge into it or a
+            # correctly-extracted tag number silently never counts as
+            # having answered the question at all.
+            identifier = target.get("animal_tag") or target.get("animal_name")
+            if identifier:
+                target["animal_identifier"] = identifier
         if target.get("issue") and not target.get("symptoms"):
                 target["symptoms"] = [target["issue"]]
 
     def _missing(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
         return [field for field in REQUIRED_FIELDS if not values.get(field)]
+
+    def _has_any_info(self, values: dict[str, Any]) -> bool:
+        return any(
+            v not in (None, "", [])
+            for k, v in values.items()
+            if k not in ("attachments", "miscellaneous_notes")
+        )
 
     def _summary(self, draft: dict[str, Any]) -> str:
         values = draft["draft"]
@@ -197,18 +218,6 @@ class AppointmentSupervisor:
         catalog = _TEXT.get(_lang(language), _TEXT["en"])
         return catalog[key].format(**values)
 
-    def _response_kind(self, text: str) -> str | None:
-        value = text.strip().lower()
-        if any(token in value for token in ("submit", "save", "जमा", "सबमिट", "சமர்ப்பி", "సమర్ప", "ಸಲ್ಲಿಸ")):
-            return "submit"
-        if any(token in value for token in ("yes", " y ", "हाँ", "हां", "सही", "ஆம்", "சரி", "అవును", "సరే", "ಹೌದು", "ಸರಿ")):
-            return "yes"
-        if any(token in value for token in ("no", "गलत", "नहीं", "இல்லை", "தவறு", "కాదు", "ತಪ್ಪು")):
-            return "no"
-        if any(token in value for token in ("cancel", "रद्द", "ரத்து", "రద్దు", "ರದ್ದು")):
-            return "cancel"
-        return None
-
     def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True) -> dict[str, Any]:
         language = draft["language"]
         if include_audio:
@@ -230,27 +239,97 @@ class AppointmentSupervisor:
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted"):
-            raise ValueError("This appointment intake has already been submitted")
+            # Prior booking on this session_id is already saved permanently
+            # (appointments.json/health_logs.json) -- that record is not
+            # touched here. A new message on the same thread after submit
+            # means the farmer wants to start another booking, not that the
+            # thread is dead. Start a fresh draft under the same session_id
+            # instead of 400ing forever on every message after submit.
+            draft = self._fresh(session_id, farmer_id, language)
         draft["language"] = language if language in SUPPORTED_LANGUAGES else draft["language"]
         draft["transcript_history"].append({"text": text, "language": draft["language"], "at": _now()})
-        response_kind = self._response_kind(text)
-        if draft.get("state") == "CONFIRMING" and response_kind in {"yes", "no", "cancel"}:
+
+        # Tell the extraction model exactly what our own last message
+        # asked for, so it can resolve the reply with real context instead
+        # of a Python-side keyword/regex guess. Two things ride on this
+        # one hint: (1) confirmation_signal (yes/no/cancel/submit) when
+        # we're mid-confirmation or ready-to-submit -- classified by
+        # actual meaning ("that's wrong, try again" = no) rather than
+        # literal keyword matching, which used to misfire on ordinary
+        # words like "enough" containing "no"; (2) which entity field a
+        # bare reply like "1122" answers (draft["expected_field"], set
+        # below and in confirm()'s "yes" branch) -- this extraction call
+        # already has a designed mechanism for exactly this (see
+        # _TOOL_SYSTEM_PROMPT's example 5: "10 am" + pending_questions:
+        # ["appointment time"] -> {time: '10:00'}), appointment_supervisor
+        # just never wired into it before, so bare tag/ID replies kept
+        # landing in issue/symptoms instead with no way to correct it.
+        # "CONFIRMING" is overloaded: it means BOTH "just asked a literal
+        # yes/no confirm question" (nothing missing) AND "still mid-collection,
+        # asked a proactive missing-field question in the same breath"
+        # (expected_field set). Only the first is genuinely a yes/no/cancel
+        # moment -- treating the second the same way misroutes a farmer's
+        # frustrated-but-informative reply ("... arnt you smart enough")
+        # into "What would you like to correct?" purely because the state
+        # name says CONFIRMING, when the bot's actual last message was
+        # asking for a specific field, not a yes/no confirmation.
+        state = draft.get("state")
+        awaiting_confirmation = state == "CONFIRMING" and not draft.get("expected_field")
+        if awaiting_confirmation:
+            pending = ["confirm these details are correct (yes/no), or cancel"]
+        elif state == "READY_TO_SUBMIT":
+            pending = ["submit the appointment now, or say no to go back"]
+        elif draft.get("expected_field") in APPOINTMENT_FIELD_LABELS:
+            pending = [APPOINTMENT_FIELD_LABELS[draft["expected_field"]]]
+        else:
+            pending = None
+
+        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        confirmation_signal = result.get("confirmation_signal")
+
+        if awaiting_confirmation and confirmation_signal in {"yes", "no", "cancel"}:
             self._save(draft)
-            return self.confirm(farmer_id, session_id, response_kind, include_audio=include_audio)
-        if draft.get("state") == "READY_TO_SUBMIT" and response_kind == "submit":
+            return self.confirm(farmer_id, session_id, confirmation_signal, include_audio=include_audio)
+        if state == "READY_TO_SUBMIT" and confirmation_signal == "submit":
             self._save(draft)
-            return self.submit(farmer_id, session_id)
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}")
+            return self.submit(farmer_id, session_id, include_audio=include_audio)
+
         before = dict(draft["draft"])
         self._copy_entities(draft, result.get("entities") or {})
-        if draft["draft"] == before and not self._missing(draft) == []:
+
+        missing = self._missing(draft)
+        draft["expected_field"] = missing[0] if missing else None
+
+        if draft["draft"] == before and missing:
+            # Extraction found nothing new and something is still missing.
+            # Previously this always resent the full 4-field "Hello,
+            # please tell me..." welcome, discarding whatever was already
+            # collected (a real bug: looked like the bot forgot the whole
+            # conversation). Now: re-ask specifically for the field still
+            # missing if anything has been collected already; only show
+            # the full welcome when truly nothing has been said yet.
             draft["state"] = "COLLECTING"
-            message = self._message(draft["language"], "welcome")
+            if self._has_any_info(draft["draft"]):
+                field = self._message(draft["language"], f"missing_{missing[0]}")
+                message = self._message(draft["language"], "yes_missing", field=field)
+            else:
+                message = self._message(draft["language"], "welcome")
             self._save(draft)
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
+
         draft["state"] = "CONFIRMING"
         self._save(draft)
         message = self._message(draft["language"], "correct", summary=self._summary(draft))
+        if missing:
+            # Proactively ask for the next missing required field in the
+            # same turn, instead of only echoing back what was understood
+            # and waiting for a separate "yes" before asking anything --
+            # avoids a robotic "I understood: X" -> silence -> "I understood: X, Y"
+            # loop with no question in it. Reuses the existing translated
+            # "yes_missing" copy (already vetted in every supported
+            # language) rather than adding new phrasing.
+            field = self._message(draft["language"], f"missing_{missing[0]}")
+            message = f"{message} {self._message(draft['language'], 'yes_missing', field=field)}"
         return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
@@ -263,6 +342,7 @@ class AppointmentSupervisor:
         if normalized in {"yes", "y", "haan", "ಹೌದು", "అవును", "ஆம்"}:
             draft["confirmed_fields"] = list(draft["draft"].keys())
             missing = self._missing(draft)
+            draft["expected_field"] = missing[0] if missing else None
             if missing:
                 draft["state"] = "COLLECTING"
                 field = self._message(language, f"missing_{missing[0]}")
@@ -284,7 +364,7 @@ class AppointmentSupervisor:
         self._save(draft)
         return self._response(draft, message, include_audio=include_audio)
 
-    def submit(self, farmer_id: str, session_id: str) -> dict[str, Any]:
+    def submit(self, farmer_id: str, session_id: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             return {"status": "already_submitted", "intake": draft}
@@ -378,16 +458,29 @@ class AppointmentSupervisor:
         # diagnosis" the way the data model's source=ai_unverified marker
         # already implies).
         recommendation_audio, recommendation_audio_error = (None, None)
-        if recommendation["first_aid_advice"]:
+        if include_audio and recommendation["first_aid_advice"]:
             recommendation_audio, recommendation_audio_error = synthesize_speech(
                 recommendation["first_aid_advice"], target_lang=_lang(draft["language"]),
             )
 
+        # response_text/response_audio_base64/audio_error at the top level,
+        # same keys turn()/confirm() already return -- lets any caller
+        # (UI, orchestrator envelope) read one consistent field regardless
+        # of which state the conversation ended in, instead of needing a
+        # separate branch just for the submit shape.
+        submitted_text = self._message(draft["language"], "submitted")
+        if recommendation.get("first_aid_advice"):
+            submitted_text = f"{submitted_text} {recommendation['first_aid_advice']}"
         return {
             "status": "submitted",
             "intake": draft,
             "health_log": health.model_dump(),
             "appointment": appointment.model_dump(),
+            "response_text": submitted_text,
+            "response_audio_base64": (
+                b64encode(recommendation_audio).decode("ascii") if recommendation_audio else None
+            ),
+            "audio_error": recommendation_audio_error,
             "ai_recommendation": {
                 **recommendation,
                 "source": "ai_unverified",
