@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from utils.env_check import validate_env
 
@@ -79,6 +79,21 @@ app.add_middleware(
 )
 
 appointment_supervisor = AppointmentSupervisor()
+
+# FARMER_CHAT_API_KEY: shared-secret gate on the voice/chat surface (the
+# endpoints a server-to-server caller like flokiq's backend would hit).
+# Unset/empty means no gate at all -- ships inert, same as FLOKIQ_SYNC_ENABLED
+# and every other off-by-default knob this session added, so local dev and
+# existing tests are unaffected until this is deliberately configured. Every
+# farmer_id-scoped voice/chat endpoint had zero auth before this -- anyone
+# who knew or guessed a farmer_id could call them directly.
+_API_KEY = os.getenv("FARMER_CHAT_API_KEY", "")
+
+
+def require_api_key(x_api_key: str = Header(default="")) -> None:
+    if _API_KEY and x_api_key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Api-Key")
+
 
 # Validate env at startup
 validate_env()
@@ -482,7 +497,7 @@ def create_preconsult_appointment(
 
 
 @app.post("/farmers/{farmer_id}/chat/turn")
-def chat_turn(farmer_id: str, req: ChatTurnRequest) -> dict[str, Any]:
+def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     """Single entry point for any farmer query -- weather, appointment
     booking, health logging, farm data questions. The main orchestrator
     agent classifies intent and dispatches to the right sub-agent; see
@@ -499,9 +514,7 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest) -> dict[str, Any]:
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
-def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
+def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
     if req.language not in SUPPORTED_LANGUAGES:
@@ -524,9 +537,8 @@ async def appointment_voice_turn(
     language: str = "en-IN",
     include_audio: bool = True,
     audio: UploadFile = File(...),
+    _auth: None = Depends(require_api_key),
 ) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
     if language not in SUPPORTED_LANGUAGES:
         raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
     audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
@@ -574,9 +586,7 @@ async def appointment_voice_turn(
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/confirm")
-def appointment_voice_confirm(farmer_id: str, req: AppointmentVoiceConfirmRequest) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
+def appointment_voice_confirm(farmer_id: str, req: AppointmentVoiceConfirmRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     if not req.response.strip():
         raise HTTPException(status_code=400, detail="Confirmation response is required")
     try:
@@ -595,9 +605,8 @@ async def appointment_voice_image(
     farmer_id: str,
     session_id: str,
     image: UploadFile = File(...),
+    _auth: None = Depends(require_api_key),
 ) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail="Upload an image file")
     data = await image.read()
@@ -620,9 +629,7 @@ async def appointment_voice_image(
 
 
 @app.get("/farmers/{farmer_id}/appointments/voice/{session_id}")
-def appointment_voice_draft(farmer_id: str, session_id: str) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
+def appointment_voice_draft(farmer_id: str, session_id: str, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     path = get_data_dir() / "appointment_intakes" / f"{''.join(ch for ch in session_id if ch.isalnum() or ch in '-_')}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Appointment draft not found")
@@ -630,9 +637,7 @@ def appointment_voice_draft(farmer_id: str, session_id: str) -> dict[str, Any]:
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/submit")
-def appointment_voice_submit(farmer_id: str, req: AppointmentVoiceConfirmRequest) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
+def appointment_voice_submit(farmer_id: str, req: AppointmentVoiceConfirmRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     if req.response.strip().lower() not in {"submit", "yes", "y", "confirm"}:
         raise HTTPException(status_code=400, detail="Final submission requires explicit confirmation")
     try:
