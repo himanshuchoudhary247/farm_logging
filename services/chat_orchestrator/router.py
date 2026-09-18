@@ -75,9 +75,6 @@ def route_turn(
     language: str = "en-IN",
     include_audio: bool = True,
 ) -> dict[str, Any]:
-    if get_farmer_by_id(farmer_id) is None:
-        raise ValueError("Farmer not found")
-
     if _has_active_booking_draft(farmer_id, session_id):
         result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         return {"agent": "appointment_supervisor", "intent": None, "result": result}
