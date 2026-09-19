@@ -526,13 +526,19 @@ class AppointmentSupervisor:
                 draft["animal_verified"] = False
                 draft["state"] = "COLLECTING"
                 draft["expected_field"] = "animal_identifier"
-                shortlist = candidates or animals
-                animal_names = ", ".join(a.tag_or_name for a in shortlist) or self._message(draft["language"], "missing_animal_identifier")
+                # Cap the spoken/read list at the same 5 shown as pills --
+                # real bug, found live via TTS: the prose used to list ALL
+                # 53 registered animals even when candidates narrowed it,
+                # so voice would read the entire herd aloud while the pills
+                # only offered 5. Same list feeds both now, so they can't
+                # drift apart again.
+                shown = (candidates or animals)[:5]
+                animal_names = ", ".join(a.tag_or_name for a in shown) or self._message(draft["language"], "missing_animal_identifier")
                 message = self._message(draft["language"], "animal_not_found", identifier=identifier, animals=animal_names)
                 self._save(draft)
                 return self._response(
                     draft, message, input_transcript=text, include_audio=include_audio,
-                    options=_animal_options(draft["language"], shortlist),
+                    options=_animal_options(draft["language"], shown),
                 )
 
         missing = self._missing(draft)
@@ -642,8 +648,12 @@ class AppointmentSupervisor:
             # asking them to scan all 53 tags is not.
             bad_identifier = str(values.get("animal_identifier") or "")
             by_id = {a.id: a for a in animals}
-            shortlist = [by_id[c] for c in candidate_ids if c in by_id] or animals
-            animal_names = ", ".join(a.tag_or_name for a in shortlist) or self._message(draft["language"], "missing_animal_identifier")
+            # Cap at the same 5 shown as pills -- the prose used to list
+            # every registered animal even when candidates narrowed it, so
+            # TTS would read the entire herd aloud while pills only
+            # offered 5. Same list feeds both here.
+            shown = ([by_id[c] for c in candidate_ids if c in by_id] or animals)[:5]
+            animal_names = ", ".join(a.tag_or_name for a in shown) or self._message(draft["language"], "missing_animal_identifier")
             draft["draft"]["animal_identifier"] = None
             draft["draft"].pop("animal_id", None)
             draft["draft"].pop("animal_tag", None)
@@ -661,7 +671,7 @@ class AppointmentSupervisor:
             # typed right after this message still came back as "1122".
             clear_session(f"{farmer_id}:{session_id}")
             message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
-            return self._response(draft, message, include_audio=include_audio)
+            return self._response(draft, message, include_audio=include_audio, options=_animal_options(draft["language"], shown))
         health = append_health_log(farmer_id, animal_id, str(values.get("issue")), {
             "symptoms": values.get("symptoms", []),
             "duration": values.get("duration"),
