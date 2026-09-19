@@ -1,0 +1,49 @@
+======================================================================
+🎉 React Loop Skills - Local Server (with Fixes from v2 branch)
+======================================================================
+
+📍 Server running on http://localhost:3001
+
+📚 Available endpoints:
+  GET  /health                          - Health check
+  GET  /skills                          - List all skills
+  POST /farmers/:id/chat/session        - Create chat session
+  POST /farmers/:id/chat/turn           - Send chat message ⭐
+  GET  /farmers/:id                     - Get farmer data
+  GET  /farmers/:id/animals             - Get animals
+  GET  /farmers/:id/appointments        - Get appointments
+
+✅ FIXES APPLIED:
+  ✓ Better intent detection with context awareness
+  ✓ Bare reply handling (1-2 word answers)
+  ✓ Confirmation signal classification (no keyword misfires)
+  ✓ Parameter extraction with pending questions
+  ✓ Session continuation after submit
+  ✓ Location extraction fixed (no "is the" bug)
+
+======================================================================
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What is the weather?"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "In Mumbai"
+[Intent] Bare reply "In Mumbai" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "How many animals do I have?"
+[Intent] Skill: farm-qa, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 3 animals total: 1 cow, 1 buffalo, 1 goat."
+[Follow-up] Not needed
