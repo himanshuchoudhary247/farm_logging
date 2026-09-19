@@ -354,3 +354,133 @@ def test_ambiguous_match_shows_shortlist_not_entire_herd(tmp_path, monkeypatch):
     assert "TAG-001-2" in result["response_text"]
     assert "OTHER-999" not in result["response_text"], "shortlist must narrow, not show the whole herd"
     assert result["options"]["choices"] == ["TAG-001-1", "TAG-001-2"]
+
+
+def test_cancel_honored_during_collecting(tmp_path, monkeypatch):
+    """Real bug: confirmation_signal=="cancel" was only ever checked in
+    awaiting_confirmation/READY_TO_SUBMIT -- a farmer saying "cancel"/
+    "never mind" mid-collection (the normal state for most of a booking)
+    had no way to abandon it, silently discarded."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-cancel", "Lakshmi", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    result = supervisor.turn("demo-farmer", "session-cancel", "never mind, cancel this", "en-IN")
+    assert result["state"] == "CANCELLED"
+
+
+def test_cancelled_draft_resets_on_next_message_not_resurrected(tmp_path, monkeypatch):
+    """Real bug: CANCELLED was never actually terminal -- no code cleared
+    the draft body or set submitted=True, so any further message on that
+    session fell through the generic path and could walk the old,
+    supposedly-cancelled booking data straight back to CONFIRMING/
+    READY_TO_SUBMIT as if it had never been cancelled."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "fever", "date": "2026-09-20", "time": "17:00"},
+        },
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-cancelled-reset", "Lakshmi fever tomorrow 5pm", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    cancelled = supervisor.turn("demo-farmer", "session-cancelled-reset", "cancel", "en-IN")
+    assert cancelled["state"] == "CANCELLED"
+
+    # confirm() must refuse a stray "yes" on the still-cancelled draft
+    # (before any subsequent turn() call has a chance to reset it) --
+    # this is the direct-call path turn()'s own reset-on-entry can't cover.
+    with pytest.raises(ValueError, match="cancelled"):
+        supervisor.confirm("demo-farmer", "session-cancelled-reset", "yes")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}},
+    )
+    result = supervisor.turn("demo-farmer", "session-cancelled-reset", "hello again", "en-IN")
+    assert result["state"] != "READY_TO_SUBMIT"
+    assert result["draft"].get("animal_identifier") is None, "old cancelled booking data must not resurface"
+
+
+def test_no_at_ready_to_submit_goes_to_correcting_not_animal_wipe(tmp_path, monkeypatch):
+    """Real bug: a bare "no" answering "would you like to submit?" had no
+    dedicated branch, so it fell through to the generic animal-verified-
+    reset check, which ALWAYS evaluates true at READY_TO_SUBMIT (every
+    required field present by construction) -- wiping the correct,
+    already-verified animal even if the objection was about something
+    else entirely."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "fever", "date": "2026-09-20", "time": "17:00"},
+        },
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-ready-no", "Lakshmi fever tomorrow 5pm", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    ready = supervisor.turn("demo-farmer", "session-ready-no", "cool", "en-IN")
+    assert ready["state"] == "READY_TO_SUBMIT"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "no"},
+    )
+    result = supervisor.turn("demo-farmer", "session-ready-no", "no", "en-IN")
+    assert result["state"] == "CORRECTING"
+    assert result["draft"].get("animal_identifier") == "Lakshmi", "animal must survive a 'no' at READY_TO_SUBMIT"
+
+
+def test_cancel_clears_router_session_cache_immediately(tmp_path, monkeypatch):
+    """Real bug, found live: clearing the session cache only reactively (on
+    the NEXT turn's entry, when it sees a pre-existing CANCELLED state) is
+    one turn too late. chat_orchestrator.route_turn() runs its OWN
+    classification call (session key f"{farmer_id}:{session_id}:route")
+    BEFORE it ever calls back into appointment_supervisor.turn() on that
+    next turn -- so an unrelated question right after cancelling (e.g. a
+    weather question) got classified using the stale cached
+    CREATE_APPOINTMENT intent from before the cancel, and the booking flow
+    swallowed it. Must clear at the moment of cancelling. This test asserts
+    clear_session is actually called with the router's :route-suffixed key,
+    not just appointment_supervisor's own -- live end-to-end coverage of
+    the full leak is in the manual verification steps for this fix."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    cleared_keys = []
+    monkeypatch.setattr(service, "clear_session", lambda key: cleared_keys.append(key))
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-cancel-clear", "Lakshmi", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    supervisor.turn("demo-farmer", "session-cancel-clear", "cancel", "en-IN")
+
+    assert "demo-farmer:session-cancel-clear" in cleared_keys
+    assert "demo-farmer:session-cancel-clear:route" in cleared_keys, "router's own classification cache must be cleared too, at cancel time"

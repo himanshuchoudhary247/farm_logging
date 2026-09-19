@@ -421,14 +421,32 @@ class AppointmentSupervisor:
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
-        if draft.get("submitted"):
-            # Prior booking on this session_id is already saved permanently
-            # (appointments.json/health_logs.json) -- that record is not
-            # touched here. A new message on the same thread after submit
-            # means the farmer wants to start another booking, not that the
-            # thread is dead. Start a fresh draft under the same session_id
-            # instead of 400ing forever on every message after submit.
+        if draft.get("submitted") or draft.get("state") == "CANCELLED":
+            # Prior booking on this session_id is either already saved
+            # permanently (submitted -- that record is not touched here) or
+            # was explicitly cancelled. Either way a new message means the
+            # farmer wants to start over, not resume a dead draft. Real bug,
+            # found live: this reset only ever cleared OUR OWN draft file --
+            # process_text_input keeps its own persistent per-session entity
+            # cache (services/voice_agent/session_store.py), and without
+            # clearing that too, a stale entity (e.g. the animal from the
+            # cancelled/submitted booking) silently reappeared on the very
+            # next turn even though our own draft was genuinely fresh. Same
+            # fix already applied to the animal-not-found/wrong-tag reverts;
+            # this reset path had the identical gap and was never caught
+            # until testing the CANCELLED case exposed it.
             draft = self._fresh(session_id, farmer_id, language)
+            clear_session(f"{farmer_id}:{session_id}")
+            # chat_orchestrator's router keeps a SECOND, separately-keyed
+            # session cache for its own intent classification
+            # (f"{farmer_id}:{session_id}:route") -- found live: clearing
+            # only the key above still let a cancelled booking's intent
+            # (CREATE_APPOINTMENT/LOG_HEALTH) survive in the router's own
+            # cache, so an unrelated next message (e.g. a weather question)
+            # kept re-classifying into a booking intent and landing right
+            # back in appointment_supervisor. Reaches into router.py's key
+            # convention directly rather than leaving this half-fixed.
+            clear_session(f"{farmer_id}:{session_id}:route")
         draft["language"] = language if language in SUPPORTED_LANGUAGES else draft["language"]
         draft["transcript_history"].append({"text": text, "language": draft["language"], "at": _now()})
 
@@ -498,7 +516,18 @@ class AppointmentSupervisor:
                 self._save(draft)
                 return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
 
-        if awaiting_confirmation and confirmation_signal in {"yes", "no", "cancel"}:
+        # "cancel" must be honored regardless of state -- same bug class as
+        # every other confirmation_signal check in this method: it was only
+        # ever wired for two of the reachable states (awaiting_confirmation,
+        # READY_TO_SUBMIT), so a farmer saying "cancel"/"never mind" mid-
+        # collection (the normal state for most of a booking) had no way to
+        # abandon it -- silently discarded, flow just re-prompted for the
+        # next field forever.
+        if confirmation_signal == "cancel":
+            self._save(draft)
+            return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+
+        if awaiting_confirmation and confirmation_signal in {"yes", "no"}:
             self._save(draft)
             return self.confirm(farmer_id, session_id, confirmation_signal, include_audio=include_audio)
         if state == "READY_TO_SUBMIT" and confirmation_signal in {"yes", "submit"}:
@@ -512,9 +541,18 @@ class AppointmentSupervisor:
             # own "yes" handling -- never once reaching submit().
             self._save(draft)
             return self.submit(farmer_id, session_id, include_audio=include_audio)
-        if state == "READY_TO_SUBMIT" and confirmation_signal == "cancel":
+        if state == "READY_TO_SUBMIT" and confirmation_signal == "no":
+            # Real bug: a bare "no" answering "would you like to submit?"
+            # had no dedicated branch, so it fell through to the generic
+            # animal-verified-reset check further down -- which ALWAYS
+            # evaluates true at this exact state (every required field is
+            # present by construction, so animal_verified is True and
+            # expected_field is None), wiping the correct, already-verified
+            # animal even if the farmer's actual objection was about the
+            # date or issue. Route through confirm()'s "no" (CORRECTING)
+            # branch instead, which preserves the whole draft.
             self._save(draft)
-            return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+            return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)
 
         # Real bug, found via live testing: once the animal auto-verifies
         # (matched immediately when given, not deferred to submit()), the
@@ -634,6 +672,18 @@ class AppointmentSupervisor:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
+        if draft.get("state") == "CANCELLED":
+            # Real bug: confirm() only ever guarded on submitted, never on
+            # state, and it's a directly-callable REST endpoint
+            # (POST /appointments/confirm) -- a stray or replayed "yes" on
+            # an already-cancelled-but-unsubmitted draft could jump
+            # straight to READY_TO_SUBMIT (since the fields were still all
+            # present), and a subsequent submit() would genuinely save an
+            # appointment the farmer explicitly cancelled. turn() itself
+            # can never hit this (it resets a CANCELLED draft to fresh on
+            # entry), so this guard specifically protects the direct-call
+            # path.
+            raise ValueError("This appointment intake was cancelled")
         normalized = response.strip().lower()
         language = draft["language"]
         draft["confirmation_history"].append({"response": response, "at": _now()})
@@ -657,6 +707,19 @@ class AppointmentSupervisor:
         elif normalized in {"cancel", "cancelled", "रद्द", "ரத்து", "ರದ್ದು", "రద్దు"}:
             draft["state"] = "CANCELLED"
             message = self._message(language, "cancelled")
+            # Real bug, found live: clearing the session cache only on the
+            # NEXT turn's entry (when it sees a pre-existing CANCELLED
+            # state) is one turn too late. chat_orchestrator.route_turn()
+            # runs its OWN classification call (session key
+            # f"{farmer_id}:{session_id}:route") BEFORE it ever calls back
+            # into appointment_supervisor.turn() on that next turn -- so an
+            # unrelated question right after cancelling (e.g. a weather
+            # question) got classified using the stale, cached
+            # CREATE_APPOINTMENT intent from *before* the cancel, and never
+            # even reached the entry-reset logic that would have cleared
+            # it. Must clear at the moment of cancelling, not reactively.
+            clear_session(f"{farmer_id}:{session_id}")
+            clear_session(f"{farmer_id}:{session_id}:route")
         else:
             draft["state"] = "CONFIRMING"
             result = process_text_input(response, session_id=f"{farmer_id}:{session_id}")
@@ -744,6 +807,14 @@ class AppointmentSupervisor:
         draft["state"] = "SUBMITTED"
         draft["submitted"] = True
         self._save(draft)
+        # Clear both session caches immediately on submit, not reactively
+        # on the next turn's entry -- same reasoning as the cancel branch
+        # in confirm(): router.py's own classification call runs BEFORE it
+        # calls back into turn() on the next message, so a stale cached
+        # intent from this just-completed booking could otherwise leak
+        # into classifying whatever the farmer says next.
+        clear_session(f"{farmer_id}:{session_id}")
+        clear_session(f"{farmer_id}:{session_id}:route")
 
         # Second agent in the handoff: appointment_supervisor has finished
         # collecting details, now hand the symptoms off to a dedicated
@@ -844,6 +915,8 @@ class AppointmentSupervisor:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
+        if draft.get("state") == "CANCELLED":
+            raise ValueError("This appointment intake was cancelled")
         draft["draft"].setdefault("attachments", []).append(attachment)
         self._save(draft)
         return {"session_id": session_id, "attachments": draft["draft"]["attachments"], "draft": draft["draft"]}

@@ -133,7 +133,13 @@ def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
         return False
     try:
         draft = _appointment_supervisor._load(session_id, farmer_id, "en-IN")
-        return not draft.get("submitted", False)
+        # A cancelled draft is just as "done" as a submitted one -- without
+        # this, a farmer who cancels a booking gets every future message on
+        # that session_id permanently routed back into appointment_supervisor
+        # (turn() resets a CANCELLED draft to fresh on entry, but the router
+        # would still never let a genuine weather/query question on that
+        # same session_id reach weather_alert/query_agent at all).
+        return draft.get("state") != "CANCELLED" and not draft.get("submitted", False)
     except Exception:
         return False
 
