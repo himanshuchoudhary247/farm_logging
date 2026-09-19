@@ -11,7 +11,7 @@ from typing import Any, Optional
 from filelock import FileLock
 
 from services.flokiq_sync import client as flokiq_sync
-from services.llm_service.bedrock_adapter import generate_health_recommendation
+from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.query_agent.agent import process_query
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
 from services.voice_agent.session_store import clear_session
@@ -137,6 +137,78 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_ANIMAL_MATCH_TOOL_SPEC = {
+    "name": "match_animal",
+    "description": "Pick which registered animal (if any) the farmer is referring to.",
+    "inputSchema": {
+        "json": {
+            "type": "object",
+            "properties": {
+                "matched_animal_id": {
+                    "type": ["string", "null"],
+                    "description": (
+                        "The internal id of the single registered animal the farmer most "
+                        "likely means, accounting for typos, extra words, or a natural "
+                        "shortening of a real tag/name. Null if no animal is a confident, "
+                        "SPECIFIC match -- e.g. if the farmer's identifier is equally "
+                        "consistent with many different registered animals (ambiguous), "
+                        "or matches none of them at all. Never guess when multiple animals "
+                        "are equally plausible; only match when one animal is clearly the "
+                        "best fit."
+                    ),
+                },
+            },
+            "required": ["matched_animal_id"],
+        }
+    },
+}
+
+_ANIMAL_MATCH_SYSTEM = (
+    "You match a farmer's stated animal identifier to their real registered "
+    "animals. Account for typos, extra words around a name, or a natural "
+    "shortening of a real tag. Do NOT guess when the identifier could "
+    "equally plausibly refer to several different animals -- e.g. if many "
+    "registered tags share a common prefix or substring, a bare fragment "
+    "of that shared part does not specifically identify any one of them. "
+    "Only match when exactly one animal is clearly, specifically intended."
+)
+
+
+def _resolve_animal_id(wanted: str, animals: list) -> Optional[str]:
+    """Exact match (case-insensitive) is tried first by the caller -- this
+    is the fallback when that fails. Real bug this replaces: submit() used
+    to give up the instant `wanted` didn't exactly equal a real id/tag
+    string, even for a farmer's entirely reasonable guess ("tag 001" after
+    being told real tags look like "TAG-001-1") -- a rigid rule-based
+    string comparison with no actual understanding of what the farmer
+    meant. This asks the model instead, given the real animal list."""
+    if not wanted or not animals:
+        return None
+    catalog = "\n".join(
+        f"- id={a.id}, tag_or_name={a.tag_or_name}, species={getattr(a, 'species', '')}, breed={getattr(a, 'breed', '')}"
+        for a in animals
+    )
+    prompt = f"""Farmer said the animal is: "{wanted}"
+
+Registered animals for this farmer:
+{catalog}
+
+Which one (if any) does the farmer mean?"""
+    try:
+        adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
+        result = adapter.converse_with_tool(
+            messages=[{"role": "user", "content": prompt}],
+            tool_spec=_ANIMAL_MATCH_TOOL_SPEC,
+            system=_ANIMAL_MATCH_SYSTEM,
+            tool_choice_name="match_animal",
+        )
+        matched_id = (result.get("tool_input") or {}).get("matched_animal_id")
+        if not matched_id:
+            return None
+        valid_ids = {a.id for a in animals}
+        return matched_id if matched_id in valid_ids else None
+    except Exception:
+        return None
 
 
 class AppointmentSupervisor:
@@ -425,6 +497,13 @@ class AppointmentSupervisor:
             matches = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
             if matches:
                 animal_id = matches[0].id
+            else:
+                # Exact match failed -- ask the model instead of giving up.
+                # A farmer's reasonable guess ("tag 001" after being told
+                # real tags look like "TAG-001-1") or a plain typo should
+                # not dead-end just because it isn't byte-identical to a
+                # stored string.
+                animal_id = _resolve_animal_id(str(values.get("animal_identifier") or ""), animals)
         if not animal_id:
             # Loop back into the conversation instead of raising -- a raw
             # exception here used to become a dead-end HTTP 400 with no way

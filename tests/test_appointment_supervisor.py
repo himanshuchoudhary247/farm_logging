@@ -254,6 +254,10 @@ def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
     )
     real_animal = type("Animal", (), {"id": "a-1", "tag_or_name": "GAURI"})()
     monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [real_animal])
+    # "9999" genuinely doesn't fuzzy-match "GAURI" -- assert that
+    # deterministically rather than relying on a real (network, credential-
+    # dependent) Bedrock call inside a unit test.
+    monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: None)
 
     supervisor = service.AppointmentSupervisor(tmp_path)
     supervisor.turn("demo-farmer", "session-notfound", "9999, fever, tomorrow 5pm", "en-IN")
@@ -270,3 +274,48 @@ def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
     assert result["draft"].get("animal_identifier") is None
     assert "GAURI" in result["response_text"]
     assert "9999" in result["response_text"]
+
+
+def test_fuzzy_animal_match_resolves_typo_and_submits(tmp_path, monkeypatch):
+    """Real bug: exact-match-only lookup (wanted in {id, tag_or_name}) gave
+    up instantly on anything not byte-identical to a stored string -- a
+    farmer's reasonable guess ("tag 001" after being told real tags look
+    like "TAG-001-1") or a plain typo had no path to success. Now falls
+    back to _resolve_animal_id (an LLM match against the real animal list)
+    when the exact match fails. This test asserts the wiring -- that a
+    successful fuzzy match actually lets submit() proceed -- using a mock
+    resolver rather than a real Bedrock call."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service,
+        "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {
+                "animal_identifier": "GARI", "issue": "fever",
+                "date": "2026-09-20", "time": "17:00",
+            }
+        },
+    )
+    real_animal = type("Animal", (), {"id": "a-1", "tag_or_name": "GAURI"})()
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [real_animal])
+    monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: "a-1" if wanted == "GARI" else None)
+    monkeypatch.setattr(service, "append_health_log", lambda *a, **k: type("H", (), {"id": "h-1", "model_dump": lambda self: {"id": "h-1"}})())
+    monkeypatch.setattr(service, "append_appointment", lambda *a, **k: type("A", (), {"id": "a-1", "model_dump": lambda self: {"id": "a-1"}})())
+    monkeypatch.setattr(service, "append_ai_health_log", lambda **k: None)
+    monkeypatch.setattr(
+        service, "generate_health_recommendation",
+        lambda **k: {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""},
+    )
+    monkeypatch.setattr(service.flokiq_sync, "create_health_log", lambda **k: None)
+    monkeypatch.setattr(service.flokiq_sync, "create_appointment", lambda **k: None)
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-fuzzy", "GARI, fever, tomorrow 5pm", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    supervisor.turn("demo-farmer", "session-fuzzy", "cool", "en-IN")
+    result = supervisor.turn("demo-farmer", "session-fuzzy", "yes", "en-IN")
+    assert result.get("status") == "submitted", f"expected fuzzy-matched submit to succeed, got: {result}"
