@@ -77,3 +77,28 @@
 [Intent] Is bare reply: undefined, Is continuation: true
 [Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
 [Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "How many animals do I have?"
+[Intent] Skill: farm-qa, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 3 animals total: 1 cow, 1 buffalo, 1 goat."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What is the weather?"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Delhi"
+[Intent] Bare reply "Delhi" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed

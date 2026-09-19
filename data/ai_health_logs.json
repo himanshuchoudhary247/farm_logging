@@ -58,5 +58,25 @@
     "risk_level": null,
     "source": "ai_unverified",
     "log_timestamp": "2026-09-19T11:51:21.563448+00:00"
+  },
+  {
+    "log_id": "483390d7-6492-4d1d-8ab2-4c9d258a807b",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "pincode": "",
+    "symptoms_reported": [
+      "not eating"
+    ],
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or mild illness, but a proper veterinary examination is needed to determine the exact cause.",
+    "potential_ailments": [
+      "Digestive upset",
+      "Dental issues",
+      "Mild infection",
+      "Parasite burden"
+    ],
+    "first_aid_advice": "Ensure the goat has access to fresh, clean water at all times. Offer small amounts of fresh, palatable food like tender green leaves or hay. Keep the animal in a quiet, comfortable environment and monitor closely for any changes in behavior or additional symptoms. Check if there are any signs of bloating, diarrhea, or lethargy. This preliminary guidance is not a substitute for the veterinary appointment you already have scheduled. If the goat's condition worsens, becomes lethargic, shows signs of pain, or stops drinking water, seek immediate veterinary assistance.",
+    "risk_level": "Low",
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T12:39:33.221265+00:00"
   }
 ]

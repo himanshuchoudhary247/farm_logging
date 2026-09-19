@@ -44,5 +44,23 @@
       "attachments": []
     },
     "notes": ""
+  },
+  {
+    "id": "622b121f-f887-44b9-b094-eba8c16c9c18",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "recorded_at": "2026-09-19T12:39:31.629662+00:00",
+    "issue": "not eating",
+    "params": {
+      "symptoms": [
+        "not eating"
+      ],
+      "duration": null,
+      "severity": "mild",
+      "temperature_c": null,
+      "current_medication": null,
+      "attachments": []
+    },
+    "notes": ""
   }
 ]
