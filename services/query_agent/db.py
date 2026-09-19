@@ -17,11 +17,29 @@ from storage import (
     weather_notifications_for_farmer,
 )
 
-# Cache: thread-local in-memory databases per farmer_id, scoped to that
-# farmer's rows only. No cross-farmer data is ever loaded, so no SQL-level
-# tenant filter is required (defence in depth via row-level scoping at the
-# data layer rather than regex injection).
+# Cache: in-memory databases per farmer_id, scoped to that farmer's rows
+# only. No cross-farmer data is ever loaded, so no SQL-level tenant filter
+# is required (defence in depth via row-level scoping at the data layer
+# rather than regex injection).
+#
+# Real bug, found in a robustness audit: this was documented as
+# "thread-local" but never actually was -- _db_cache is a plain dict shared
+# by every thread, and sqlite3.connect() defaults to check_same_thread=True.
+# Both /query and /chat/turn are sync `def` endpoints, so FastAPI runs them
+# on arbitrary anyio worker threads; a second request for the same
+# farmer_id landing on a different thread than the one that built the
+# cached connection hit sqlite3.ProgrammingError, which execute_query()
+# silently swallowed into {"success": False}, burned a wasted second LLM
+# "fix the SQL" call, failed again identically, and surfaced the raw
+# Python thread-id error message as the farmer-facing answer -- a real,
+# live, intermittent failure of the entire query_agent path.
+#
+# Fix: check_same_thread=False (in _build_db) lets the same connection be
+# reused from any thread, and a per-farmer lock here serializes actual use
+# of it -- SQLite connections still aren't safe for genuinely simultaneous
+# access from multiple threads even with that flag off.
 _db_cache: dict[str, sqlite3.Connection] = {}
+_db_locks: dict[str, threading.Lock] = {}
 _cache_lock = threading.Lock()
 
 _BLOCKED_KEYWORDS = re.compile(
@@ -60,7 +78,7 @@ def _serialize_value(v: Any) -> Any:
 
 
 def _build_db(farmer_id: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.execute("PRAGMA journal_mode=OFF")
     conn.execute("PRAGMA synchronous=OFF")
 
@@ -110,15 +128,27 @@ def get_db(farmer_id: str) -> sqlite3.Connection:
     with _cache_lock:
         if farmer_id not in _db_cache:
             _db_cache[farmer_id] = _build_db(farmer_id)
+            _db_locks[farmer_id] = threading.Lock()
         return _db_cache[farmer_id]
+
+
+def _get_lock(farmer_id: str) -> threading.Lock:
+    with _cache_lock:
+        return _db_locks.setdefault(farmer_id, threading.Lock())
 
 
 def clear_cache(farmer_id: Optional[str] = None) -> None:
     with _cache_lock:
         if farmer_id:
-            _db_cache.pop(farmer_id, None)
+            conn = _db_cache.pop(farmer_id, None)
+            _db_locks.pop(farmer_id, None)
+            if conn is not None:
+                conn.close()
         else:
+            for conn in _db_cache.values():
+                conn.close()
             _db_cache.clear()
+            _db_locks.clear()
 
 
 def validate_sql(sql: str, farmer_id: str) -> str:
@@ -143,22 +173,24 @@ def validate_sql(sql: str, farmer_id: str) -> str:
 def execute_query(sql: str, farmer_id: str) -> dict[str, Any]:
     safe_sql = validate_sql(sql, farmer_id)
     conn = get_db(farmer_id)
+    lock = _get_lock(farmer_id)
 
     try:
-        cur = conn.execute(f"PRAGMA query_only=ON")
-        cur = conn.execute(safe_sql)
-        rows = cur.fetchmany(_MAX_ROWS + 1)
-        truncated = len(rows) > _MAX_ROWS
-        rows = rows[:_MAX_ROWS]
-        columns = [desc[0] for desc in cur.description]
-        return {
-            "success": True,
-            "sql": safe_sql,
-            "columns": columns,
-            "rows": [list(r) for r in rows],
-            "row_count": len(rows),
-            "truncated": truncated,
-        }
+        with lock:
+            cur = conn.execute(f"PRAGMA query_only=ON")
+            cur = conn.execute(safe_sql)
+            rows = cur.fetchmany(_MAX_ROWS + 1)
+            truncated = len(rows) > _MAX_ROWS
+            rows = rows[:_MAX_ROWS]
+            columns = [desc[0] for desc in cur.description]
+            return {
+                "success": True,
+                "sql": safe_sql,
+                "columns": columns,
+                "rows": [list(r) for r in rows],
+                "row_count": len(rows),
+                "truncated": truncated,
+            }
     except Exception as e:
         return {
             "success": False,
