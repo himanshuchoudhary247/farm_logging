@@ -26,5 +26,60 @@
       "feces": "loose"
     },
     "notes": "Given oral rehydration and clean water."
+  },
+  {
+    "id": "7683f43d-541b-4f98-a466-0ee8da2cfc7d",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "recorded_at": "2026-09-19T11:51:20.107171+00:00",
+    "issue": "not eating",
+    "params": {
+      "symptoms": [
+        "not eating"
+      ],
+      "duration": null,
+      "severity": null,
+      "temperature_c": null,
+      "current_medication": null,
+      "attachments": []
+    },
+    "notes": ""
+  },
+  {
+    "id": "622b121f-f887-44b9-b094-eba8c16c9c18",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "recorded_at": "2026-09-19T12:39:31.629662+00:00",
+    "issue": "not eating",
+    "params": {
+      "symptoms": [
+        "not eating"
+      ],
+      "duration": null,
+      "severity": "mild",
+      "temperature_c": null,
+      "current_medication": null,
+      "attachments": []
+    },
+    "notes": ""
+  },
+  {
+    "id": "ffffc629-4378-47f1-b884-4e49034ba593",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-22",
+    "recorded_at": "2026-09-19T20:47:12.848361+00:00",
+    "issue": "limping",
+    "params": {
+      "symptoms": [
+        "not eating",
+        "limping"
+      ],
+      "duration": null,
+      "severity": null,
+      "temperature_c": null,
+      "current_medication": null,
+      "attachments": []
+    },
+    "notes": ""
   }
 ]

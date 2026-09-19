@@ -1,82 +1,103 @@
 [
   {
-    "log_id": "b436b646-393d-4471-b664-caef6921fc4b",
+    "log_id": "c30edce1-7e6e-4c8b-b1cd-ec9ef55c1b56",
     "farmer_id": "f-001",
     "animal_id": "a-f-001-99",
     "pincode": "",
     "symptoms_reported": [
-      "foot swelling"
+      "fever"
     ],
-    "ai_diagnosis_suggestion": "This foot swelling could be a sign of foot rot or a hoof infection, though it might also indicate an injury or foreign object lodged in the foot that's causing inflammation.",
+    "ai_diagnosis_suggestion": "This fever could be a sign of various infections or inflammatory conditions, possibly related to respiratory issues, parasitic infections, or other underlying health problems that a veterinarian would need to examine to confirm.",
     "potential_ailments": [
-      "Foot rot",
-      "Hoof abscess",
-      "Foreign body injury",
-      "Contusion or trauma"
+      "Respiratory infection",
+      "Parasitic infestation",
+      "General infection or inflammation",
+      "Stress-related fever"
     ],
-    "first_aid_advice": "Keep the goat in a clean, dry area to prevent further contamination of the affected foot. Check if you can gently clean the area with mild soap and water, but avoid forcing anything if the goat shows pain. Ensure the animal has access to fresh water and comfortable resting space. Monitor for any changes in swelling, lameness, or discharge. Remember, this is only temporary care advice while waiting for your vet appointment - the veterinarian will need to examine the foot properly to determine the exact cause and provide appropriate treatment. If the swelling worsens rapidly or the goat becomes severely lame, seek immediate veterinary attention.",
+    "first_aid_advice": "Keep the goat in a clean, well-ventilated but draft-free area. Ensure access to fresh, clean water to prevent dehydration. You can offer easily digestible feed like green fodder. Monitor the goat's temperature if you have a thermometer, and watch for any changes in behavior, appetite, or breathing. Do not attempt to give any medications without veterinary guidance. Remember, this is only temporary care advice while you wait for your scheduled vet appointment - the veterinarian will need to perform a proper examination to determine the exact cause and appropriate treatment. If the goat's condition worsens significantly or it shows signs of severe distress, seek immediate veterinary help.",
     "risk_level": "Low",
     "source": "ai_unverified",
-    "log_timestamp": "2026-09-18T21:33:07.671885+00:00"
+    "log_timestamp": "2026-09-19T11:24:27.847519+00:00"
   },
   {
-    "log_id": "deda3cd0-6be6-444b-bb02-f7492f76b3ec",
+    "log_id": "ccb08929-8c5c-4f83-b68c-7ceedd0b27f6",
     "farmer_id": "f-001",
     "animal_id": "a-f-001-99",
     "pincode": "",
     "symptoms_reported": [
-      "foot swelling"
+      "not eating"
     ],
-    "ai_diagnosis_suggestion": "This foot swelling could be a sign of foot rot, which is common in goats kept in wet conditions, or it might indicate an injury, abscess, or foreign object stuck in the foot.",
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or an underlying illness that's causing loss of appetite in your goat.",
     "potential_ailments": [
-      "Foot rot",
-      "Foot abscess",
-      "Injury or trauma",
-      "Foreign object penetration"
+      "Digestive disturbance",
+      "Dental issues",
+      "Parasitic infection",
+      "General illness or fever"
     ],
-    "first_aid_advice": "Keep the goat in a clean, dry area to prevent further contamination. Check between the toes for any visible wounds, foreign objects, or discharge. You can gently clean the affected foot with mild soap and warm water if there's visible dirt. Make sure the goat has access to fresh water and comfortable resting space. Do not attempt to lance or drain any swelling yourself. This preliminary advice is not a substitute for proper veterinary examination - your scheduled vet appointment is essential for proper diagnosis and treatment. If the swelling worsens rapidly, the goat stops bearing weight on the leg, or shows signs of severe pain, seek immediate veterinary help.",
-    "risk_level": "Low",
+    "first_aid_advice": "Keep the goat in a clean, comfortable area with access to fresh water. Offer small amounts of fresh, palatable food like green leaves or tender grass. Monitor for any other symptoms like diarrhea, bloating, or lethargy. Keep the animal separated from others if possible to prevent potential spread of illness. Remember, this is not a substitute for the veterinary examination you already have scheduled - if the goat becomes weak, shows signs of pain, or stops drinking water, seek immediate veterinary care.",
+    "risk_level": null,
     "source": "ai_unverified",
-    "log_timestamp": "2026-09-18T21:34:13.650240+00:00"
+    "log_timestamp": "2026-09-19T11:42:45.840634+00:00"
   },
   {
-    "log_id": "75d810e3-a5aa-4063-9200-c2fb4c12f196",
+    "log_id": "a21a4059-400c-4c86-b9c2-a5613bcb39b0",
     "farmer_id": "f-001",
     "animal_id": "a-f-001-99",
     "pincode": "",
     "symptoms_reported": [
-      "foot swelling"
+      "not eating"
     ],
-    "ai_diagnosis_suggestion": "This could be a sign of foot rot, an injury from stepping on something sharp, or possibly an infection from a small wound that has become inflamed.",
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or general illness that's causing loss of appetite in your goat.",
     "potential_ailments": [
-      "Foot rot",
-      "Foreign body injury",
-      "Abscess or infection",
-      "Contusion or bruising"
+      "Digestive disturbance",
+      "Dental issues",
+      "General illness or fever",
+      "Parasite burden"
     ],
-    "first_aid_advice": "Keep the goat in a clean, dry area to prevent further contamination. Check if you can see any obvious foreign objects like thorns or nails, but don't probe deeply. You can gently clean the area with mild soap and water if there's an open wound. Make sure the goat has access to fresh water and comfortable resting space. Monitor for any changes in swelling, lameness, or discharge. Remember, this is only temporary care advice - your scheduled vet appointment is essential for proper diagnosis and treatment. If the swelling worsens rapidly, the goat stops bearing weight completely, or you notice pus or foul odor, seek immediate veterinary help.",
-    "risk_level": "Low",
+    "first_aid_advice": "Ensure the goat has access to fresh, clean water at all times. Offer small amounts of fresh, palatable food like green leaves or tender grass. Keep the animal in a quiet, comfortable environment with proper shelter. Monitor for any other symptoms like diarrhea, bloating, or lethargy. Remember that this is only preliminary guidance while you wait for your veterinary appointment - the vet will need to examine your goat properly to determine the exact cause and provide appropriate treatment. If your goat becomes weak, collapses, or shows signs of severe distress, seek immediate veterinary help rather than waiting.",
+    "risk_level": null,
     "source": "ai_unverified",
-    "log_timestamp": "2026-09-18T21:53:24.318154+00:00"
+    "log_timestamp": "2026-09-19T11:51:21.563448+00:00"
   },
   {
-    "log_id": "b40049d4-f9a7-4ca2-8d3a-8ba603daed1b",
+    "log_id": "483390d7-6492-4d1d-8ab2-4c9d258a807b",
     "farmer_id": "f-001",
     "animal_id": "a-f-001-99",
     "pincode": "",
     "symptoms_reported": [
-      "foot swelling"
+      "not eating"
     ],
-    "ai_diagnosis_suggestion": "This could be a sign of foot rot, an injury from stepping on something sharp, or possibly an infection in the hoof area.",
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or mild illness, but a proper veterinary examination is needed to determine the exact cause.",
     "potential_ailments": [
-      "Foot rot",
-      "Hoof injury",
-      "Abscess",
-      "Foreign body penetration"
+      "Digestive upset",
+      "Dental issues",
+      "Mild infection",
+      "Parasite burden"
     ],
-    "first_aid_advice": "Keep the goat in a clean, dry area to prevent further contamination. Check if you can gently clean the affected foot with mild soap and water, but avoid forcing anything if the goat resists. Make sure the goat has access to fresh water and comfortable resting space. Do not attempt to cut or trim the hoof yourself. This preliminary advice is not a substitute for professional veterinary care - please keep your scheduled vet appointment for proper diagnosis and treatment. If the swelling worsens rapidly, the goat stops bearing weight completely, or shows signs of severe pain, seek immediate veterinary help.",
+    "first_aid_advice": "Ensure the goat has access to fresh, clean water at all times. Offer small amounts of fresh, palatable food like tender green leaves or hay. Keep the animal in a quiet, comfortable environment and monitor closely for any changes in behavior or additional symptoms. Check if there are any signs of bloating, diarrhea, or lethargy. This preliminary guidance is not a substitute for the veterinary appointment you already have scheduled. If the goat's condition worsens, becomes lethargic, shows signs of pain, or stops drinking water, seek immediate veterinary assistance.",
     "risk_level": "Low",
     "source": "ai_unverified",
-    "log_timestamp": "2026-09-18T22:19:04.694098+00:00"
+    "log_timestamp": "2026-09-19T12:39:33.221265+00:00"
+  },
+  {
+    "log_id": "0b1f7dea-fe49-48b1-9c78-a48f79fa7042",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-22",
+    "pincode": "",
+    "symptoms_reported": [
+      "not eating",
+      "limping"
+    ],
+    "ai_diagnosis_suggestion": "This could be a sign of injury or pain, possibly from a leg wound, joint problem, or internal discomfort that's making the animal reluctant to move and eat.",
+    "potential_ailments": [
+      "Limb injury or fracture",
+      "Joint inflammation or arthritis",
+      "Foot rot or hoof problems",
+      "General pain or systemic illness"
+    ],
+    "first_aid_advice": "Keep the animal in a clean, comfortable area with easy access to fresh water. Provide soft, palatable food that's easy to eat. Limit movement to prevent further injury. Check for any visible wounds, swelling, or heat in the affected limb, but avoid handling too much if it causes pain. This preliminary guidance is not a substitute for the veterinary examination you already have scheduled. If the animal's condition worsens or it shows signs of severe distress, seek immediate in-person veterinary help.",
+    "risk_level": null,
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T20:47:14.314510+00:00"
   }
 ]

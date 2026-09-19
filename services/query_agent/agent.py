@@ -6,35 +6,35 @@ from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.query_agent.db import execute_query, validate_sql
 from services.query_agent.schema import generate_schema_for_prompt
 
-_SQL_SYSTEM = """You are a livestock data analyst. Given a farmer's natural language question and a database schema, you generate SQLite SQL queries.
+_SQL_SYSTEM = """You are a livestock data analyst. Generate SQLite SQL queries from farmer questions.
 
-Rules:
-- Return ONLY valid SQL. No markdown, no backticks, no explanation.
-- The query MUST be a single SELECT statement.
-- Use SQLite-compatible syntax.
-- When counting, use COUNT(*).
-- When filtering text, use LIKE with lowercase (SQLite is case-sensitive by default, so use LOWER() for case-insensitive matching).
-- Use single quotes for string literals (double quotes for identifiers).
-- Do NOT use LIMIT unless the question asks for a specific number.
-- Use column names exactly as shown in the schema.
-- Join tables using the foreign key relationships described in the schema.
-- Return only the SQL query text, nothing else."""
+SMART QUERY RULES:
+- "how many animals" (total) → SELECT COUNT(*) FROM animals
+- "animals by age" / "age distribution" / "for each age" / "count by" → SELECT age_years, COUNT(*) FROM animals WHERE age_years IS NOT NULL GROUP BY age_years ORDER BY age_years
+- "by category" / "grouped by" / "per" → use GROUP BY
+- "list all" / "show me" → SELECT without GROUP BY
 
-_FORMAT_SYSTEM = """You are a livestock data assistant. Format query results into a clear, conversational answer for a farmer.
+General Rules:
+- Return ONLY valid SQL, no markdown or explanation
+- Use COUNT(*) when counting
+- Use GROUP BY when farmer wants breakdown by category
+- Use ORDER BY for listing/sorting
+- Return only the SQL query text"""
 
-Rules:
-- Keep it short, 1-3 sentences.
-- Use the farmer's language naturally.
-- If the result is a count, say "You have N animals" or similar.
-- If the result is a list, summarize the key items.
-- Do NOT mention SQL, columns, or technical details.
-- If there are zero rows, check the schema description for that table before
-  concluding what that means. A table's description may say zero rows means
-  "no data recorded" rather than a confirmed negative (e.g. zero vaccination
-  records does not mean an animal is confirmed NOT due for a vaccine, it may
-  simply mean nothing was ever recorded) -- in that case say data is
-  unavailable/not on file, do not assert the negative as fact.
-- Return only the answer text, nothing else."""
+_FORMAT_SYSTEM = """You are a livestock data assistant. Analyze the farmer's question and data, then present it intelligently.
+
+DECISION TREE:
+1. If asking for a SINGLE total → give just the number
+   Example: "How many animals?" → "You have 38 animals."
+
+2. If asking for BREAKDOWN by category (ages, groups, types) → show EACH group
+   Examples: "age distribution", "by age", "for each", "list all ages", "show by category"
+   Format: List each group with its count, one per line
+   Example: Age 0.7: 1 animal, Age 1.2: 3 animals, Age 1.7: 4 animals...
+
+3. Other questions → conversational answer
+
+NEVER use vague summaries when specific data was requested."""
 
 
 def _generate_sql(query: str, farmer_id: str, schema: str, adapter: BedrockTextAdapter) -> str:
@@ -60,10 +60,11 @@ Generate a SQLite SQL query to answer this question."""
 
 
 def _format_result(query: str, result: dict, schema: str, adapter: BedrockTextAdapter) -> str:
+    """Format query result based on what user asked for."""
     data_str = json.dumps(result, indent=2, default=str)
-    prompt = f"""Database schema (for interpreting what zero rows means -- read
-each table's description, some explicitly define what an empty result
-means for that table):
+    
+    # Simple instruction - let LLM decide based on context
+    prompt = f"""Database schema:
 
 {schema}
 
@@ -72,15 +73,16 @@ Farmer asked: "{query}"
 Query result:
 {data_str}
 
-Give a short, clear answer in natural language."""
+Instructions:
+- If asking for total/count only → give just the number
+- If asking for breakdown by category → show EACH group with count (list format)
+- Otherwise → conversational answer
+
+Give a clear answer:"""
     try:
-        raw = adapter.complete(messages=[{"role": "user", "content": prompt}], system=_FORMAT_SYSTEM)
-        return raw.strip()
+        return adapter.complete(messages=[{"role": "user", "content": prompt}], system=_FORMAT_SYSTEM).strip()
     except Exception:
-        rows = result.get("rows", [])
-        if rows:
-            return f"Found {len(rows)} result(s)."
-        return "No results found."
+        return "I found the data but had trouble putting it into words. Please try asking again."
 
 
 MAX_RETRIES = 2
@@ -107,7 +109,7 @@ def process_query(query: str, farmer_id: str) -> dict[str, Any]:
 
         if result.get("success"):
             answer = _format_result(query, result, schema, adapter)
-            return {
+            response = {
                 "answer": answer,
                 "sql": result.get("sql"),
                 "data": {
@@ -117,6 +119,17 @@ def process_query(query: str, farmer_id: str) -> dict[str, Any]:
                     "truncated": result.get("truncated", False),
                 },
             }
+            
+            # Smart detection: SQL with GROUP BY indicates structured/breakdown data
+            sql_upper = (result.get("sql") or "").upper()
+            has_group_by = "GROUP BY" in sql_upper
+            has_multiple_rows = len(result.get("rows", [])) > 1
+            
+            if has_group_by and has_multiple_rows:
+                response["display_mode"] = "structured"
+                response["title"] = query.strip(".?").capitalize()
+            
+            return response
 
         last_error = result.get("error", "Unknown error")
 

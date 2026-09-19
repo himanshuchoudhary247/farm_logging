@@ -120,7 +120,13 @@ def _envelope(agent: str, intent: Optional[str], result: dict[str, Any], reply_t
         "chat_orchestrator turn farmer=%s session=%s agent=%s intent=%s text=%r reply=%r",
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
-    return {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+    envelope = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+    # Pass through display_mode from query_agent for structured data rendering
+    if "display_mode" in result:
+        envelope["display_mode"] = result["display_mode"]
+    if "title" in result:
+        envelope["title"] = result["title"]
+    return envelope
 
 
 def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
