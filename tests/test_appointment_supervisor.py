@@ -19,6 +19,7 @@ def test_turn_confirm_and_submit_state_machine(tmp_path, monkeypatch):
             }
         },
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
 
     first = supervisor.turn("demo-farmer", "session-1", "Lakshmi has foot swelling on August 25 at 11:30", "en-IN")
@@ -39,6 +40,7 @@ def test_correction_keeps_draft_open(tmp_path, monkeypatch):
         "process_text_input",
         lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi", "issue": "fever"}},
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
     supervisor.turn("demo-farmer", "session-2", "Lakshmi has fever", "hi-IN")
     corrected = supervisor.confirm("demo-farmer", "session-2", "no")
@@ -63,6 +65,7 @@ def test_hindi_turn_uses_llm_extracted_entities(tmp_path, monkeypatch):
             }
         },
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "सीमा"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
 
     result = supervisor.turn(
@@ -96,6 +99,7 @@ def test_bare_reply_to_targeted_field_question_is_wired_as_context(tmp_path, mon
         return {"entities": {}}
 
     monkeypatch.setattr(service, "process_text_input", fake_process_text_input)
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "1122"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
 
     first = supervisor.turn("demo-farmer", "session-bare", "I want to report symptoms", "en-IN")
@@ -120,6 +124,7 @@ def test_animal_tag_bridges_to_animal_identifier(tmp_path, monkeypatch):
         "process_text_input",
         lambda text, session_id, pending_questions_override=None: {"entities": {"animal_tag": "1122"}},
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "1122"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
     result = supervisor.turn("demo-farmer", "session-tag", "1122", "en-IN")
     assert result["draft"]["animal_identifier"] == "1122"
@@ -138,6 +143,7 @@ def test_unchanged_extraction_reasks_targeted_field_not_full_welcome(tmp_path, m
         "process_text_input",
         lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi"}},
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
     supervisor.turn("demo-farmer", "session-reask", "Lakshmi", "en-IN")
 
@@ -171,6 +177,7 @@ def test_confirmation_classified_by_signal_not_keyword_substring(tmp_path, monke
             }
         },
     )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
     supervisor = service.AppointmentSupervisor(tmp_path)
     first = supervisor.turn("demo-farmer", "session-confirm-signal", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
     assert first["state"] == "CONFIRMING"
@@ -234,13 +241,12 @@ def test_yes_at_ready_to_submit_actually_submits(tmp_path, monkeypatch):
 
 
 def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
-    """Real bug: submit() used to raise ValueError when the given animal
-    identifier didn't match any registered animal, which became a dead-end
-    HTTP 400 with no way to recover -- breaking the one invariant every
-    other branch of this state machine keeps (a mistake gets a chance to
-    be corrected). Now it loops back into COLLECTING, clears the bad
-    identifier, and lists the farmer's real registered animals instead of
-    a generic retry prompt."""
+    """Real bug: the animal was only ever checked at the very end, inside
+    submit() -- a raw ValueError there became a dead-end HTTP 400 with no
+    way to recover. Now the animal is verified the moment it's given,
+    immediately in turn(), not deferred to submit() at all -- catching a
+    wrong identifier right away instead of after the farmer has also
+    given issue/date/time and confirmed everything."""
     monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
     monkeypatch.setattr(
         service,
@@ -260,20 +266,15 @@ def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: (None, []))
 
     supervisor = service.AppointmentSupervisor(tmp_path)
-    supervisor.turn("demo-farmer", "session-notfound", "9999, fever, tomorrow 5pm", "en-IN")
+    result = supervisor.turn("demo-farmer", "session-notfound", "9999, fever, tomorrow 5pm", "en-IN")
 
-    monkeypatch.setattr(
-        service, "process_text_input",
-        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
-    )
-    supervisor.turn("demo-farmer", "session-notfound", "cool", "en-IN")
-
-    result = supervisor.turn("demo-farmer", "session-notfound", "yes", "en-IN")
     assert result.get("status") != "submitted", "must not submit when the animal doesn't match"
     assert result["state"] == "COLLECTING"
     assert result["draft"].get("animal_identifier") is None
     assert "GAURI" in result["response_text"]
     assert "9999" in result["response_text"]
+    assert result["options"]["choices"] == ["GAURI"]
+    assert result["options"]["other_allowed"] is True
 
 
 def test_fuzzy_animal_match_resolves_typo_and_submits(tmp_path, monkeypatch):
@@ -347,15 +348,9 @@ def test_ambiguous_match_shows_shortlist_not_entire_herd(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: (None, ["a-1", "a-2"]))
 
     supervisor = service.AppointmentSupervisor(tmp_path)
-    supervisor.turn("demo-farmer", "session-ambiguous", "001, fever, tomorrow 5pm", "en-IN")
-
-    monkeypatch.setattr(
-        service, "process_text_input",
-        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
-    )
-    supervisor.turn("demo-farmer", "session-ambiguous", "cool", "en-IN")
-    result = supervisor.turn("demo-farmer", "session-ambiguous", "yes", "en-IN")
+    result = supervisor.turn("demo-farmer", "session-ambiguous", "001, fever, tomorrow 5pm", "en-IN")
 
     assert "TAG-001-1" in result["response_text"]
     assert "TAG-001-2" in result["response_text"]
     assert "OTHER-999" not in result["response_text"], "shortlist must narrow, not show the whole herd"
+    assert result["options"]["choices"] == ["TAG-001-1", "TAG-001-2"]

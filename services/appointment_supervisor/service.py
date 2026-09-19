@@ -237,6 +237,45 @@ Which one (if any) does the farmer mean?"""
         return None, []
 
 
+def _verify_animal(identifier: str, animals: list) -> tuple[Optional[Any], list]:
+    """Shared by the early-verification step in turn() and submit()'s
+    defensive fallback. Exact match (case-insensitive) first, then the LLM
+    resolver for typos/partial tags. Returns (matched_animal_or_None,
+    shortlist_of_candidates_or_empty)."""
+    wanted = identifier.lower()
+    exact = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
+    if exact:
+        return exact[0], []
+    matched_id, candidate_ids = _resolve_animal_id(identifier, animals)
+    by_id = {a.id: a for a in animals}
+    matched = by_id.get(matched_id) if matched_id else None
+    candidates = [by_id[c] for c in candidate_ids if c in by_id]
+    return matched, candidates
+
+
+_SYMPTOM_KEYS = ["not eating", "fever", "limping", "swelling", "not drinking"]
+_OTHER_LABEL = {"en": "Other", "hi": "अन्य", "ta": "மற்றவை", "te": "ఇతర", "kn": "ಇతర"}
+
+
+def _symptom_options(language: str) -> dict:
+    """5 common symptom pills + Other, translated using the SAME vetted
+    _VALUES vocabulary already used elsewhere in this file for rendering
+    booking summaries -- not new, unverified translations."""
+    lang = _lang(language)
+    values_map = _VALUES.get(lang, {})
+    choices = [values_map.get(k, k).capitalize() if lang == "en" else values_map.get(k, k) for k in _SYMPTOM_KEYS]
+    return {"choices": choices, "other_label": _OTHER_LABEL.get(lang, "Other"), "other_allowed": True}
+
+
+def _animal_options(language: str, animals: list) -> dict:
+    lang = _lang(language)
+    return {
+        "choices": [a.tag_or_name for a in animals][:5],
+        "other_label": _OTHER_LABEL.get(lang, "Other"),
+        "other_allowed": True,
+    }
+
+
 class AppointmentSupervisor:
     def __init__(self, data_dir: Path | None = None) -> None:
         self.data_dir = data_dir or get_data_dir()
@@ -279,14 +318,30 @@ class AppointmentSupervisor:
         for key, value in entities.items():
             if value not in (None, "", []):
                 target[key] = value
-        if not target.get("animal_identifier"):
-            # animal_tag is the extraction schema's field for a bare
-            # ear-tag/ID number (see bedrock_adapter.py's _EXTRACTION_TOOL_SPEC);
-            # animal_name is a name. REQUIRED_FIELDS only checks
-            # animal_identifier, so either one must bridge into it or a
-            # correctly-extracted tag number silently never counts as
-            # having answered the question at all.
-            identifier = target.get("animal_tag") or target.get("animal_name")
+
+        # animal_tag/animal_name/animal_id are the extraction schema's
+        # fields for a bare ear-tag, a name, or an internal record id --
+        # REQUIRED_FIELDS only checks animal_identifier, so one of them
+        # must bridge into it or a correctly-extracted value silently
+        # never counts as having answered the question. animal_id is
+        # bridged here too, never trusted directly -- real bug, found
+        # live: extraction classified a made-up value ("FAKEANIMAL999") as
+        # animal_id, which turn()'s early verification and submit() both
+        # treat as already-resolved and never actually check against real
+        # animals at all. Every raw extracted value, whichever field name
+        # the model used, goes through the same verification; only a
+        # value this class has itself confirmed sits in animal_id.
+        raw_animal_ref = entities.get("animal_id") or entities.get("animal_tag") or entities.get("animal_name")
+        if raw_animal_ref and draft.get("animal_verified") and raw_animal_ref != target.get("animal_identifier"):
+            # A later turn named a different animal after one was already
+            # verified (a correction) -- re-verify the new value instead
+            # of silently keeping the stale one or trusting the new raw
+            # value unchecked.
+            draft["animal_verified"] = False
+            target["animal_identifier"] = raw_animal_ref
+            target.pop("animal_id", None)
+        elif not draft.get("animal_verified") and not target.get("animal_identifier"):
+            identifier = target.pop("animal_id", None) or target.get("animal_tag") or target.get("animal_name")
             if identifier:
                 target["animal_identifier"] = identifier
         if target.get("issue") and not target.get("symptoms"):
@@ -324,13 +379,13 @@ class AppointmentSupervisor:
         catalog = _TEXT.get(_lang(language), _TEXT["en"])
         return catalog[key].format(**values)
 
-    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True) -> dict[str, Any]:
+    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None) -> dict[str, Any]:
         language = draft["language"]
         if include_audio:
             audio, audio_error = synthesize_speech(text, target_lang=_lang(language))
         else:
             audio, audio_error = None, None
-        return {
+        resp = {
             "session_id": draft["session_id"],
             "state": draft["state"],
             "language": language,
@@ -341,6 +396,13 @@ class AppointmentSupervisor:
             "response_audio_base64": b64encode(audio).decode("ascii") if audio else None,
             "audio_error": audio_error,
         }
+        # UI widget hint: a short list of clickable choices plus an
+        # "Other" fallback (free-text works exactly as before either way --
+        # this is purely additive metadata for a UI that wants to render
+        # buttons instead of forcing every answer through typing).
+        if options:
+            resp["options"] = options
+        return resp
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
@@ -442,8 +504,40 @@ class AppointmentSupervisor:
         before = dict(draft["draft"])
         self._copy_entities(draft, result.get("entities") or {})
 
+        # Verify the animal the moment it's given, not deferred to submit()
+        # at the very end -- catching a wrong/ambiguous animal right after
+        # the farmer names it is much better than discovering it only
+        # after they've also given issue/date/time and confirmed
+        # everything. Re-checks every turn until verified (idempotent);
+        # once verified it's skipped for the rest of this booking.
+        identifier = draft["draft"].get("animal_identifier")
+        if identifier and not draft.get("animal_verified"):
+            animals = animals_for_farmer(farmer_id)
+            matched, candidates = _verify_animal(identifier, animals)
+            if matched:
+                draft["draft"]["animal_id"] = matched.id
+                draft["draft"]["animal_identifier"] = matched.tag_or_name
+                draft["animal_verified"] = True
+            else:
+                draft["draft"]["animal_identifier"] = None
+                draft["draft"].pop("animal_id", None)
+                draft["draft"].pop("animal_tag", None)
+                draft["draft"].pop("animal_name", None)
+                draft["animal_verified"] = False
+                draft["state"] = "COLLECTING"
+                draft["expected_field"] = "animal_identifier"
+                shortlist = candidates or animals
+                animal_names = ", ".join(a.tag_or_name for a in shortlist) or self._message(draft["language"], "missing_animal_identifier")
+                message = self._message(draft["language"], "animal_not_found", identifier=identifier, animals=animal_names)
+                self._save(draft)
+                return self._response(
+                    draft, message, input_transcript=text, include_audio=include_audio,
+                    options=_animal_options(draft["language"], shortlist),
+                )
+
         missing = self._missing(draft)
         draft["expected_field"] = missing[0] if missing else None
+        options = _symptom_options(draft["language"]) if draft["expected_field"] == "issue" else None
 
         if draft["draft"] == before and missing:
             # Extraction found nothing new and something is still missing.
@@ -459,8 +553,9 @@ class AppointmentSupervisor:
                 message = self._message(draft["language"], "yes_missing", field=field)
             else:
                 message = self._message(draft["language"], "welcome")
+                options = None
             self._save(draft)
-            return self._response(draft, message, input_transcript=text, include_audio=include_audio)
+            return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options)
 
         draft["state"] = "CONFIRMING"
         self._save(draft)
@@ -475,7 +570,7 @@ class AppointmentSupervisor:
             # language) rather than adding new phrasing.
             field = self._message(draft["language"], f"missing_{missing[0]}")
             message = f"{message} {self._message(draft['language'], 'yes_missing', field=field)}"
-        return self._response(draft, message, input_transcript=text, include_audio=include_audio)
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options)
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
@@ -484,6 +579,7 @@ class AppointmentSupervisor:
         normalized = response.strip().lower()
         language = draft["language"]
         draft["confirmation_history"].append({"response": response, "at": _now()})
+        options = None
         if normalized in {"yes", "y", "haan", "ಹೌದು", "అవును", "ஆம்"}:
             draft["confirmed_fields"] = list(draft["draft"].keys())
             missing = self._missing(draft)
@@ -492,6 +588,8 @@ class AppointmentSupervisor:
                 draft["state"] = "COLLECTING"
                 field = self._message(language, f"missing_{missing[0]}")
                 message = self._message(language, "yes_missing", field=field)
+                if missing[0] == "issue":
+                    options = _symptom_options(language)
             else:
                 draft["state"] = "READY_TO_SUBMIT"
                 message = self._message(language, "ready")
@@ -507,7 +605,7 @@ class AppointmentSupervisor:
             self._copy_entities(draft, result.get("entities") or {})
             message = self._message(language, "updated", summary=self._summary(draft))
         self._save(draft)
-        return self._response(draft, message, include_audio=include_audio)
+        return self._response(draft, message, include_audio=include_audio, options=options)
 
     def submit(self, farmer_id: str, session_id: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
