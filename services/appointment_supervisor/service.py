@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
@@ -295,6 +296,24 @@ class AppointmentSupervisor:
     def __init__(self, data_dir: Path | None = None) -> None:
         self.data_dir = data_dir or get_data_dir()
         self.intake_dir = self.data_dir / "appointment_intakes"
+        # Bug found in a robustness audit: turn()/confirm()/submit()/attach()
+        # each read the draft (unlocked), did real work -- including, in
+        # turn(), the extraction LLM call -- then wrote it back under a lock
+        # held only around the write itself. Two concurrent requests for the
+        # same session_id could both read the same starting draft and each
+        # write back their own version, one silently clobbering the other's
+        # fields (no corruption, just dropped entities/transcript). Fixed by
+        # holding a per-session RLock across the entire call, not just the
+        # write. RLock (not Lock) because turn() calls self.confirm()/
+        # self.submit() internally on the same thread -- a plain Lock would
+        # deadlock on that re-entry.
+        self._session_locks: dict[str, threading.RLock] = {}
+        self._session_locks_guard = threading.Lock()
+
+    def _session_lock(self, farmer_id: str, session_id: str) -> threading.RLock:
+        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
+        with self._session_locks_guard:
+            return self._session_locks.setdefault(digest, threading.RLock())
 
     def _path(self, farmer_id: str, session_id: str) -> Path:
         # Real bug, found in a robustness audit: the old scheme
@@ -445,6 +464,10 @@ class AppointmentSupervisor:
         return resp
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+        with self._session_lock(farmer_id, session_id):
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+
+    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted") or draft.get("state") == "CANCELLED":
             # Prior booking on this session_id is either already saved
@@ -719,6 +742,10 @@ class AppointmentSupervisor:
         return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options, prompt=prompt)
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
+        with self._session_lock(farmer_id, session_id):
+            return self._confirm_locked(farmer_id, session_id, response, include_audio)
+
+    def _confirm_locked(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
@@ -783,6 +810,10 @@ class AppointmentSupervisor:
         return self._response(draft, message, include_audio=include_audio, options=options)
 
     def submit(self, farmer_id: str, session_id: str, include_audio: bool = True) -> dict[str, Any]:
+        with self._session_lock(farmer_id, session_id):
+            return self._submit_locked(farmer_id, session_id, include_audio)
+
+    def _submit_locked(self, farmer_id: str, session_id: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             return {"status": "already_submitted", "intake": draft}
@@ -965,6 +996,10 @@ class AppointmentSupervisor:
         }
 
     def attach(self, farmer_id: str, session_id: str, attachment: dict[str, Any]) -> dict[str, Any]:
+        with self._session_lock(farmer_id, session_id):
+            return self._attach_locked(farmer_id, session_id, attachment)
+
+    def _attach_locked(self, farmer_id: str, session_id: str, attachment: dict[str, Any]) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
         if draft.get("submitted"):
             raise ValueError("This appointment intake has already been submitted")
