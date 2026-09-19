@@ -1,0 +1,62 @@
+======================================================================
+🎉 React Loop Skills - Local Server (Simple Mode)
+======================================================================
+
+📍 Server running on http://localhost:3001
+
+📚 Available endpoints:
+  GET  /health                          - Health check
+  GET  /skills                          - List all skills
+  POST /farmers/:id/chat/session        - Create chat session
+  POST /farmers/:id/chat/turn           - Send chat message ⭐
+  GET  /farmers/:id                     - Get farmer data
+  GET  /farmers/:id/animals             - Get animals
+  GET  /farmers/:id/appointments        - Get appointments
+
+🧪 Test commands:
+  curl http://localhost:3001/health
+  curl http://localhost:3001/skills
+  curl http://localhost:3001/farmers/farmer_001
+
+  # Create session and chat
+  curl -X POST http://localhost:3001/farmers/farmer_001/chat/session
+  curl -X POST http://localhost:3001/farmers/farmer_001/chat/turn
+
+  # Test intent persistence (fragments):
+  curl -X POST http://localhost:3001/farmers/farmer_001/chat/turn
+  curl -X POST http://localhost:3001/farmers/farmer_001/chat/turn
+
+======================================================================
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "How many animals do I have?"
+[Intent] Detected: farm-qa (100%)
+[Flow] Completed: farm-qa
+[Response] "You have 3 animals total: 1 cow, 1 buffalo, 1 goat."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Show my cows"
+[Intent] Detected: farm-qa (75%)
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What is the weather?"
+[Intent] Detected: weather (50%)
+[Flow] Completed: farm-qa
+[Response] "Currently in is the weather: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "In Mumbai"
+[Intent] Detected: null (0%)
+[Response] "I'm not sure what you're asking about. I can help with weather, appointments, market prices, or farm..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What is the price of wheat?"
+[Intent] Detected: market-prices (75%)
+[Flow] Completed: market-prices
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
