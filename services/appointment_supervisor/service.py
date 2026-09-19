@@ -27,6 +27,7 @@ from storage import (
 
 
 SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
+_UNSET = object()  # distinguishes "caller didn't pass prompt" (default to full text) from an explicit prompt=None (genuinely no separate question this turn)
 REQUIRED_FIELDS = ("animal_identifier", "issue", "date", "time")
 _BOOKING_INTENTS = {"CREATE_APPOINTMENT", "LOG_HEALTH"}
 
@@ -379,7 +380,7 @@ class AppointmentSupervisor:
         catalog = _TEXT.get(_lang(language), _TEXT["en"])
         return catalog[key].format(**values)
 
-    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None) -> dict[str, Any]:
+    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET) -> dict[str, Any]:
         language = draft["language"]
         if include_audio:
             audio, audio_error = synthesize_speech(text, target_lang=_lang(language))
@@ -393,6 +394,20 @@ class AppointmentSupervisor:
             "draft": draft["draft"],
             "missing_fields": self._missing(draft),
             "response_text": text,
+            # response_text also feeds synthesize_speech() above -- it MUST
+            # keep the "I understood: X" readback fused in, or a
+            # voice-only farmer never hears confirmation of what was
+            # captured before the next question. prompt_text is the
+            # UI-safe alternative: always just the bare next-step
+            # question/statement, never fused with field data, so a
+            # client that already renders `draft` as tags doesn't have to
+            # regex-parse prose out of response_text (real, reported
+            # breakage: field labels don't translate the same way across
+            # languages, and the field-dump glues onto the next sentence
+            # with no separator). None when this turn is a pure readback
+            # with no distinct next-step sentence to isolate (state alone
+            # tells the UI to show its own confirm buttons then).
+            "prompt_text": text if prompt is _UNSET else prompt,
             "response_audio_base64": b64encode(audio).decode("ascii") if audio else None,
             "audio_error": audio_error,
         }
@@ -535,10 +550,16 @@ class AppointmentSupervisor:
                 shown = (candidates or animals)[:5]
                 animal_names = ", ".join(a.tag_or_name for a in shown) or self._message(draft["language"], "missing_animal_identifier")
                 message = self._message(draft["language"], "animal_not_found", identifier=identifier, animals=animal_names)
+                # prompt_text: just the ask, reusing the same phrasing
+                # already used everywhere else this field is requested --
+                # the "who/what animal wasn't found" context lives in
+                # options.choices structurally, not prose a UI has to
+                # parse.
+                prompt = self._message(draft["language"], "yes_missing", field=self._message(draft["language"], "missing_animal_identifier"))
                 self._save(draft)
                 return self._response(
                     draft, message, input_transcript=text, include_audio=include_audio,
-                    options=_animal_options(draft["language"], shown),
+                    options=_animal_options(draft["language"], shown), prompt=prompt,
                 )
 
         missing = self._missing(draft)
@@ -566,6 +587,7 @@ class AppointmentSupervisor:
         draft["state"] = "CONFIRMING"
         self._save(draft)
         message = self._message(draft["language"], "correct", summary=self._summary(draft))
+        prompt = None
         if missing:
             # Proactively ask for the next missing required field in the
             # same turn, instead of only echoing back what was understood
@@ -575,8 +597,13 @@ class AppointmentSupervisor:
             # "yes_missing" copy (already vetted in every supported
             # language) rather than adding new phrasing.
             field = self._message(draft["language"], f"missing_{missing[0]}")
-            message = f"{message} {self._message(draft['language'], 'yes_missing', field=field)}"
-        return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options)
+            prompt = self._message(draft["language"], "yes_missing", field=field)
+            message = f"{message} {prompt}"
+        # prompt is None here when nothing is missing -- this turn is a
+        # pure "I understood: X" readback with no distinct next-step
+        # sentence; state=="CONFIRMING" alone tells the UI to show its own
+        # yes/no confirm buttons rather than a prompt sentence.
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options, prompt=prompt)
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, "en-IN")
@@ -610,6 +637,10 @@ class AppointmentSupervisor:
             result = process_text_input(response, session_id=f"{farmer_id}:{session_id}")
             self._copy_entities(draft, result.get("entities") or {})
             message = self._message(language, "updated", summary=self._summary(draft))
+            # No distinct next-step sentence here -- just the readback --
+            # same as the bare "correct" case in turn().
+            self._save(draft)
+            return self._response(draft, message, include_audio=include_audio, options=options, prompt=None)
         self._save(draft)
         return self._response(draft, message, include_audio=include_audio, options=options)
 
@@ -671,7 +702,8 @@ class AppointmentSupervisor:
             # typed right after this message still came back as "1122".
             clear_session(f"{farmer_id}:{session_id}")
             message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
-            return self._response(draft, message, include_audio=include_audio, options=_animal_options(draft["language"], shown))
+            prompt = self._message(draft["language"], "yes_missing", field=self._message(draft["language"], "missing_animal_identifier"))
+            return self._response(draft, message, include_audio=include_audio, options=_animal_options(draft["language"], shown), prompt=prompt)
         health = append_health_log(farmer_id, animal_id, str(values.get("issue")), {
             "symptoms": values.get("symptoms", []),
             "duration": values.get("duration"),
