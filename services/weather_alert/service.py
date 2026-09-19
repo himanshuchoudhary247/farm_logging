@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
+import threading
 import time
 from typing import Any
 
@@ -12,7 +14,9 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 _CACHE_TTL_SEC = 15 * 60
-_cache: dict[str, tuple[float, Any]] = {}
+_MAX_CACHE_ENTRIES = 500  # bug found in robustness audit: this cache was unbounded and had no lock
+_cache: "OrderedDict[str, tuple[float, Any]]" = OrderedDict()
+_cache_lock = threading.Lock()
 
 
 @dataclass
@@ -35,18 +39,24 @@ def _is_pin_code(value: str) -> bool:
 
 
 def _cache_get(key: str) -> Any:
-    item = _cache.get(key)
-    if not item:
-        return None
-    ts, value = item
-    if time.time() - ts > _CACHE_TTL_SEC:
-        _cache.pop(key, None)
-        return None
-    return value
+    with _cache_lock:
+        item = _cache.get(key)
+        if not item:
+            return None
+        ts, value = item
+        if time.time() - ts > _CACHE_TTL_SEC:
+            _cache.pop(key, None)
+            return None
+        _cache.move_to_end(key)
+        return value
 
 
 def _cache_set(key: str, value: Any) -> None:
-    _cache[key] = (time.time(), value)
+    with _cache_lock:
+        _cache[key] = (time.time(), value)
+        _cache.move_to_end(key)
+        while len(_cache) > _MAX_CACHE_ENTRIES:
+            _cache.popitem(last=False)
 
 
 def _compute_heat_stress(
