@@ -151,12 +151,21 @@ def clear_cache(farmer_id: Optional[str] = None) -> None:
             _db_locks.clear()
 
 
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
+
+
 def validate_sql(sql: str, farmer_id: str) -> str:
     stripped = sql.strip().strip(";")
     if not stripped:
         raise ValueError("Empty SQL query")
 
-    if _BLOCKED_KEYWORDS.search(stripped):
+    # Bug found in robustness audit: blocked-keyword scan ran over the raw SQL
+    # text, so a legit query like WHERE notes LIKE '%update%' got rejected --
+    # "update" sat inside a string literal, not as a SQL verb. Scan a copy with
+    # string literals blanked out; the real query (with literals intact) still
+    # executes.
+    without_literals = _STRING_LITERAL.sub("''", stripped)
+    if _BLOCKED_KEYWORDS.search(without_literals):
         raise ValueError("Only SELECT queries are allowed")
 
     upper = stripped.upper().strip()

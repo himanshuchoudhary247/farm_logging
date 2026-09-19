@@ -24,8 +24,14 @@ class ResolvedLocation:
 
 
 def _is_pin_code(value: str) -> bool:
+    # Real bug, found in a robustness audit: str.isdigit() is True for
+    # non-ASCII digits too (Devanagari "५६००१", superscripts, etc.) -- a PIN
+    # typed in Devanagari script took this branch, got sent to the geocoder
+    # verbatim, resolved to nothing, and the farmer got "could not resolve
+    # location" instead of their PIN being read correctly. isascii() first
+    # restricts this to plain 0-9.
     v = (value or "").strip()
-    return v.isdigit() and 5 <= len(v) <= 8
+    return v.isascii() and v.isdigit() and 5 <= len(v) <= 8
 
 
 def _cache_get(key: str) -> Any:
