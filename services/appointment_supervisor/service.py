@@ -278,7 +278,7 @@ class AppointmentSupervisor:
         if awaiting_confirmation:
             pending = ["confirm these details are correct (yes/no), or cancel"]
         elif state == "READY_TO_SUBMIT":
-            pending = ["submit the appointment now, or say no to go back"]
+            pending = ["submit the appointment now (yes/submit), or cancel"]
         elif draft.get("expected_field") in APPOINTMENT_FIELD_LABELS:
             pending = [APPOINTMENT_FIELD_LABELS[draft["expected_field"]]]
         else:
@@ -290,9 +290,20 @@ class AppointmentSupervisor:
         if awaiting_confirmation and confirmation_signal in {"yes", "no", "cancel"}:
             self._save(draft)
             return self.confirm(farmer_id, session_id, confirmation_signal, include_audio=include_audio)
-        if state == "READY_TO_SUBMIT" and confirmation_signal == "submit":
+        if state == "READY_TO_SUBMIT" and confirmation_signal in {"yes", "submit"}:
+            # "yes" is the natural way to affirmatively answer "would you
+            # like to submit?" -- the model correctly reports the farmer's
+            # literal word (confirmation_signal="yes"), not the enum value
+            # "submit", so both must count as consent here. Missing this
+            # caused a real infinite loop: "yes" fell through unmatched,
+            # regressed state back to CONFIRMING, and the next turn's
+            # "done??" bounced it back to READY_TO_SUBMIT via confirm()'s
+            # own "yes" handling -- never once reaching submit().
             self._save(draft)
             return self.submit(farmer_id, session_id, include_audio=include_audio)
+        if state == "READY_TO_SUBMIT" and confirmation_signal == "cancel":
+            self._save(draft)
+            return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
         before = dict(draft["draft"])
         self._copy_entities(draft, result.get("entities") or {})

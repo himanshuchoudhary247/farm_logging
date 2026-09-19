@@ -185,3 +185,49 @@ def test_confirmation_classified_by_signal_not_keyword_substring(tmp_path, monke
     )
     corrected = supervisor.turn("demo-farmer", "session-confirm-signal", "that's wrong, arnt you smart enough", "en-IN")
     assert corrected["state"] == "CORRECTING"
+
+
+def test_yes_at_ready_to_submit_actually_submits(tmp_path, monkeypatch):
+    """Real infinite-loop bug, found via live user testing: at
+    READY_TO_SUBMIT, saying "yes" is the natural way to consent, and the
+    model correctly reports confirmation_signal="yes" (the farmer's literal
+    word), not the separate enum value "submit". Routing only matched
+    "submit" -- "yes" fell through unmatched, regressed state back to
+    CONFIRMING, and the next turn's follow-up bounced it back to
+    READY_TO_SUBMIT via confirm()'s own "yes" handling, forever, never once
+    calling submit()."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service,
+        "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {
+                "animal_identifier": "1122", "issue": "not eating",
+                "date": "2026-09-20", "time": "17:00",
+            }
+        },
+    )
+    fake_animal = type("Animal", (), {"id": "1122", "tag_or_name": "1122"})()
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [fake_animal])
+    monkeypatch.setattr(service, "append_health_log", lambda *a, **k: type("H", (), {"id": "h-1", "model_dump": lambda self: {"id": "h-1"}})())
+    monkeypatch.setattr(service, "append_appointment", lambda *a, **k: type("A", (), {"id": "a-1", "model_dump": lambda self: {"id": "a-1"}})())
+    monkeypatch.setattr(service, "append_ai_health_log", lambda **k: None)
+    monkeypatch.setattr(
+        service, "generate_health_recommendation",
+        lambda **k: {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""},
+    )
+    monkeypatch.setattr(service.flokiq_sync, "create_health_log", lambda **k: None)
+    monkeypatch.setattr(service.flokiq_sync, "create_appointment", lambda **k: None)
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-loop", "1122, not eating, tomorrow 5pm", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    ready = supervisor.turn("demo-farmer", "session-loop", "cool", "en-IN")
+    assert ready["state"] == "READY_TO_SUBMIT"
+
+    result = supervisor.turn("demo-farmer", "session-loop", "yes", "en-IN")
+    assert result.get("status") == "submitted", f"expected submit() to fire, got: {result}"
