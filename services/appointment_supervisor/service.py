@@ -157,6 +157,19 @@ _ANIMAL_MATCH_TOOL_SPEC = {
                         "best fit."
                     ),
                 },
+                "candidate_animal_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "ONLY populate when matched_animal_id is null because of ambiguity "
+                        "(ignore this field entirely for a genuine no-match). List the ids "
+                        "of the specific animals that are plausible matches for what the "
+                        "farmer said -- e.g. if they said a shared prefix, list every "
+                        "animal whose tag contains that prefix, not the farmer's whole "
+                        "herd. This narrows what the farmer gets asked next; leave empty "
+                        "if truly nothing plausible."
+                    ),
+                },
             },
             "required": ["matched_animal_id"],
         }
@@ -170,20 +183,32 @@ _ANIMAL_MATCH_SYSTEM = (
     "equally plausibly refer to several different animals -- e.g. if many "
     "registered tags share a common prefix or substring, a bare fragment "
     "of that shared part does not specifically identify any one of them. "
-    "Only match when exactly one animal is clearly, specifically intended."
+    "Only match when exactly one animal is clearly, specifically intended. "
+    "When it's ambiguous rather than a total non-match, list the specific "
+    "plausible candidates in candidate_animal_ids so the farmer can be "
+    "asked to pick from a short, relevant list instead of their entire "
+    "herd."
 )
 
 
-def _resolve_animal_id(wanted: str, animals: list) -> Optional[str]:
+def _resolve_animal_id(wanted: str, animals: list) -> tuple[Optional[str], list]:
     """Exact match (case-insensitive) is tried first by the caller -- this
     is the fallback when that fails. Real bug this replaces: submit() used
     to give up the instant `wanted` didn't exactly equal a real id/tag
     string, even for a farmer's entirely reasonable guess ("tag 001" after
     being told real tags look like "TAG-001-1") -- a rigid rule-based
     string comparison with no actual understanding of what the farmer
-    meant. This asks the model instead, given the real animal list."""
+    meant. This asks the model instead, given the real animal list.
+
+    Returns (matched_id, candidate_ids). matched_id is set only for a
+    confident, specific match. candidate_ids is a short, relevant shortlist
+    for the ambiguous case (e.g. every tag sharing the fragment the farmer
+    said) -- so the farmer gets asked to narrow among a handful of real
+    possibilities instead of being shown their entire herd, which is the
+    same "we're the intelligence, use it" complaint that motivated
+    resolving the identifier at all instead of a flat not-found dump."""
     if not wanted or not animals:
-        return None
+        return None, []
     catalog = "\n".join(
         f"- id={a.id}, tag_or_name={a.tag_or_name}, species={getattr(a, 'species', '')}, breed={getattr(a, 'breed', '')}"
         for a in animals
@@ -202,13 +227,14 @@ Which one (if any) does the farmer mean?"""
             system=_ANIMAL_MATCH_SYSTEM,
             tool_choice_name="match_animal",
         )
-        matched_id = (result.get("tool_input") or {}).get("matched_animal_id")
-        if not matched_id:
-            return None
+        tool_input = result.get("tool_input") or {}
         valid_ids = {a.id for a in animals}
-        return matched_id if matched_id in valid_ids else None
+        matched_id = tool_input.get("matched_animal_id")
+        matched_id = matched_id if matched_id in valid_ids else None
+        candidates = [c for c in (tool_input.get("candidate_animal_ids") or []) if c in valid_ids]
+        return matched_id, candidates
     except Exception:
-        return None
+        return None, []
 
 
 class AppointmentSupervisor:
@@ -495,6 +521,7 @@ class AppointmentSupervisor:
         if not animal_id:
             wanted = str(values.get("animal_identifier") or "").lower()
             matches = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
+            candidate_ids: list = []
             if matches:
                 animal_id = matches[0].id
             else:
@@ -503,17 +530,22 @@ class AppointmentSupervisor:
                 # real tags look like "TAG-001-1") or a plain typo should
                 # not dead-end just because it isn't byte-identical to a
                 # stored string.
-                animal_id = _resolve_animal_id(str(values.get("animal_identifier") or ""), animals)
+                animal_id, candidate_ids = _resolve_animal_id(str(values.get("animal_identifier") or ""), animals)
         if not animal_id:
             # Loop back into the conversation instead of raising -- a raw
             # exception here used to become a dead-end HTTP 400 with no way
             # to recover, breaking the one invariant every other branch of
             # this state machine keeps: a mistake gets a chance to be
             # corrected, not a wall. Data-driven, not a generic retry
-            # prompt -- lists the farmer's actual registered animals so
-            # they know what to say instead of guessing again.
+            # prompt. When _resolve_animal_id flagged specific plausible
+            # candidates (ambiguous, not a total non-match), narrow the
+            # list to those instead of dumping the farmer's entire herd --
+            # asking them to pick between 3 real possibilities is useful,
+            # asking them to scan all 53 tags is not.
             bad_identifier = str(values.get("animal_identifier") or "")
-            animal_names = ", ".join(a.tag_or_name for a in animals) or self._message(draft["language"], "missing_animal_identifier")
+            by_id = {a.id: a for a in animals}
+            shortlist = [by_id[c] for c in candidate_ids if c in by_id] or animals
+            animal_names = ", ".join(a.tag_or_name for a in shortlist) or self._message(draft["language"], "missing_animal_identifier")
             draft["draft"]["animal_identifier"] = None
             draft["draft"].pop("animal_id", None)
             draft["draft"].pop("animal_tag", None)
