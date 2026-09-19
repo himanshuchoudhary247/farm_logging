@@ -313,7 +313,7 @@ def list_farmers(role: Optional[str] = None) -> list[FarmerPublic]:
 
 
 @app.get("/farmers/{farmer_id}/animals")
-def list_animals(farmer_id: str) -> list[dict[str, Any]]:
+def list_animals(farmer_id: str, _auth: None = Depends(require_api_key)) -> list[dict[str, Any]]:
     return [a.model_dump() for a in animals_for_farmer(farmer_id)]
 
 
@@ -353,7 +353,9 @@ def patch_animal(farmer_id: str, req: UpdateAnimalRequest) -> Animal:
 
 
 @app.post("/farmers/{farmer_id}/query")
-def data_query(farmer_id: str, req: DataQueryRequest) -> dict[str, Any]:
+def data_query(farmer_id: str, req: DataQueryRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query text is required")
     try:
         return process_query(query=req.query, farmer_id=farmer_id)
     except Exception as e:
@@ -363,6 +365,8 @@ def data_query(farmer_id: str, req: DataQueryRequest) -> dict[str, Any]:
 
 @app.post("/llm/extract-farm")
 def extract_farm(req: ExtractFarmRequest) -> dict[str, Any]:
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
     try:
         return extract_farm_onboarding(
             text=req.text,
@@ -568,6 +572,14 @@ async def appointment_voice_turn(
             language_code=language,
         )
         t_transcribe = time.time()
+        if not text.strip():
+            # Real gap, found in a robustness audit: unlike every text-entry
+            # endpoint (chat_turn, appointment_voice_text, etc.), whatever
+            # STT returned was never re-checked for emptiness before being
+            # fed into appointment_supervisor.turn() -- silence or
+            # unrecognized audio silently became an empty-string turn
+            # instead of a clear error.
+            raise HTTPException(status_code=422, detail="Could not transcribe any speech from that audio")
         result = await asyncio.to_thread(
             appointment_supervisor.turn,
             farmer_id, session_id, text, language, include_audio,
@@ -587,6 +599,8 @@ async def appointment_voice_turn(
             total_ms, transcribe_ms, turn_ms, farmer_id, session_id,
         )
         return result
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -700,7 +714,7 @@ def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> d
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")
-def voice_health_log(farmer_id: str, req: VoiceHealthLogRequest) -> dict[str, Any]:
+def voice_health_log(farmer_id: str, req: VoiceHealthLogRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty input")
@@ -785,6 +799,8 @@ def get_weather_preference(farmer_id: str) -> dict[str, Any]:
 
 @app.patch("/farmers/{farmer_id}/weather-preference")
 def patch_weather_preference(farmer_id: str, req: WeatherPreferenceRequest) -> dict[str, Any]:
+    if not req.weather_location.strip():
+        raise HTTPException(status_code=400, detail="weather_location is required")
     try:
         farmer = update_farmer_weather_location(farmer_id, req.weather_location)
         return {"farmer_id": farmer_id, "weather_location": farmer.weather_location}
