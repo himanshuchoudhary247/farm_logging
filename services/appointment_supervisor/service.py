@@ -13,6 +13,7 @@ from filelock import FileLock
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
+from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
 from storage import (
     append_ai_health_log,
@@ -36,6 +37,7 @@ _TEXT = {
         "ready": "All required details are complete. Would you like to submit this appointment?",
         "submit_yes": "Please say submit when you are ready to save the appointment.",
         "submitted": "The appointment and animal health record were saved successfully.",
+        "animal_not_found": "I could not find an animal named or tagged '{identifier}' registered to you. Your registered animals are: {animals}. Please tell me the correct name, tag, or ID.",
         "no": "What would you like to correct?",
         "cancelled": "The appointment draft was cancelled and not submitted.",
         "missing_animal_identifier": "the animal name, tag, or ID",
@@ -51,6 +53,7 @@ _TEXT = {
         "ready": "सभी जरूरी जानकारी पूरी है। क्या आप अपॉइंटमेंट जमा करना चाहते हैं?",
         "submit_yes": "सेव करने के लिए कृपया सबमिट कहें।",
         "submitted": "अपॉइंटमेंट और पशु स्वास्थ्य रिकॉर्ड सफलतापूर्वक सेव हो गए हैं।",
+        "animal_not_found": "मुझे आपके नाम पर '{identifier}' नाम या टैग वाला कोई पशु नहीं मिला। आपके पंजीकृत पशु हैं: {animals}। कृपया सही नाम, टैग या आईडी बताएं।",
         "no": "आप किस जानकारी को सुधारना चाहते हैं?",
         "cancelled": "अपॉइंटमेंट ड्राफ्ट रद्द कर दिया गया है और सेव नहीं किया गया।",
         "missing_animal_identifier": "पशु का नाम, टैग या आईडी",
@@ -66,6 +69,7 @@ _TEXT = {
         "ready": "தேவையான தகவல்கள் அனைத்தும் உள்ளன. இந்த சந்திப்பை சமர்ப்பிக்கவா?",
         "submit_yes": "சேமிக்க தயாரானதும் சமர்ப்பிக்கவும் என்று சொல்லுங்கள்.",
         "submitted": "சந்திப்பு மற்றும் விலங்கு சுகாதார பதிவு வெற்றிகரமாக சேமிக்கப்பட்டது.",
+        "animal_not_found": "'{identifier}' என்ற பெயர் அல்லது டேக் கொண்ட விலங்கு உங்கள் பெயரில் இல்லை. உங்கள் பதிவு செய்யப்பட்ட விலங்குகள்: {animals}. சரியான பெயர், டேக் அல்லது ஐடி தெரிவிக்கவும்.",
         "no": "எந்த தகவலை திருத்த வேண்டும்?",
         "cancelled": "சந்திப்பு வரைவு ரத்து செய்யப்பட்டது.",
         "missing_animal_identifier": "விலங்கின் பெயர், குறிச்சொல் அல்லது ஐடி",
@@ -81,6 +85,7 @@ _TEXT = {
         "ready": "అవసరమైన వివరాలు పూర్తయ్యాయి. ఈ అపాయింట్‌మెంట్‌ను సమర్పించాలా?",
         "submit_yes": "సేవ్ చేయడానికి సిద్ధంగా ఉన్నప్పుడు సబ్మిట్ అని చెప్పండి.",
         "submitted": "అపాయింట్‌మెంట్ మరియు జంతు ఆరోగ్య రికార్డు విజయవంతంగా సేవ్ చేయబడ్డాయి.",
+        "animal_not_found": "'{identifier}' అనే పేరు లేదా ట్యాగ్ ఉన్న జంతువు మీ పేరు మీద కనిపించలేదు. మీ నమోదిత జంతువులు: {animals}. దయచేసి సరైన పేరు, ట్యాగ్ లేదా ఐడి చెప్పండి.",
         "no": "ఏ వివరాన్ని సరిచేయాలి?",
         "cancelled": "అపాయింట్‌మెంట్ డ్రాఫ్ట్ రద్దు చేయబడింది.",
         "missing_animal_identifier": "జంతువు పేరు, ట్యాగ్ లేదా ఐడి",
@@ -96,6 +101,7 @@ _TEXT = {
         "ready": "ಅಗತ್ಯ ವಿವರಗಳು ಪೂರ್ಣಗೊಂಡಿವೆ. ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಲ್ಲಿಸಬೇಕೇ?",
         "submit_yes": "ಉಳಿಸಲು ಸಿದ್ಧವಾದಾಗ ಸಬ್ಮಿಟ್ ಎಂದು ಹೇಳಿ.",
         "submitted": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಮತ್ತು ಪ್ರಾಣಿಯ ಆರೋಗ್ಯ ದಾಖಲೆ ಯಶಸ್ವಿಯಾಗಿ ಉಳಿಸಲಾಗಿದೆ.",
+        "animal_not_found": "'{identifier}' ಎಂಬ ಹೆಸರು ಅಥವಾ ಟ್ಯಾಗ್ ಇರುವ ಪ್ರಾಣಿ ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ. ನಿಮ್ಮ ನೋಂದಾಯಿತ ಪ್ರಾಣಿಗಳು: {animals}. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ ತಿಳಿಸಿ.",
         "no": "ಯಾವ ವಿವರವನ್ನು ಸರಿಪಡಿಸಬೇಕು?",
         "cancelled": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಕರಡು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ.",
         "missing_animal_identifier": "ಪ್ರಾಣಿಯ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ",
@@ -383,14 +389,40 @@ class AppointmentSupervisor:
             raise ValueError("The appointment requires final confirmation before submission")
         values = draft["draft"]
         animal_id = values.get("animal_id")
+        animals = animals_for_farmer(farmer_id)
         if not animal_id:
-            animals = animals_for_farmer(farmer_id)
             wanted = str(values.get("animal_identifier") or "").lower()
             matches = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
             if matches:
                 animal_id = matches[0].id
         if not animal_id:
-            raise ValueError("Could not match the appointment to a registered animal")
+            # Loop back into the conversation instead of raising -- a raw
+            # exception here used to become a dead-end HTTP 400 with no way
+            # to recover, breaking the one invariant every other branch of
+            # this state machine keeps: a mistake gets a chance to be
+            # corrected, not a wall. Data-driven, not a generic retry
+            # prompt -- lists the farmer's actual registered animals so
+            # they know what to say instead of guessing again.
+            bad_identifier = str(values.get("animal_identifier") or "")
+            animal_names = ", ".join(a.tag_or_name for a in animals) or self._message(draft["language"], "missing_animal_identifier")
+            draft["draft"]["animal_identifier"] = None
+            draft["draft"].pop("animal_id", None)
+            draft["draft"].pop("animal_tag", None)
+            draft["draft"].pop("animal_name", None)
+            draft["state"] = "COLLECTING"
+            draft["expected_field"] = "animal_identifier"
+            self._save(draft)
+            # process_text_input keeps its OWN persistent per-session entity
+            # cache (services/voice_agent/session_store.py), independent of
+            # this draft. Clearing our draft's animal fields above is not
+            # enough -- that cache still holds the stale animal_tag/name,
+            # and _copy_entities would silently re-merge it back in on the
+            # very next turn, undoing this reset before the farmer's
+            # correction ever had a chance. Real bug, found live: "GAURI"
+            # typed right after this message still came back as "1122".
+            clear_session(f"{farmer_id}:{session_id}")
+            message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
+            return self._response(draft, message, include_audio=include_audio)
         health = append_health_log(farmer_id, animal_id, str(values.get("issue")), {
             "symptoms": values.get("symptoms", []),
             "duration": values.get("duration"),

@@ -231,3 +231,42 @@ def test_yes_at_ready_to_submit_actually_submits(tmp_path, monkeypatch):
 
     result = supervisor.turn("demo-farmer", "session-loop", "yes", "en-IN")
     assert result.get("status") == "submitted", f"expected submit() to fire, got: {result}"
+
+
+def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
+    """Real bug: submit() used to raise ValueError when the given animal
+    identifier didn't match any registered animal, which became a dead-end
+    HTTP 400 with no way to recover -- breaking the one invariant every
+    other branch of this state machine keeps (a mistake gets a chance to
+    be corrected). Now it loops back into COLLECTING, clears the bad
+    identifier, and lists the farmer's real registered animals instead of
+    a generic retry prompt."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service,
+        "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {
+                "animal_identifier": "9999", "issue": "fever",
+                "date": "2026-09-20", "time": "17:00",
+            }
+        },
+    )
+    real_animal = type("Animal", (), {"id": "a-1", "tag_or_name": "GAURI"})()
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [real_animal])
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-notfound", "9999, fever, tomorrow 5pm", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    supervisor.turn("demo-farmer", "session-notfound", "cool", "en-IN")
+
+    result = supervisor.turn("demo-farmer", "session-notfound", "yes", "en-IN")
+    assert result.get("status") != "submitted", "must not submit when the animal doesn't match"
+    assert result["state"] == "COLLECTING"
+    assert result["draft"].get("animal_identifier") is None
+    assert "GAURI" in result["response_text"]
+    assert "9999" in result["response_text"]
