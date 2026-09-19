@@ -1607,5 +1607,492 @@
     "tag_or_name": "TAG-100-2",
     "breed": "Gir",
     "age_years": 6.0
+  },
+  {
+    "id": "a-f-001-3",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "LAKSHMI",
+    "sex": "female",
+    "breed": "Murrah",
+    "age_years": 0.7,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-4",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "KAALI",
+    "sex": "male",
+    "breed": "Jamunapari",
+    "age_years": 6.0
+  },
+  {
+    "id": "a-f-001-5",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "MOTI",
+    "sex": "male",
+    "breed": "Sirohi",
+    "age_years": 1.2,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-6",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "CHINNI",
+    "sex": "female",
+    "breed": "Jaffarabadi",
+    "age_years": 5.9,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-7",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "RAJA",
+    "sex": "male",
+    "breed": "Kankrej",
+    "age_years": 2.6,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-8",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "BIJLI",
+    "sex": "male",
+    "breed": "Nili-Ravi",
+    "age_years": 3.1,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-9",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-9",
+    "sex": "female",
+    "breed": "Aseel",
+    "age_years": 1.3,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-10",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-10",
+    "sex": "male",
+    "breed": "Marwari",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-001-11",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-11",
+    "sex": "female",
+    "breed": "Gir",
+    "age_years": 7.8,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-12",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-12",
+    "sex": "female",
+    "breed": "Mehsana",
+    "age_years": 6.7,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-13",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-13",
+    "sex": "male",
+    "breed": "Kadaknath",
+    "age_years": 0.8,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-14",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-14",
+    "sex": "female",
+    "breed": "Jamunapari",
+    "age_years": 7.0,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-15",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-15",
+    "sex": "female",
+    "breed": "Red Sindhi",
+    "age_years": 1.7,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-16",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-16",
+    "sex": "male",
+    "breed": "Mehsana",
+    "age_years": 5.8,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-17",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-17",
+    "sex": "female",
+    "breed": "Sahiwal",
+    "age_years": 1.7,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-18",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-18",
+    "sex": "male",
+    "breed": "Jaffarabadi",
+    "age_years": 5.6,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-19",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-19",
+    "sex": "male",
+    "breed": "Barbari",
+    "age_years": 3.5,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-20",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-20",
+    "sex": "female",
+    "breed": "Mehsana",
+    "age_years": 2.1
+  },
+  {
+    "id": "a-f-001-21",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-21",
+    "sex": "male",
+    "breed": "Nili-Ravi",
+    "age_years": 1.6,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-22",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-22",
+    "sex": "female",
+    "breed": "Vanaraja",
+    "age_years": 4.5
+  },
+  {
+    "id": "a-f-001-23",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-23",
+    "sex": "male",
+    "breed": "Nellore",
+    "age_years": 8.0
+  },
+  {
+    "id": "a-f-001-24",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-24",
+    "sex": "male",
+    "breed": "Sirohi",
+    "age_years": 7.0,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-25",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-25",
+    "sex": "female",
+    "breed": "Nili-Ravi",
+    "age_years": 5.0
+  },
+  {
+    "id": "a-f-001-26",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-26",
+    "sex": "male",
+    "breed": "Nili-Ravi",
+    "age_years": 4.5,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-27",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-27",
+    "sex": "female",
+    "breed": "Mehsana",
+    "age_years": 6.3,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-28",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-28",
+    "sex": "male",
+    "breed": "Nali",
+    "age_years": 1.7,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-29",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-29",
+    "sex": "male",
+    "breed": "Sahiwal",
+    "age_years": 4.3,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-30",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-30",
+    "sex": "male",
+    "breed": "Jaffarabadi",
+    "age_years": 1.6,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-31",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-31",
+    "sex": "male",
+    "breed": "Mehsana",
+    "age_years": 4.2,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-32",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-32",
+    "sex": "male",
+    "breed": "Nellore",
+    "age_years": 0.9,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-33",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-33",
+    "sex": "male",
+    "breed": "Aseel",
+    "age_years": 6.6,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-34",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-34",
+    "sex": "male",
+    "breed": "Nili-Ravi",
+    "age_years": 7.6,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-35",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-35",
+    "sex": "male",
+    "breed": "Kankrej",
+    "age_years": 3.7,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-36",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-36",
+    "sex": "female",
+    "breed": "Aseel",
+    "age_years": 3.5
+  },
+  {
+    "id": "a-f-001-37",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-37",
+    "sex": "male",
+    "breed": "Tharparkar",
+    "age_years": 1.4,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-38",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-38",
+    "sex": "male",
+    "breed": "Deccani",
+    "age_years": 4.9,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-39",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-39",
+    "sex": "male",
+    "breed": "Sirohi",
+    "age_years": 5.8,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-40",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-40",
+    "sex": "male",
+    "breed": "Sirohi",
+    "age_years": 6.9,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-41",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-41",
+    "sex": "male",
+    "breed": "Nali",
+    "age_years": 2.1
+  },
+  {
+    "id": "a-f-001-42",
+    "farmer_id": "f-001",
+    "species": "sheep",
+    "tag_or_name": "TAG-001-42",
+    "sex": "male",
+    "breed": "Nali",
+    "age_years": 6.6,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-43",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-43",
+    "sex": "female",
+    "breed": "Osmanabadi",
+    "age_years": 3.2
+  },
+  {
+    "id": "a-f-001-44",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-44",
+    "sex": "male",
+    "breed": "Kadaknath",
+    "age_years": 5.6,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-45",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-45",
+    "sex": "male",
+    "breed": "Red Sindhi",
+    "age_years": 6.5,
+    "feeding_details": "dry fodder with concentrate mix"
+  },
+  {
+    "id": "a-f-001-46",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-46",
+    "sex": "male",
+    "breed": "Jamunapari",
+    "age_years": 4.5
+  },
+  {
+    "id": "a-f-001-47",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-47",
+    "sex": "male",
+    "breed": "Barbari",
+    "age_years": 4.0
+  },
+  {
+    "id": "a-f-001-48",
+    "farmer_id": "f-001",
+    "species": "buffalo",
+    "tag_or_name": "TAG-001-48",
+    "sex": "male",
+    "breed": "Murrah",
+    "age_years": 0.9,
+    "feeding_details": "green fodder morning and evening"
+  },
+  {
+    "id": "a-f-001-49",
+    "farmer_id": "f-001",
+    "species": "chicken",
+    "tag_or_name": "TAG-001-49",
+    "sex": "female",
+    "breed": "Kadaknath",
+    "age_years": 1.7
+  },
+  {
+    "id": "a-f-001-50",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-50",
+    "sex": "male",
+    "breed": "Osmanabadi",
+    "age_years": 7.3
+  },
+  {
+    "id": "a-f-001-51",
+    "farmer_id": "f-001",
+    "species": "goat",
+    "tag_or_name": "TAG-001-51",
+    "sex": "female",
+    "breed": "Osmanabadi",
+    "age_years": 2.5,
+    "feeding_details": "grazing on pasture"
+  },
+  {
+    "id": "a-f-001-52",
+    "farmer_id": "f-001",
+    "species": "cow",
+    "tag_or_name": "TAG-001-52",
+    "sex": "female",
+    "breed": "Kankrej",
+    "age_years": 5.5,
+    "feeding_details": "dry fodder with concentrate mix"
   }
 ]
