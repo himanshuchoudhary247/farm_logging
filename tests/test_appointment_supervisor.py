@@ -539,3 +539,136 @@ def test_zero_animals_gets_honest_message_not_nonsense_fallback(tmp_path, monkey
     result = supervisor.turn("farmer-no-animals", "session-zero", "GAURI", "en-IN")
     assert "the animal name, tag, or ID" not in result["response_text"], "must not fall back to the field-label string"
     assert "no" in result["response_text"].lower() or "not" in result["response_text"].lower() or "any" in result["response_text"].lower()
+
+
+def test_wrong_tag_after_auto_verify_resets_animal(tmp_path, monkeypatch):
+    """Real bug, found live: once the animal auto-verifies (matched
+    immediately when given, not deferred to submit()), the flow moves
+    straight to asking for the next field and never again asks "is this
+    the right animal?" -- so a farmer who says "wrong tag" right after
+    (while still COLLECTING the issue/date/time, nowhere near
+    awaiting_confirmation or READY_TO_SUBMIT) had no way to be heard.
+    Exact conversation that surfaced this: "TAG-001-11" auto-verified,
+    then farmer said "wrong tag" and the flow just kept asking for the
+    date as if nothing had been said."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "TAG-001-11"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-11", "tag_or_name": "TAG-001-11"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-wrong-tag", "TAG-001-11", "en-IN")
+    assert first["draft"].get("animal_identifier") == "TAG-001-11"
+    # state=="CONFIRMING" here is the overloaded targeted-follow-up sense
+    # (expected_field set to the next missing field, e.g. "issue"), not a
+    # literal yes/no confirmation -- that distinction is what the real bug
+    # exploited: this state never re-asked about the animal itself.
+    loaded = supervisor._load("session-wrong-tag", "demo-farmer", "en-IN")
+    assert loaded.get("animal_verified") is True
+    assert loaded.get("expected_field") == "issue"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "no"},
+    )
+    corrected = supervisor.turn("demo-farmer", "session-wrong-tag", "wrong tag", "en-IN")
+    assert corrected["draft"].get("animal_identifier") is None, "the wrong tag must be cleared, not silently kept"
+    assert corrected["state"] == "COLLECTING"
+
+
+def test_answers_expected_field_recognizes_raw_animal_keys(tmp_path, monkeypatch):
+    """Real bug, found in a robustness audit: expected_field is set to the
+    merged key "animal_identifier", but the raw extraction schema never
+    emits that key directly -- it emits animal_id/animal_tag/animal_name.
+    So whenever expected_field=="animal_identifier", answers_expected_field
+    always evaluated False even when the farmer's turn genuinely named an
+    animal. Reproduced here via the one path where that combination is
+    reachable: animal_verified already True (from a prior animal) while
+    expected_field is manually pinned back to "animal_identifier" -- a
+    farmer naming a second, different, real animal in the same breath as
+    "no" must re-verify to the new one in this turn, not get wiped back to
+    a blank "which animal?" question by the wrong-tag-reset branch."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    animals = [
+        type("Animal", (), {"id": "a-gauri", "tag_or_name": "Gauri"})(),
+        type("Animal", (), {"id": "a-lakshmi", "tag_or_name": "Lakshmi"})(),
+    ]
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: animals)
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Gauri"}},
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-answers-field", "Gauri", "en-IN")
+    draft = supervisor._load("session-answers-field", "demo-farmer", "en-IN")
+    assert draft.get("animal_verified") is True
+    draft["expected_field"] = "animal_identifier"
+    supervisor._save(draft)
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_tag": "Lakshmi"}, "confirmation_signal": "no",
+        },
+    )
+    result = supervisor.turn("demo-farmer", "session-answers-field", "no, it's Lakshmi", "en-IN")
+    # With the fix: recognized as answering the animal question, so it
+    # re-verifies to Lakshmi in this same turn instead of the wrong-tag-
+    # reset branch wiping it back to None and asking again from scratch.
+    assert result["draft"].get("animal_identifier") == "Lakshmi"
+
+
+def test_concurrent_turns_do_not_lose_transcript_entries(tmp_path, monkeypatch):
+    """Real bug, found in a robustness audit: turn() read the draft
+    unlocked, ran the extraction call, then wrote back under a lock held
+    only around the write -- two concurrent turns on the same session_id
+    could both read the same starting draft and each write back their own
+    version, one clobbering the other's transcript entry. Fixed by holding
+    a per-session RLock across the whole call."""
+    import threading
+    import time
+
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    call_count = [0]
+    count_lock = threading.Lock()
+
+    def fake_process_text_input(text, session_id, pending_questions_override=None):
+        with count_lock:
+            call_count[0] += 1
+            n = call_count[0]
+        time.sleep(0.02)
+        return {"entities": {"issue": f"issue-{n}"}}
+
+    monkeypatch.setattr(service, "process_text_input", fake_process_text_input)
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    threads = [
+        threading.Thread(target=supervisor.turn, args=("demo-farmer", "session-concurrent", "cow is sick"), kwargs={"include_audio": False})
+        for _ in range(5)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+        assert not t.is_alive(), "a turn() call hung -- possible deadlock"
+
+    draft = supervisor._load("session-concurrent", "demo-farmer", "en-IN")
+    assert len(draft.get("transcript_history", [])) == 5, "every concurrent turn's transcript entry must survive"
+
+
+def test_turn_reentrant_into_confirm_does_not_deadlock(tmp_path, monkeypatch):
+    """The per-session RLock added to fix the concurrent lost-update race
+    must be reentrant: turn() calls self.confirm() on the same thread in
+    several branches (e.g. the universal "cancel" check). A plain Lock
+    here would deadlock the very first cancel."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    result = supervisor.turn("demo-farmer", "session-reentrant", "never mind", include_audio=False)
+    assert result["state"] == "CANCELLED"
