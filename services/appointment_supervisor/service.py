@@ -12,6 +12,7 @@ from filelock import FileLock
 
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import generate_health_recommendation
+from services.query_agent.agent import process_query
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
 from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
@@ -27,6 +28,7 @@ from storage import (
 
 SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
 REQUIRED_FIELDS = ("animal_identifier", "issue", "date", "time")
+_BOOKING_INTENTS = {"CREATE_APPOINTMENT", "LOG_HEALTH"}
 
 _TEXT = {
     "en": {
@@ -292,6 +294,34 @@ class AppointmentSupervisor:
 
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal")
+        turn_entities = result.get("entities") or {}
+
+        # Real gap, found via live testing: a genuine off-topic question
+        # mid-booking ("any animal with ram") got forced through this state
+        # machine's narrow yes/no/field lens and silently misread as a
+        # correction/rejection, with no way to actually answer it.
+        #
+        # First attempt: rely on the extraction call's own "intent" field
+        # to spot a genuinely different intent -- didn't work. Verified
+        # directly (bypassing this code) that for this exact input the
+        # model returns intent=null, confirmation_signal="no" -- it can't
+        # confidently classify a vague phrase like "any animal with ram"
+        # into any of the six defined intents, so there's no "switched
+        # intent" signal to detect, and the forced yes/no-shaped pending
+        # question nudges it toward "no" regardless of instruction wording.
+        #
+        # Working approach: when confirmation_signal="no" fires and
+        # nothing new was actually extracted for this booking, ask
+        # query_agent whether it can answer the text for real. A genuine
+        # SQL+data result is strong empirical evidence this was an
+        # answerable question, not a rejection -- far more reliable than
+        # depending on a classification the model won't reliably make.
+        answers_expected_field = bool(draft.get("expected_field")) and bool(turn_entities.get(draft["expected_field"]))
+        if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field:
+            probe = process_query(text, farmer_id)
+            if probe.get("sql") and probe.get("data"):
+                self._save(draft)
+                return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
 
         if awaiting_confirmation and confirmation_signal in {"yes", "no", "cancel"}:
             self._save(draft)

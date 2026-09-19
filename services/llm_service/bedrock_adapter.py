@@ -408,7 +408,13 @@ _EXTRACTION_TOOL_SPEC = {
                         "with no literal word for it; 'enough already, just fix it' does NOT "
                         "mean 'no' just because a word contains those letters. Use 'none' if "
                         "no pending confirmation exists, or the reply doesn't answer it "
-                        "(e.g. it corrects a field's value directly instead of saying yes/no)."
+                        "(e.g. it corrects a field's value directly instead of saying yes/no). "
+                        "IMPORTANT: 'no' means the farmer is rejecting or correcting the "
+                        "details just shown. A farmer asking an unrelated QUESTION (about a "
+                        "different animal, the weather, anything not about confirming THESE "
+                        "details) is not a rejection -- set confirmation_signal to 'none' in "
+                        "that case, and classify the real intent normally instead so the "
+                        "question can actually be answered, not misread as 'no'."
                     ),
                 },
             },
