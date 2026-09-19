@@ -112,6 +112,13 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
         raise ValueError(f"Could not resolve location for '{query}'")
 
     row = rows[0]
+    # Real bug, found in a robustness audit: row["lat"]/row["lon"] raised
+    # an unguarded KeyError on a geocoder result missing either field --
+    # uncaught (main.py's callers only catch ValueError here) -> raw 500.
+    # display_name two lines above already defends against this same class
+    # of missing-field response; lat/lon didn't.
+    if "lat" not in row or "lon" not in row:
+        raise ValueError(f"Location provider returned no coordinates for '{query}'")
     resolved = ResolvedLocation(
         query=q,
         display_name=str(row.get("display_name") or q),
@@ -123,7 +130,15 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
 
 
 def _classify_weather_alert(day: dict[str, Any]) -> dict[str, Any] | None:
-    code = int(day.get("weather_code", -1))
+    # Real bug, found in a robustness audit: the key is always present
+    # (set to None, not omitted, when the provider's arrays don't line up
+    # -- see the "weather_code": codes[i] if i < len(codes) else None
+    # construction elsewhere in this file), so `.get("weather_code", -1)`
+    # never actually applies its default -- `int(None)` raised TypeError,
+    # uncaught, -> raw 500. The sibling lines below already guard with
+    # `or 0.0`; this one didn't.
+    raw_code = day.get("weather_code")
+    code = int(raw_code) if raw_code is not None else -1
     rain_mm = float(day.get("precipitation_sum", 0.0) or 0.0)
     wind_kph = float(day.get("wind_speed_10m_max", 0.0) or 0.0)
 

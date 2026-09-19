@@ -511,6 +511,14 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
+    except Exception as exc:
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught here -- route_turn -> process_query ->
+        # BedrockTextAdapter/boto errors (RuntimeError, botocore
+        # exceptions, etc.) are not ValueError and propagated as a raw,
+        # traceback-leaking 500 instead of a clean error response.
+        _log.exception("chat_turn failed farmer=%s session=%s", farmer_id, req.session_id)
+        raise HTTPException(status_code=500, detail="Something went wrong processing that message. Please try again.")
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
@@ -752,6 +760,13 @@ def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught -- a provider TypeError/KeyError (both now separately
+        # hardened at the source too) or network RuntimeError propagated
+        # as a raw 500 instead of a clean error response.
+        _log.exception("weather_alert failed location=%s", req.location_or_pin)
+        raise HTTPException(status_code=500, detail="Could not fetch weather for that location right now. Please try again.")
 
 
 @app.get("/weather/alerts")
@@ -799,3 +814,6 @@ def create_weather_notification(farmer_id: str, req: WeatherAlertRequest) -> Wea
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        _log.exception("create_weather_notification failed farmer=%s location=%s", farmer_id, req.location_or_pin)
+        raise HTTPException(status_code=500, detail="Could not create the weather notification right now. Please try again.")

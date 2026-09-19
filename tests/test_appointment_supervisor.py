@@ -521,3 +521,21 @@ def test_session_path_is_scoped_by_farmer_not_just_session_id(tmp_path, monkeypa
     )
     result_b = supervisor.turn("farmer-b", shared_sid, "hello", "en-IN")
     assert result_b["draft"].get("animal_identifier") is None, "farmer B must not see farmer A's draft data"
+
+
+def test_zero_animals_gets_honest_message_not_nonsense_fallback(tmp_path, monkeypatch):
+    """Real bug, found in a robustness audit: with animals_for_farmer()
+    == [], ", ".join(...) on an empty list is "" (falsy), so the message
+    fell back to the literal field-label string, producing a nonsensical
+    "...your registered animals are: the animal name, tag, or ID..." for a
+    farmer who genuinely has none yet. Should say so honestly instead."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "GAURI"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    result = supervisor.turn("farmer-no-animals", "session-zero", "GAURI", "en-IN")
+    assert "the animal name, tag, or ID" not in result["response_text"], "must not fall back to the field-label string"
+    assert "no" in result["response_text"].lower() or "not" in result["response_text"].lower() or "any" in result["response_text"].lower()

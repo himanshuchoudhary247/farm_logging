@@ -42,6 +42,7 @@ _TEXT = {
         "submit_yes": "Please say submit when you are ready to save the appointment.",
         "submitted": "The appointment and animal health record were saved successfully.",
         "animal_not_found": "I could not find an animal named or tagged '{identifier}' registered to you. Your registered animals are: {animals}. Please tell me the correct name, tag, or ID.",
+        "no_animals_registered": "You do not have any animals registered yet, so I cannot match '{identifier}' to one. Please register an animal first, or ask a human vet directly.",
         "no": "What would you like to correct?",
         "cancelled": "The appointment draft was cancelled and not submitted.",
         "missing_animal_identifier": "the animal name, tag, or ID",
@@ -58,6 +59,7 @@ _TEXT = {
         "submit_yes": "सेव करने के लिए कृपया सबमिट कहें।",
         "submitted": "अपॉइंटमेंट और पशु स्वास्थ्य रिकॉर्ड सफलतापूर्वक सेव हो गए हैं।",
         "animal_not_found": "मुझे आपके नाम पर '{identifier}' नाम या टैग वाला कोई पशु नहीं मिला। आपके पंजीकृत पशु हैं: {animals}। कृपया सही नाम, टैग या आईडी बताएं।",
+        "no_animals_registered": "आपके नाम पर अभी कोई पशु पंजीकृत नहीं है, इसलिए मैं '{identifier}' का मिलान नहीं कर सकता। कृपया पहले एक पशु पंजीकृत करें।",
         "no": "आप किस जानकारी को सुधारना चाहते हैं?",
         "cancelled": "अपॉइंटमेंट ड्राफ्ट रद्द कर दिया गया है और सेव नहीं किया गया।",
         "missing_animal_identifier": "पशु का नाम, टैग या आईडी",
@@ -74,6 +76,7 @@ _TEXT = {
         "submit_yes": "சேமிக்க தயாரானதும் சமர்ப்பிக்கவும் என்று சொல்லுங்கள்.",
         "submitted": "சந்திப்பு மற்றும் விலங்கு சுகாதார பதிவு வெற்றிகரமாக சேமிக்கப்பட்டது.",
         "animal_not_found": "'{identifier}' என்ற பெயர் அல்லது டேக் கொண்ட விலங்கு உங்கள் பெயரில் இல்லை. உங்கள் பதிவு செய்யப்பட்ட விலங்குகள்: {animals}. சரியான பெயர், டேக் அல்லது ஐடி தெரிவிக்கவும்.",
+        "no_animals_registered": "உங்கள் பெயரில் இதுவரை எந்த விலங்கும் பதிவு செய்யப்படவில்லை, எனவே '{identifier}' ஐ பொருத்த முடியவில்லை. முதலில் ஒரு விலங்கைப் பதிவு செய்யவும்.",
         "no": "எந்த தகவலை திருத்த வேண்டும்?",
         "cancelled": "சந்திப்பு வரைவு ரத்து செய்யப்பட்டது.",
         "missing_animal_identifier": "விலங்கின் பெயர், குறிச்சொல் அல்லது ஐடி",
@@ -90,6 +93,7 @@ _TEXT = {
         "submit_yes": "సేవ్ చేయడానికి సిద్ధంగా ఉన్నప్పుడు సబ్మిట్ అని చెప్పండి.",
         "submitted": "అపాయింట్‌మెంట్ మరియు జంతు ఆరోగ్య రికార్డు విజయవంతంగా సేవ్ చేయబడ్డాయి.",
         "animal_not_found": "'{identifier}' అనే పేరు లేదా ట్యాగ్ ఉన్న జంతువు మీ పేరు మీద కనిపించలేదు. మీ నమోదిత జంతువులు: {animals}. దయచేసి సరైన పేరు, ట్యాగ్ లేదా ఐడి చెప్పండి.",
+        "no_animals_registered": "మీ పేరు మీద ఇంకా ఏ జంతువు నమోదు కాలేదు, కాబట్టి '{identifier}' సరిపోల్చలేను. దయచేసి ముందుగా ఒక జంతువును నమోదు చేయండి.",
         "no": "ఏ వివరాన్ని సరిచేయాలి?",
         "cancelled": "అపాయింట్‌మెంట్ డ్రాఫ్ట్ రద్దు చేయబడింది.",
         "missing_animal_identifier": "జంతువు పేరు, ట్యాగ్ లేదా ఐడి",
@@ -106,6 +110,7 @@ _TEXT = {
         "submit_yes": "ಉಳಿಸಲು ಸಿದ್ಧವಾದಾಗ ಸಬ್ಮಿಟ್ ಎಂದು ಹೇಳಿ.",
         "submitted": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಮತ್ತು ಪ್ರಾಣಿಯ ಆರೋಗ್ಯ ದಾಖಲೆ ಯಶಸ್ವಿಯಾಗಿ ಉಳಿಸಲಾಗಿದೆ.",
         "animal_not_found": "'{identifier}' ಎಂಬ ಹೆಸರು ಅಥವಾ ಟ್ಯಾಗ್ ಇರುವ ಪ್ರಾಣಿ ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ. ನಿಮ್ಮ ನೋಂದಾಯಿತ ಪ್ರಾಣಿಗಳು: {animals}. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ ತಿಳಿಸಿ.",
+        "no_animals_registered": "ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಇನ್ನೂ ಯಾವುದೇ ಪ್ರಾಣಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ '{identifier}' ಅನ್ನು ಹೊಂದಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಮೊದಲು ಒಂದು ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಿ.",
         "no": "ಯಾವ ವಿವರವನ್ನು ಸರಿಪಡಿಸಬೇಕು?",
         "cancelled": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಕರಡು ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ.",
         "missing_animal_identifier": "ಪ್ರಾಣಿಯ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ",
@@ -244,7 +249,15 @@ def _verify_animal(identifier: str, animals: list) -> tuple[Optional[Any], list]
     defensive fallback. Exact match (case-insensitive) first, then the LLM
     resolver for typos/partial tags. Returns (matched_animal_or_None,
     shortlist_of_candidates_or_empty)."""
-    wanted = identifier.lower()
+    # str() coercion matters: the extraction model doesn't strictly follow
+    # its declared JSON schema (animal_tag is typed "string", but that's not
+    # runtime-enforced -- _KEY_ALIASES elsewhere in this codebase exists
+    # precisely because models sometimes deviate). A bare numeric ear-tag
+    # coming back as a JSON number instead of a string would otherwise raise
+    # AttributeError here, uncaught (main.py only catches ValueError around
+    # this call path) -> a raw 500. submit()'s own inline matching already
+    # did this coercion; this shared helper had been missing it.
+    wanted = str(identifier).lower()
     exact = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
     if exact:
         return exact[0], []
@@ -623,8 +636,19 @@ class AppointmentSupervisor:
                 # only offered 5. Same list feeds both now, so they can't
                 # drift apart again.
                 shown = (candidates or animals)[:5]
-                animal_names = ", ".join(a.tag_or_name for a in shown) or self._message(draft["language"], "missing_animal_identifier")
-                message = self._message(draft["language"], "animal_not_found", identifier=identifier, animals=animal_names)
+                if not animals:
+                    # Real bug, found in a robustness audit: with animals
+                    # == [], "".join(...) is falsy, so animal_names fell
+                    # back to the literal field-label string, producing a
+                    # nonsensical "...registered animals are: the animal
+                    # name, tag, or ID..." for a farmer who genuinely has
+                    # none yet. This is a different, honest situation --
+                    # not a mismatch to correct, a farmer with zero
+                    # registered animals -- and gets its own message.
+                    message = self._message(draft["language"], "no_animals_registered", identifier=identifier)
+                else:
+                    animal_names = ", ".join(a.tag_or_name for a in shown)
+                    message = self._message(draft["language"], "animal_not_found", identifier=identifier, animals=animal_names)
                 # prompt_text: just the ask, reusing the same phrasing
                 # already used everywhere else this field is requested --
                 # the "who/what animal wasn't found" context lives in
@@ -784,7 +808,6 @@ class AppointmentSupervisor:
             # TTS would read the entire herd aloud while pills only
             # offered 5. Same list feeds both here.
             shown = ([by_id[c] for c in candidate_ids if c in by_id] or animals)[:5]
-            animal_names = ", ".join(a.tag_or_name for a in shown) or self._message(draft["language"], "missing_animal_identifier")
             draft["draft"]["animal_identifier"] = None
             draft["draft"].pop("animal_id", None)
             draft["draft"].pop("animal_tag", None)
@@ -801,7 +824,11 @@ class AppointmentSupervisor:
             # correction ever had a chance. Real bug, found live: "GAURI"
             # typed right after this message still came back as "1122".
             clear_session(f"{farmer_id}:{session_id}")
-            message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
+            if not animals:
+                message = self._message(draft["language"], "no_animals_registered", identifier=bad_identifier)
+            else:
+                animal_names = ", ".join(a.tag_or_name for a in shown)
+                message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
             prompt = self._message(draft["language"], "yes_missing", field=self._message(draft["language"], "missing_animal_identifier"))
             return self._response(draft, message, include_audio=include_audio, options=_animal_options(draft["language"], shown), prompt=prompt)
         health = append_health_log(farmer_id, animal_id, str(values.get("issue")), {
