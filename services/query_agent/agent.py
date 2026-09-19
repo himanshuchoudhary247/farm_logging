@@ -2,7 +2,7 @@ import json
 import re
 from typing import Any
 
-from services.llm_service.bedrock_adapter import BedrockTextAdapter
+from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.query_agent.db import execute_query, validate_sql
 from services.query_agent.schema import generate_schema_for_prompt
 
@@ -92,7 +92,7 @@ def process_query(query: str, farmer_id: str) -> dict[str, Any]:
     generates SQL, executes it, and returns a natural language answer.
     """
     schema = generate_schema_for_prompt()
-    adapter = BedrockTextAdapter()
+    adapter = BedrockTextAdapter(task=TaskTier.GENERATION)
 
     sql = _generate_sql(query, farmer_id, schema, adapter)
     if not sql:

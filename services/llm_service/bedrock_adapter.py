@@ -397,6 +397,26 @@ _EXTRACTION_TOOL_SPEC = {
                     ),
                 },
                 "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "confirmation_signal": {
+                    "type": "string",
+                    "enum": ["yes", "no", "cancel", "submit", "none"],
+                    "description": (
+                        "ONLY set this when the Context block's pending_questions says the "
+                        "farmer was just asked to confirm, correct, cancel, or submit "
+                        "something. Classify the farmer's reply by actual meaning, not by "
+                        "keyword matching -- e.g. 'that's wrong, try again' means 'no' even "
+                        "with no literal word for it; 'enough already, just fix it' does NOT "
+                        "mean 'no' just because a word contains those letters. Use 'none' if "
+                        "no pending confirmation exists, or the reply doesn't answer it "
+                        "(e.g. it corrects a field's value directly instead of saying yes/no). "
+                        "IMPORTANT: 'no' means the farmer is rejecting or correcting the "
+                        "details just shown. A farmer asking an unrelated QUESTION (about a "
+                        "different animal, the weather, anything not about confirming THESE "
+                        "details) is not a rejection -- set confirmation_signal to 'none' in "
+                        "that case, and classify the real intent normally instead so the "
+                        "question can actually be answered, not misread as 'no'."
+                    ),
+                },
             },
         }
     },
@@ -437,6 +457,16 @@ _TOOL_SYSTEM_PROMPT = (
     "and convert spelled-out numbers to a bare digit string for any numeric "
     "field (weather_location, animal_tag); never copy the commas or words "
     "in verbatim.\n"
+    "8) User: \"1122 is id only arnt you smart enough\" | pending_questions: "
+    "[\"confirm these details are correct (yes/no), or cancel\"] -> "
+    "{confirmation_signal: 'no', animal_tag: '1122'} — classify by actual "
+    "meaning (this is a correction/rejection, despite containing the "
+    "letters \"no\" only inside the unrelated word \"enough\"), and separately "
+    "extract whatever real field value the correction also supplies.\n"
+    "9) User: \"1122\" | pending_questions: [\"animal ID or animal name/tag\"] "
+    "-> {animal_tag: '1122'} — a bare number answering a question about the "
+    "tag/ID is the tag/ID, not an issue or symptom, even with zero other "
+    "context.\n"
     "\n"
     "STRICT NO-GUESS RULE: a field with no corresponding word anywhere in "
     "the farmer's utterance must be left out of the tool call entirely — "
@@ -484,12 +514,14 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     unavailable_fields = tool_input.pop("unavailable_fields", None) or []
     follow_up_question = tool_input.pop("follow_up_question", None)
     confidence = tool_input.pop("confidence", None)
+    confirmation_signal = tool_input.pop("confirmation_signal", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
     entities = tool_input
 
     return {
         "intent": intent,
+        "confirmation_signal": confirmation_signal if confirmation_signal not in (None, "none") else None,
         "entities": entities,
         "unavailable_fields": list(unavailable_fields) if isinstance(unavailable_fields, list) else [],
         "missing_fields": [],
