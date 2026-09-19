@@ -1,0 +1,65 @@
+================================================================================
+🎉 Appointment Booking Server - Fixed Version
+================================================================================
+📍 Server running on http://localhost:3002
+
+Test the conversation:
+  curl -X POST http://localhost:3002/farmers/farmer_001/chat/session
+  curl -X POST http://localhost:3002/farmers/farmer_001/chat/turn
+
+Features:
+  ✅ Slot filling with bare reply handling
+  ✅ "1122" goes to animal_identifier
+  ✅ "not eating" goes to issue
+  ✅ "tomorrow 5 evening" extracts date and time
+  ✅ "cool" treated as yes/confirmation
+  ✅ "yes" submits the appointment
+  ✅ After submit, starts fresh (no loop)
+  ✅ "cancel" cancels the draft
+
+================================================================================
+
+[Chat] Farmer: farmer_001, Text: "I'd like to book an appointment"
+[Intent] Skill: appointment_booking, Mode: null, isBareReply: false
+[Response] "Hello. Please tell me the animal name or tag..."
+[State] mode=appointment_booking, collected={}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "1122"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected animal_identifier: 1122
+[Response] "I understood: animal: 1122 Thank you. Please provide issue...."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122"}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "not eating"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected issue: not eating
+[Response] "I understood: animal: 1122; issue: not eating Thank you. Please provide symptoms...."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122","issue":"not eating"}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "tomorrow 5 evening"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected symptoms: tomorrow 5 evening
+[Response] "I understood: animal: 1122; issue: not eating; symptoms: tomorrow 5 evening Thank you. Please provid..."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122","issue":"not eating","symptoms":"tomorrow 5 evening"}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "cool"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected date: cool
+[Response] "I understood: animal: 1122; issue: not eating; symptoms: tomorrow 5 evening; date: cool Thank you. P..."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122","issue":"not eating","symptoms":"tomorrow 5 evening","date":"cool"}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "yes"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected time: yes
+[Response] "I understood: animal: 1122; issue: not eating; symptoms: tomorrow 5 evening; date: cool; time: yes T..."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122","issue":"not eating","symptoms":"tomorrow 5 evening","date":"cool","time":"yes"}, awaitingConfirmation=false
+
+[Chat] Farmer: farmer_001, Text: "done??"
+[Intent] Skill: appointment_data, Mode: appointment_booking, isBareReply: true
+[Data] Collected type: done??
+[Response] "I understood: animal: 1122; issue: not eating; symptoms: tomorrow 5 evening; date: cool; time: yes; ..."
+[State] mode=appointment_booking, collected={"animal_identifier":"1122","issue":"not eating","symptoms":"tomorrow 5 evening","date":"cool","time":"yes","type":"done??"}, awaitingConfirmation=true
+
+[Chat] Farmer: farmer_001, Text: "yes"
+[Intent] Skill: confirmation, Mode: appointment_booking, isBareReply: false
+[Confirmation] Signal: yes

@@ -47,3 +47,484 @@
 [Intent] Is bare reply: false, Is continuation: undefined
 [Response] "You have 3 animals total: 1 cow, 1 buffalo, 1 goat."
 [Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What's the weather like?"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "umm... Delhi"
+[Intent] Bare reply "umm... Delhi" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "actually wait"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "change to Mumbai"
+[Intent] Skill: weather, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "and tomorrow?"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "hmm"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "how about Bangalore instead"
+[Intent] Skill: weather, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Currently in umm... Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "I want to book an appointment"
+[Intent] Skill: appointments, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: yes
+[Response] "I can help you book an appointment. What type of appointment do you need? (veterinary, agricultural,..."
+[Follow-up] Required
+[Expected Field] appointment_type
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "vet"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "actually make it agricultural"
+[Intent] Skill: appointments, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "no wait back to vet"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: no
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "tomorrow"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "10 am"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "no"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: no
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "change the time to 2 pm"
+[Intent] Skill: appointments, Confidence: 40%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "yes submit"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: yes
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "another one"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "How many cows do I have?"
+[Intent] Skill: farm-qa, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 1 animals total: 1 cow."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "and buffalo?"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 animals: 1 buffalo."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "what's the weather?"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "umm... Bangalore"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "anyway back to my animals"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "how many total?"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 3 animals total: 1 cow, 1 buffalo, 1 goat."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "show me the goat"
+[Intent] Continuing active skill: farm-qa
+[Intent] Skill: farm-qa, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "what about the weather now?"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "In Delhi"
+[Intent] Bare reply "In Delhi" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "what's the price?"
+[Intent] Skill: market-prices, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "wheat"
+[Intent] Continuing active skill: market-prices
+[Intent] Skill: market-prices, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "and rice?"
+[Intent] Continuing active skill: market-prices
+[Intent] Skill: market-prices, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "actually compare both"
+[Intent] Continuing active skill: market-prices
+[Intent] Skill: market-prices, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "cancel"
+[Intent] Skill: market-prices, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: no
+[Response] "Current rice prices at Delhi: ₹2100-2300 per quintal (modal: ₹2200)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Hello"
+[Intent] Skill: null, Confidence: 0%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "I'm not sure what you're asking about. I can help with weather, appointments, market prices, or farm..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "my animals first"
+[Intent] Skill: farm-qa, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "3 of them right?"
+[Intent] Skill: null, Confidence: 0%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "I'm not sure what you're asking about. I can help with weather, appointments, market prices, or farm..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "weather next"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Mumbai"
+[Intent] Bare reply "Mumbai" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "wrong city I meant Delhi"
+[Intent] Skill: weather, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: no
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "book appointment"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: yes
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "vet for Gauri"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "tomorrow at 10"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "stop cancel everything"
+[Intent] Skill: weather, Confidence: 15%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: no
+[Response] "Currently in Mumbai: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "ok back to animals"
+[Intent] Skill: farm-qa, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: yes
+[Response] "I can help you with information about your farm. You can ask about your animals, crops, or farm deta..."
+[Follow-up] Required
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "how many cows buffalo total"
+[Intent] Skill: farm-qa, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "You have 1 animals total: 1 cow."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "What is the weather?"
+[Intent] Skill: weather, Confidence: 75%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Response] "Which location would you like the weather for?"
+[Follow-up] Required
+[Expected Field] location
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Delhi"
+[Intent] Bare reply "Delhi" answering pending question: location
+[Intent] Skill: weather, Confidence: 95%
+[Intent] Is bare reply: true, Is continuation: undefined
+[Flow] Bare reply answering location
+[Extract] Using context for field: location
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "and"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "tomorrow"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "umm"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "Mumbai"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "next week"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: ""
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "actually Bangalore"
+[Intent] Continuing active skill: weather
+[Intent] Skill: weather, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "Currently in Delhi: Sunny, 32°C, humidity 45%."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "I'd like to book an appointment"
+[Intent] Skill: appointments, Confidence: 100%
+[Intent] Is bare reply: false, Is continuation: undefined
+[Confirmation] Detected: yes
+[Response] "I can help you book an appointment. What type of appointment do you need? (veterinary, agricultural,..."
+[Follow-up] Required
+[Expected Field] appointment_type
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "1122"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "not eating"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "tomorrow 5 evening"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "cool"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "yes"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: yes
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "done??"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
+
+[Chat Turn] Farmer: farmer_001
+[Chat Turn] User: "yes"
+[Intent] Continuing active skill: appointments
+[Intent] Skill: appointments, Confidence: 90%
+[Intent] Is bare reply: undefined, Is continuation: true
+[Confirmation] Detected: yes
+[Response] "You have 1 appointment(s)."
+[Follow-up] Not needed
