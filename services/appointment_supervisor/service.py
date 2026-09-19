@@ -516,6 +516,31 @@ class AppointmentSupervisor:
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
+        # Real bug, found via live testing: once the animal auto-verifies
+        # (matched immediately when given, not deferred to submit()), the
+        # flow moves straight to asking for the next field and never again
+        # asks "is this the right animal?" -- so a farmer who says "wrong
+        # tag" right after has no way to be heard. Not a model problem:
+        # verified directly that the model already returns
+        # confirmation_signal="no" for "wrong tag" given the real context
+        # (animal_id set, pending_questions asking for issue) -- this
+        # branch was simply never checking that signal outside the
+        # awaiting_confirmation/READY_TO_SUBMIT states. Fires regardless of
+        # state as long as an animal was verified and the farmer hasn't
+        # already moved on by answering the next field in the same turn.
+        if confirmation_signal == "no" and draft.get("animal_verified") and not answers_expected_field:
+            draft["draft"]["animal_identifier"] = None
+            draft["draft"].pop("animal_id", None)
+            draft["draft"].pop("animal_tag", None)
+            draft["draft"].pop("animal_name", None)
+            draft["animal_verified"] = False
+            draft["state"] = "COLLECTING"
+            draft["expected_field"] = "animal_identifier"
+            clear_session(f"{farmer_id}:{session_id}")
+            message = self._message(draft["language"], "yes_missing", field=self._message(draft["language"], "missing_animal_identifier"))
+            self._save(draft)
+            return self._response(draft, message, input_transcript=text, include_audio=include_audio)
+
         before = dict(draft["draft"])
         self._copy_entities(draft, result.get("entities") or {})
 
