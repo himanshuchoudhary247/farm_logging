@@ -484,3 +484,40 @@ def test_cancel_clears_router_session_cache_immediately(tmp_path, monkeypatch):
 
     assert "demo-farmer:session-cancel-clear" in cleared_keys
     assert "demo-farmer:session-cancel-clear:route" in cleared_keys, "router's own classification cache must be cleared too, at cancel time"
+
+
+def test_session_path_is_scoped_by_farmer_not_just_session_id(tmp_path, monkeypatch):
+    """Real bug, found in a robustness audit: the old path scheme
+    (''.join(ch for ch in session_id if ch.isalnum() or ch in '-_')) was
+    farmer-unscoped and collision-prone -- two different farmers reusing
+    (or guessing) the same session_id shared one draft file, and a bare
+    '' (from an empty/emoji-only session_id) collapsed to one single
+    global file across every farmer. Assert the same session_id string
+    used by two different farmers resolves to two different files with
+    no cross-contamination."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "GAURI"})()])
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    shared_sid = "shared-session-xyz"
+
+    path_a = supervisor._path("farmer-a", shared_sid)
+    path_b = supervisor._path("farmer-b", shared_sid)
+    assert path_a != path_b, "same session_id from two farmers must not resolve to the same file"
+
+    # Farmer A actually collects a real animal; farmer B's turn extracts
+    # nothing at all -- isolates the file-separation question from the
+    # mocked extraction call, which would otherwise return the same
+    # canned entities for both farmers regardless of any file leak.
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "GAURI"}},
+    )
+    supervisor.turn("farmer-a", shared_sid, "GAURI", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}},
+    )
+    result_b = supervisor.turn("farmer-b", shared_sid, "hello", "en-IN")
+    assert result_b["draft"].get("animal_identifier") is None, "farmer B must not see farmer A's draft data"

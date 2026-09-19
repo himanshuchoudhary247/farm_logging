@@ -128,7 +128,7 @@ def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
     (unsubmitted) appointment/health-log draft always routes straight back
     to appointment_supervisor, so a mid-flow "yes"/"tomorrow morning" isn't
     reclassified by the router and doesn't risk being sent somewhere else."""
-    path = _appointment_supervisor._path(session_id)
+    path = _appointment_supervisor._path(farmer_id, session_id)
     if not path.exists():
         return False
     try:

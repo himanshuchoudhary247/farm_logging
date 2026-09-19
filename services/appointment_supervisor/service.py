@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -282,9 +283,20 @@ class AppointmentSupervisor:
         self.data_dir = data_dir or get_data_dir()
         self.intake_dir = self.data_dir / "appointment_intakes"
 
-    def _path(self, session_id: str) -> Path:
-        safe = "".join(ch for ch in session_id if ch.isalnum() or ch in "-_")
-        return self.intake_dir / f"{safe}.json"
+    def _path(self, farmer_id: str, session_id: str) -> Path:
+        # Real bug, found in a robustness audit: the old scheme
+        # (''.join(ch for ch in session_id if ch.isalnum() or ch in '-_'))
+        # was farmer-unscoped and collision-prone -- "", "!!!", and any
+        # emoji-only session_id all strip to "" (every such session shares
+        # ONE global draft file, across ALL farmers), and distinct ids like
+        # "ab-c"/"a@b/c" both collide to "abc". Worse, nothing checked
+        # draft["farmer_id"] against the caller's farmer_id, so farmer A
+        # could read farmer B's in-progress booking by guessing/reusing a
+        # session id. Hash farmer_id+session_id together instead, same
+        # pattern services/voice_agent/session_store.py already uses
+        # correctly for the parallel per-turn entity cache.
+        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
+        return self.intake_dir / f"{digest}.json"
 
     def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
@@ -302,13 +314,13 @@ class AppointmentSupervisor:
         }
 
     def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
-        path = self._path(session_id)
+        path = self._path(farmer_id, session_id)
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
         return self._fresh(session_id, farmer_id, language)
 
     def _save(self, draft: dict[str, Any]) -> None:
-        path = self._path(draft["session_id"])
+        path = self._path(draft["farmer_id"], draft["session_id"])
         path.parent.mkdir(parents=True, exist_ok=True)
         with FileLock(str(path) + ".lock"):
             draft["updated_at"] = _now()

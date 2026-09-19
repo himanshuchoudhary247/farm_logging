@@ -630,10 +630,21 @@ async def appointment_voice_image(
 
 @app.get("/farmers/{farmer_id}/appointments/voice/{session_id}")
 def appointment_voice_draft(farmer_id: str, session_id: str, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
-    path = get_data_dir() / "appointment_intakes" / f"{''.join(ch for ch in session_id if ch.isalnum() or ch in '-_')}.json"
+    # Real bug, found in a robustness audit: this duplicated a second,
+    # farmer-unscoped, lossy session_id->filename scheme (stripped to alnum
+    # only -- "", "!!!", any emoji-only id all collapsed to the same "" path,
+    # shared across every farmer). Reuse appointment_supervisor's own
+    # farmer+session hashed path instead of a second hand-rolled copy, and
+    # verify the loaded draft actually belongs to this farmer_id as
+    # defense-in-depth even though the hashed path already makes
+    # cross-farmer collisions practically impossible.
+    path = appointment_supervisor._path(farmer_id, session_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Appointment draft not found")
-    return json.loads(path.read_text(encoding="utf-8"))
+    draft = json.loads(path.read_text(encoding="utf-8"))
+    if draft.get("farmer_id") != farmer_id:
+        raise HTTPException(status_code=404, detail="Appointment draft not found")
+    return draft
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/submit")
