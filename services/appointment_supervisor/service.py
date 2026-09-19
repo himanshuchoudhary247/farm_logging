@@ -534,7 +534,21 @@ class AppointmentSupervisor:
         # SQL+data result is strong empirical evidence this was an
         # answerable question, not a rejection -- far more reliable than
         # depending on a classification the model won't reliably make.
-        answers_expected_field = bool(draft.get("expected_field")) and bool(turn_entities.get(draft["expected_field"]))
+        # Bug found in a robustness audit: expected_field is set to the merged
+        # key "animal_identifier" (see _copy_entities above), but the raw
+        # extraction schema never emits that key directly -- it emits
+        # animal_id/animal_tag/animal_name instead. So this check always
+        # evaluated to False whenever waiting on the animal field, even when
+        # the farmer's turn genuinely named one. Currently harmless only
+        # because no call site happened to hit that exact combination; fixed
+        # here rather than left to become a real bug later.
+        expected_field = draft.get("expected_field")
+        if expected_field == "animal_identifier":
+            answers_expected_field = bool(
+                turn_entities.get("animal_id") or turn_entities.get("animal_tag") or turn_entities.get("animal_name")
+            )
+        else:
+            answers_expected_field = bool(expected_field) and bool(turn_entities.get(expected_field))
         if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field:
             probe = process_query(text, farmer_id)
             if probe.get("sql") and probe.get("data"):

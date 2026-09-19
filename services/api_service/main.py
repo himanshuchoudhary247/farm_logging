@@ -647,6 +647,11 @@ async def appointment_voice_image(
             {"attachment_id": attachment_id, "type": "image", "filename": image.filename or "image", "content_type": image.content_type, "storage_path": str(path), "uploaded_at": datetime.now().isoformat()},
         )
     except ValueError as exc:
+        # Bug found in a robustness audit: the file above is written before
+        # attach() can reject it (cancelled/submitted draft) -- a rejected
+        # call left the image orphaned on disk forever. Clean it up on the
+        # rejection path.
+        path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc))
 
 
