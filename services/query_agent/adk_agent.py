@@ -4,12 +4,9 @@
 Deliberately does NOT touch db.py or schema.py -- those are the deterministic,
 already-hardened data layer (thread-safety fix, LRU cache, blocked-keyword
 fix, all from this session's robustness audit) and have nothing to do with
-orchestration. Also deliberately does NOT edit the existing agent.py in
-place -- that file has unrelated uncommitted work from another concurrent
-session (structured count/frequency formatting) that this migration must not
-clobber. This module is the new path; agent.py remains the old path until
-Phase 4 verifies they're equivalent, per the plan's "reversible, not a single
-cutover" requirement.
+orchestration. The old agent.py this was built alongside (which had unrelated
+uncommitted work from another concurrent session) has since been removed --
+this is the only implementation now.
 
 farmer_id is bound into the tool closure, never exposed as a parameter the
 model could pass -- same principle as every other scoping fix this session

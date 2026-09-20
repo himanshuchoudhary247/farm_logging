@@ -14,7 +14,6 @@ from filelock import FileLock
 
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
-from services.query_agent.agent import process_query
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
 from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
@@ -143,6 +142,18 @@ def _lang(language: str) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def process_query(text: str, farmer_id: str) -> dict[str, Any]:
+    """Thin wrapper around query_agent.adk_agent.process_query_adk (the
+    off-topic-probe call in turn(), below). A real module-level function --
+    not a re-exported name -- so tests can monkeypatch service.process_query
+    the same way they always have. The import is deferred to call time:
+    adk_agent.py pulls in google.adk at module load (needs Python 3.10+),
+    and this file must stay importable under an older interpreter for
+    every other code path that never reaches this probe."""
+    from services.query_agent.adk_agent import process_query_adk
+    return process_query_adk(text, farmer_id)
 
 
 def _valid_appointment_date(value: Any) -> bool:

@@ -1,11 +1,7 @@
-"""ADK-native rebuild of chat_orchestrator's dispatch (Phase 3 of the plan at
+"""ADK-native chat orchestrator -- the sole routing/dispatch implementation
+(the old chat_orchestrator/router.py this was built alongside has been
+removed now that this path is verified equivalent; see
 /Users/sudhanshu/.claude/plans/elegant-roaming-river.md).
-
-Reuses router.py's own helpers (_appointment_supervisor, _has_active_booking_
-draft, _envelope, _reply_text) rather than duplicating them -- this module
-only replaces HOW the routing decision gets made and how weather/query get
-answered, not the deterministic sticky-routing guard or the response
-envelope shape flokiquser already depends on.
 
 Deliberate design choice, not an oversight: the coordinator ONLY classifies
 which area a message belongs to. It never generates the farmer-facing text
@@ -32,17 +28,63 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from services.chat_orchestrator.router import (
-    _appointment_supervisor,
-    _envelope,
-    _has_active_booking_draft,
-    _reply_text,
-)
+from services.appointment_supervisor import AppointmentSupervisor
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.weather_alert.adk_agent import process_weather_query_adk
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
+
+_appointment_supervisor = AppointmentSupervisor()
+
+
+def _reply_text(agent: str, result: dict[str, Any]) -> str:
+    """One canonical display string per turn, regardless of which agent
+    handled it or which state it ended in -- mirrors how chat APIs (OpenAI,
+    Claude) expose a single content field independent of which tool ran
+    underneath, so the UI never needs per-agent/per-shape branching to know
+    what to show. Falls back to a generic line rather than raising -- a
+    missing field here should degrade the display, not break the turn that
+    already succeeded."""
+    if "response_text" in result:
+        return str(result["response_text"])
+    if agent == "query_agent":
+        return str(result.get("answer") or "")
+    if agent == "weather_alert":
+        return str(result.get("message") or result.get("error") or "")
+    return ""
+
+
+def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_text: str,
+              farmer_id: str, session_id: str, text: str) -> dict[str, Any]:
+    """Single exit point for route_turn_adk -- logs the actual question/
+    answer text and builds the response envelope in one place."""
+    _log.info(
+        "chat_orchestrator turn farmer=%s session=%s agent=%s intent=%s text=%r reply=%r",
+        farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
+    )
+    return {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+
+
+def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
+    """Cheap file-existence check, no LLM call -- an in-progress
+    (unsubmitted) appointment/health-log draft always routes straight back
+    to appointment_supervisor, so a mid-flow "yes"/"tomorrow morning" isn't
+    reclassified by the router and doesn't risk being sent somewhere else."""
+    path = _appointment_supervisor._path(farmer_id, session_id)
+    if not path.exists():
+        return False
+    try:
+        draft = _appointment_supervisor._load(session_id, farmer_id, "en-IN")
+        # A cancelled draft is just as "done" as a submitted one -- without
+        # this, a farmer who cancels a booking gets every future message on
+        # that session_id permanently routed back into appointment_supervisor.
+        return draft.get("state") != "CANCELLED" and not draft.get("submitted", False)
+    except Exception:
+        return False
 
 _ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
 

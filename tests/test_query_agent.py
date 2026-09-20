@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import threading
 import pytest
 
-from services.query_agent import agent as query_agent
 from services.query_agent import db as query_db
 from services.query_agent.schema import generate_schema_for_prompt
 
@@ -231,30 +229,3 @@ def test_execute_query_thread_safe_concurrent_access():
         t.join(timeout=10)
     assert not errors, f"concurrent access raised: {errors}"
     query_db.clear_cache("ec-thread-test")
-
-
-def test_format_result_returns_real_answer_not_none():
-    """Real bug, found live: _format_result built its LLM prompt but never
-    called the model or returned anything -- fell off the end, implicit
-    None. Every successful query got answer:null in the API response,
-    which crashed the frontend (null.split() on a declared-non-nullable
-    field). Verify the function actually returns the adapter's text."""
-    class FakeAdapter:
-        def complete(self, messages, system):
-            return "You have 53 animals."
-
-    result = {"success": True, "columns": ["c"], "rows": [[53]], "row_count": 1}
-    answer = query_agent._format_result("how many animals do I have", result, "schema text", FakeAdapter())
-    assert answer == "You have 53 animals."
-    assert answer is not None
-
-
-def test_format_result_never_returns_none_even_on_adapter_error():
-    class FailingAdapter:
-        def complete(self, messages, system):
-            raise RuntimeError("bedrock unavailable")
-
-    result = {"success": True, "columns": ["c"], "rows": [[53]], "row_count": 1}
-    answer = query_agent._format_result("how many animals do I have", result, "schema text", FailingAdapter())
-    assert answer is not None
-    assert isinstance(answer, str) and answer.strip()

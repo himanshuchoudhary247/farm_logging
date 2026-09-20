@@ -46,7 +46,7 @@ from services.llm_service.bedrock_adapter import (
     generate_seasonal_advisory,
 )
 from services.emergency_alerts.api import fetch_alert_feed
-from services.query_agent.agent import process_query
+from services.query_agent.adk_agent import process_query_adk
 from difflib import get_close_matches
 from services.cache_refresh import (
     ensure_general_alert,
@@ -56,7 +56,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
-from services.chat_orchestrator import router as chat_router
+from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
 
 
@@ -357,7 +357,7 @@ def data_query(farmer_id: str, req: DataQueryRequest, _auth: None = Depends(requ
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Query text is required")
     try:
-        return process_query(query=req.query, farmer_id=farmer_id)
+        return process_query_adk(req.query, farmer_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -505,32 +505,22 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
     """Single entry point for any farmer query -- weather, appointment
     booking, health logging, farm data questions. The main orchestrator
     agent classifies intent and dispatches to the right sub-agent; see
-    services/chat_orchestrator/router.py for the dispatch table."""
+    services/chat_orchestrator/adk_router.py for the dispatch logic."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
     try:
         t0 = time.time()
-        if os.getenv("CHAT_ORCHESTRATOR_ADK", "").lower() in {"1", "true", "yes", "on"}:
-            # Phase 3/4 of the ADK orchestration migration (see
-            # /Users/sudhanshu/.claude/plans/elegant-roaming-river.md) --
-            # opt-in, reversible switch rather than a single cutover.
-            # Lazy import: google-adk needs Python 3.10+ and this app can
-            # still run under an older interpreter/venv with the flag left
-            # off, without ever touching the ADK import path.
-            from services.chat_orchestrator.adk_router import route_turn_adk
-            result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
-        else:
-            result = chat_router.route_turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
         result["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
     except Exception as exc:
         # Real bug, found in a robustness audit: only ValueError was
-        # caught here -- route_turn -> process_query ->
-        # BedrockTextAdapter/boto errors (RuntimeError, botocore
-        # exceptions, etc.) are not ValueError and propagated as a raw,
-        # traceback-leaking 500 instead of a clean error response.
+        # caught here -- route_turn_adk's Bedrock/ADK calls can raise
+        # RuntimeError, botocore exceptions, etc. that aren't ValueError,
+        # and those propagated as a raw, traceback-leaking 500 instead of
+        # a clean error response.
         _log.exception("chat_turn failed farmer=%s session=%s", farmer_id, req.session_id)
         raise HTTPException(status_code=500, detail="Something went wrong processing that message. Please try again.")
 

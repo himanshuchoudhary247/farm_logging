@@ -14,17 +14,14 @@ import pytest
 
 pytest.importorskip("google.adk")
 
-from services.chat_orchestrator import adk_router, router
+from services.chat_orchestrator import adk_router
 
 
 def test_sticky_routing_bypasses_classifier_entirely(tmp_path, monkeypatch):
     """A farmer mid-booking must stay routed to appointment_supervisor
     regardless of what the classifier would say -- this is a deterministic
-    guard (router.py's own _has_active_booking_draft), not an LLM decision,
-    and must never invoke the classifier at all."""
-    # adk_router.py did `from router import _has_active_booking_draft` --
-    # that's its own independent binding, not a live alias back to
-    # router's namespace, so the patch target is adk_router's copy.
+    guard (adk_router.py's own _has_active_booking_draft), not an LLM
+    decision, and must never invoke the classifier at all."""
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: True)
     called = {"classifier": False}
 
@@ -34,7 +31,7 @@ def test_sticky_routing_bypasses_classifier_entirely(tmp_path, monkeypatch):
 
     monkeypatch.setattr(adk_router, "_classify_intent_async", fail_if_called)
     monkeypatch.setattr(
-        router._appointment_supervisor, "turn",
+        adk_router._appointment_supervisor, "turn",
         lambda farmer_id, session_id, text, language, include_audio=True: {"response_text": "sticky reply", "state": "COLLECTING"},
     )
     result = adk_router.route_turn_adk("f-001", "sticky-session", "TAG-001-11")
@@ -48,7 +45,7 @@ def test_classified_appointment_routes_to_appointment_supervisor(monkeypatch):
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("appointment"))
     monkeypatch.setattr(
-        router._appointment_supervisor, "turn",
+        adk_router._appointment_supervisor, "turn",
         lambda farmer_id, session_id, text, language, include_audio=True: {"response_text": "let's book it", "state": "COLLECTING"},
     )
     result = adk_router.route_turn_adk("f-001", "classify-appt", "I'd like to book an appointment")

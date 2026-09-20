@@ -4,8 +4,9 @@ plan at /Users/sudhanshu/.claude/plans/elegant-roaming-river.md).
 Deliberately does NOT touch services/pincode_store or services/weather_alert
 themselves -- both are this session's already-hardened data layer (LRU
 cache, non-ASCII PIN fix, lock) and have nothing to do with orchestration.
-Old chat_orchestrator/router.py's WEATHER_ALERT branch stays live until
-Phase 4 verifies equivalence -- no cutover yet.
+The old chat_orchestrator/router.py this was built alongside (with its own
+WEATHER_ALERT branch) has since been removed -- this is the only
+implementation now.
 
 Mirrors query_agent's adk_agent.py shape: farmer_id is bound into the tool
 closure at construction time, never a parameter the model can pass, so the
