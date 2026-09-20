@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
+import threading
 import time
 from typing import Any
 
@@ -12,7 +14,9 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 _CACHE_TTL_SEC = 15 * 60
-_cache: dict[str, tuple[float, Any]] = {}
+_MAX_CACHE_ENTRIES = 500  # bug found in robustness audit: this cache was unbounded and had no lock
+_cache: "OrderedDict[str, tuple[float, Any]]" = OrderedDict()
+_cache_lock = threading.Lock()
 
 
 @dataclass
@@ -24,23 +28,35 @@ class ResolvedLocation:
 
 
 def _is_pin_code(value: str) -> bool:
+    # Real bug, found in a robustness audit: str.isdigit() is True for
+    # non-ASCII digits too (Devanagari "५६००१", superscripts, etc.) -- a PIN
+    # typed in Devanagari script took this branch, got sent to the geocoder
+    # verbatim, resolved to nothing, and the farmer got "could not resolve
+    # location" instead of their PIN being read correctly. isascii() first
+    # restricts this to plain 0-9.
     v = (value or "").strip()
-    return v.isdigit() and 5 <= len(v) <= 8
+    return v.isascii() and v.isdigit() and 5 <= len(v) <= 8
 
 
 def _cache_get(key: str) -> Any:
-    item = _cache.get(key)
-    if not item:
-        return None
-    ts, value = item
-    if time.time() - ts > _CACHE_TTL_SEC:
-        _cache.pop(key, None)
-        return None
-    return value
+    with _cache_lock:
+        item = _cache.get(key)
+        if not item:
+            return None
+        ts, value = item
+        if time.time() - ts > _CACHE_TTL_SEC:
+            _cache.pop(key, None)
+            return None
+        _cache.move_to_end(key)
+        return value
 
 
 def _cache_set(key: str, value: Any) -> None:
-    _cache[key] = (time.time(), value)
+    with _cache_lock:
+        _cache[key] = (time.time(), value)
+        _cache.move_to_end(key)
+        while len(_cache) > _MAX_CACHE_ENTRIES:
+            _cache.popitem(last=False)
 
 
 def _compute_heat_stress(
@@ -112,6 +128,13 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
         raise ValueError(f"Could not resolve location for '{query}'")
 
     row = rows[0]
+    # Real bug, found in a robustness audit: row["lat"]/row["lon"] raised
+    # an unguarded KeyError on a geocoder result missing either field --
+    # uncaught (main.py's callers only catch ValueError here) -> raw 500.
+    # display_name two lines above already defends against this same class
+    # of missing-field response; lat/lon didn't.
+    if "lat" not in row or "lon" not in row:
+        raise ValueError(f"Location provider returned no coordinates for '{query}'")
     resolved = ResolvedLocation(
         query=q,
         display_name=str(row.get("display_name") or q),
@@ -123,7 +146,15 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
 
 
 def _classify_weather_alert(day: dict[str, Any]) -> dict[str, Any] | None:
-    code = int(day.get("weather_code", -1))
+    # Real bug, found in a robustness audit: the key is always present
+    # (set to None, not omitted, when the provider's arrays don't line up
+    # -- see the "weather_code": codes[i] if i < len(codes) else None
+    # construction elsewhere in this file), so `.get("weather_code", -1)`
+    # never actually applies its default -- `int(None)` raised TypeError,
+    # uncaught, -> raw 500. The sibling lines below already guard with
+    # `or 0.0`; this one didn't.
+    raw_code = day.get("weather_code")
+    code = int(raw_code) if raw_code is not None else -1
     rain_mm = float(day.get("precipitation_sum", 0.0) or 0.0)
     wind_kph = float(day.get("wind_speed_10m_max", 0.0) or 0.0)
 

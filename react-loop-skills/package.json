@@ -1,0 +1,46 @@
+{
+  "name": "react-loop-skills",
+  "version": "1.0.0",
+  "description": "React Loop Skill System with Google ADK integration - Local Deployment",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn --transpile-only src/server/local-server.ts",
+    "start": "node dist/server/local-server.js",
+    "test": "jest",
+    "test:conversations": "node dist/tests/run-conversations.js",
+    "seed": "node dist/server/seed-database.js",
+    "setup": "npm run build && npm run seed",
+    "serve": "npm run setup && npm start"
+  },
+  "keywords": [
+    "react",
+    "skills",
+    "agents",
+    "adk",
+    "farming",
+    "tools",
+    "local"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.14",
+    "@types/express": "^4.17.19",
+    "@types/node": "^20.8.0",
+    "@types/uuid": "^9.0.5",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

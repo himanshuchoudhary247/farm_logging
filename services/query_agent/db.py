@@ -2,6 +2,7 @@ import json
 import sqlite3
 import threading
 import re
+from collections import OrderedDict
 from typing import Any, Optional, get_type_hints
 
 from services.query_agent.schema import QUERY_TABLES, table_names, _resolve_sql_type
@@ -17,12 +18,31 @@ from storage import (
     weather_notifications_for_farmer,
 )
 
-# Cache: thread-local in-memory databases per farmer_id, scoped to that
-# farmer's rows only. No cross-farmer data is ever loaded, so no SQL-level
-# tenant filter is required (defence in depth via row-level scoping at the
-# data layer rather than regex injection).
-_db_cache: dict[str, sqlite3.Connection] = {}
+# Cache: in-memory databases per farmer_id, scoped to that farmer's rows
+# only. No cross-farmer data is ever loaded, so no SQL-level tenant filter
+# is required (defence in depth via row-level scoping at the data layer
+# rather than regex injection).
+#
+# Real bug, found in a robustness audit: this was documented as
+# "thread-local" but never actually was -- _db_cache is a plain dict shared
+# by every thread, and sqlite3.connect() defaults to check_same_thread=True.
+# Both /query and /chat/turn are sync `def` endpoints, so FastAPI runs them
+# on arbitrary anyio worker threads; a second request for the same
+# farmer_id landing on a different thread than the one that built the
+# cached connection hit sqlite3.ProgrammingError, which execute_query()
+# silently swallowed into {"success": False}, burned a wasted second LLM
+# "fix the SQL" call, failed again identically, and surfaced the raw
+# Python thread-id error message as the farmer-facing answer -- a real,
+# live, intermittent failure of the entire query_agent path.
+#
+# Fix: check_same_thread=False (in _build_db) lets the same connection be
+# reused from any thread, and a per-farmer lock here serializes actual use
+# of it -- SQLite connections still aren't safe for genuinely simultaneous
+# access from multiple threads even with that flag off.
+_db_cache: "OrderedDict[str, sqlite3.Connection]" = OrderedDict()
+_db_locks: dict[str, threading.Lock] = {}
 _cache_lock = threading.Lock()
+_MAX_CACHED_FARMERS = 200  # bug found in robustness audit: this cache was unbounded
 
 _BLOCKED_KEYWORDS = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|ATTACH|DETACH|PRAGMA|EXECUTE)\b",
@@ -60,7 +80,7 @@ def _serialize_value(v: Any) -> Any:
 
 
 def _build_db(farmer_id: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.execute("PRAGMA journal_mode=OFF")
     conn.execute("PRAGMA synchronous=OFF")
 
@@ -108,17 +128,42 @@ def _build_db(farmer_id: str) -> sqlite3.Connection:
 
 def get_db(farmer_id: str) -> sqlite3.Connection:
     with _cache_lock:
-        if farmer_id not in _db_cache:
-            _db_cache[farmer_id] = _build_db(farmer_id)
-        return _db_cache[farmer_id]
+        if farmer_id in _db_cache:
+            _db_cache.move_to_end(farmer_id)
+            return _db_cache[farmer_id]
+
+        conn = _build_db(farmer_id)
+        _db_cache[farmer_id] = conn
+        _db_locks[farmer_id] = threading.Lock()
+
+        while len(_db_cache) > _MAX_CACHED_FARMERS:
+            evicted_id, evicted_conn = _db_cache.popitem(last=False)
+            _db_locks.pop(evicted_id, None)
+            evicted_conn.close()
+
+        return conn
+
+
+def _get_lock(farmer_id: str) -> threading.Lock:
+    with _cache_lock:
+        return _db_locks.setdefault(farmer_id, threading.Lock())
 
 
 def clear_cache(farmer_id: Optional[str] = None) -> None:
     with _cache_lock:
         if farmer_id:
-            _db_cache.pop(farmer_id, None)
+            conn = _db_cache.pop(farmer_id, None)
+            _db_locks.pop(farmer_id, None)
+            if conn is not None:
+                conn.close()
         else:
+            for conn in _db_cache.values():
+                conn.close()
             _db_cache.clear()
+            _db_locks.clear()
+
+
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 
 
 def validate_sql(sql: str, farmer_id: str) -> str:
@@ -126,7 +171,13 @@ def validate_sql(sql: str, farmer_id: str) -> str:
     if not stripped:
         raise ValueError("Empty SQL query")
 
-    if _BLOCKED_KEYWORDS.search(stripped):
+    # Bug found in robustness audit: blocked-keyword scan ran over the raw SQL
+    # text, so a legit query like WHERE notes LIKE '%update%' got rejected --
+    # "update" sat inside a string literal, not as a SQL verb. Scan a copy with
+    # string literals blanked out; the real query (with literals intact) still
+    # executes.
+    without_literals = _STRING_LITERAL.sub("''", stripped)
+    if _BLOCKED_KEYWORDS.search(without_literals):
         raise ValueError("Only SELECT queries are allowed")
 
     upper = stripped.upper().strip()
@@ -143,22 +194,24 @@ def validate_sql(sql: str, farmer_id: str) -> str:
 def execute_query(sql: str, farmer_id: str) -> dict[str, Any]:
     safe_sql = validate_sql(sql, farmer_id)
     conn = get_db(farmer_id)
+    lock = _get_lock(farmer_id)
 
     try:
-        cur = conn.execute(f"PRAGMA query_only=ON")
-        cur = conn.execute(safe_sql)
-        rows = cur.fetchmany(_MAX_ROWS + 1)
-        truncated = len(rows) > _MAX_ROWS
-        rows = rows[:_MAX_ROWS]
-        columns = [desc[0] for desc in cur.description]
-        return {
-            "success": True,
-            "sql": safe_sql,
-            "columns": columns,
-            "rows": [list(r) for r in rows],
-            "row_count": len(rows),
-            "truncated": truncated,
-        }
+        with lock:
+            cur = conn.execute(f"PRAGMA query_only=ON")
+            cur = conn.execute(safe_sql)
+            rows = cur.fetchmany(_MAX_ROWS + 1)
+            truncated = len(rows) > _MAX_ROWS
+            rows = rows[:_MAX_ROWS]
+            columns = [desc[0] for desc in cur.description]
+            return {
+                "success": True,
+                "sql": safe_sql,
+                "columns": columns,
+                "rows": [list(r) for r in rows],
+                "row_count": len(rows),
+                "truncated": truncated,
+            }
     except Exception as e:
         return {
             "success": False,

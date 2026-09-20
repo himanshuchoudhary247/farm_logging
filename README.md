@@ -103,7 +103,10 @@ LLM turns ~1.2s. LATENCY-prefixed logs are emitted across the pipeline.
 
 ## Setup
 
-Requires Python 3.12+ (bumped from 3.9 on 2026-09-13 — `aws_sdk_bedrock_runtime`, used for Nova Sonic probing, requires 3.12+).
+Requires **Python 3.10+** (hard requirement — `google-adk`, the agent
+orchestration layer, needs it; `services/api_service/main.py` imports it
+unconditionally at startup, so an older interpreter fails to boot the
+server at all). This session's venv used 3.13.
 
 ```bash
 cd /path/to/farmer_chat
@@ -111,6 +114,20 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+**Required `.env`** (not auto-loaded — there is no `load_dotenv()` call
+anywhere in this codebase; you must `source` it into your shell yourself
+before every run):
+
+```bash
+cp .env.example .env   # then fill in real values, shared separately
+set -a; source .env; set +a
+```
+
+Required vars (server hard-fails at startup without these —
+`utils/env_check.py`): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_REGION`, `VOICE_BUCKET`, `VOICE_S3_BUCKET`. Full annotated list in
+`.env.example`. See also [docs/01-getting-started.md](docs/01-getting-started.md).
 
 ## Services
 
@@ -206,14 +223,25 @@ python test_onboarding.py
 ## Run
 
 ```bash
-# Farmer Chat API (port 8001)
+# Farmer Chat API (port 8001) -- source .env first, see Setup above
+set -a; source .env; set +a
 uvicorn services.api_service.main:app --host 127.0.0.1 --port 8001
 
-# Onboarding API (port 8004, HTTPS)
+# Onboarding API (port 8004, HTTPS) -- unrelated legacy onboarding flow
 python3 onboarding_api.py &
 
-# React frontend dev server
+# frontend/ (legacy onboarding/advisory site, separate from the chat assistant)
 cd frontend && npm run dev
+```
+
+**The chat/appointment/weather/query assistant's real UI is `flokiquser`**,
+a separate sibling repo/directory — not `frontend/` above:
+
+```bash
+cd ../flokiquser
+npm install
+npm run dev   # its own .env's VITE_ASSISTANT_API_BASE must point at
+              # this backend, e.g. http://127.0.0.1:8001 for local dev
 ```
 
 ## PIN Alert Cache

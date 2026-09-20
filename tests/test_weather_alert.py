@@ -100,3 +100,49 @@ def test_get_weather_alert_low_risk(monkeypatch):
     assert out["risk_level"] == "low"
     assert out["alerts"] == []
     assert out["resolved_location"]["state"] == "Karnataka"
+
+
+def test_is_pin_code_rejects_non_ascii_digits():
+    """Real bug, found in a robustness audit: str.isdigit() is True for
+    non-ASCII digits too (Devanagari, superscripts, etc.) -- a PIN typed
+    in Devanagari script took the PIN branch, got sent to the geocoder
+    verbatim, resolved to nothing, and the farmer got "could not resolve
+    location" instead of their PIN being read correctly."""
+    assert service._is_pin_code("560001") is True
+    assert service._is_pin_code("५६०००१") is False, "Devanagari digits must not be treated as a valid PIN"
+    assert service._is_pin_code("") is False
+    assert service._is_pin_code("1234") is False, "too short to be a PIN"
+    assert service._is_pin_code("123456789") is False, "too long to be a PIN"
+
+
+def test_weather_cache_evicts_oldest_beyond_cap():
+    """Real bug, found in a robustness audit: _cache was unbounded and had
+    no lock at all. Now an LRU-bounded, locked OrderedDict."""
+    service._cache.clear()
+    original_cap = service._MAX_CACHE_ENTRIES
+    service._MAX_CACHE_ENTRIES = 3
+    try:
+        for i in range(5):
+            service._cache_set(f"key{i}", i)
+        assert len(service._cache) == 3, "cache must not grow past the cap"
+        assert "key0" not in service._cache, "oldest entry must be evicted first"
+        assert service._cache_get("key4") == 4
+    finally:
+        service._MAX_CACHE_ENTRIES = original_cap
+        service._cache.clear()
+
+
+def test_weather_cache_access_refreshes_lru_order():
+    service._cache.clear()
+    original_cap = service._MAX_CACHE_ENTRIES
+    service._MAX_CACHE_ENTRIES = 3
+    try:
+        for i in range(3):
+            service._cache_set(f"lru{i}", i)
+        service._cache_get("lru0")  # touch -- should no longer be the oldest
+        service._cache_set("lru3", 3)  # forces one eviction
+        assert "lru0" in service._cache, "recently touched entry must survive eviction"
+        assert "lru1" not in service._cache, "lru1, never touched again, is now the oldest"
+    finally:
+        service._MAX_CACHE_ENTRIES = original_cap
+        service._cache.clear()
