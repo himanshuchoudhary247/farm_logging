@@ -537,7 +537,7 @@ async def chat_voice_turn(
     """Audio-upload counterpart to /chat/turn -- record-and-POST a whole
     utterance (same client pattern as /appointments/voice/turn), get back
     the transcript plus the same {agent, intent, result} shape chat_turn
-    returns, dispatched through chat_orchestrator's router rather than
+    returns, dispatched through chat_orchestrator's ADK router rather than
     being locked into the appointment-booking flow."""
     audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
     if audio_type not in {"audio/wav", "audio/x-wav", "audio/webm", "audio/mpeg", "audio/mp4", "audio/ogg"}:
@@ -561,7 +561,7 @@ async def chat_voice_turn(
         if not text.strip():
             raise HTTPException(status_code=422, detail="Could not transcribe any speech from the audio")
         result = await asyncio.to_thread(
-            chat_router.route_turn, farmer_id, session_id, text, language, include_audio,
+            route_turn_adk, farmer_id, session_id, text, language, include_audio,
         )
         t_turn = time.time()
         result["transcript"] = text
