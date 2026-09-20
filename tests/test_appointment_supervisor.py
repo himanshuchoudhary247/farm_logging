@@ -5,6 +5,23 @@ import pytest
 from services.appointment_supervisor import service
 
 
+@pytest.fixture(autouse=True)
+def _no_real_query_agent_calls(monkeypatch):
+    """Real bug, found live: no test in this file ever mocked
+    service.process_query (the off-topic-probe call turn() makes when
+    confirmation_signal=="no" and nothing new was extracted). Every test
+    here has silently depended on that call failing due to missing AWS
+    credentials in whatever environment ran the suite -- true by accident
+    every time until this session's ADK work ran the suite with real
+    credentials present for the first time, at which point a live Bedrock
+    call started actually succeeding mid-test and changing behavior
+    non-deterministically. Default every test in this file to a
+    definitely-not-a-data-answer probe result; a test that specifically
+    wants to exercise the probe succeeding can still override this locally
+    with its own monkeypatch.setattr(service, "process_query", ...)."""
+    monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {"answer": None, "sql": None, "data": None})
+
+
 def test_turn_confirm_and_submit_state_machine(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
     monkeypatch.setattr(
