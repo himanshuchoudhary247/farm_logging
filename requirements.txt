@@ -20,3 +20,10 @@ pymysql>=1.1.0
 aws_sdk_bedrock_runtime>=0.11.0
 awscrt>=0.23.0
 gtts>=2.5.0
+# Orchestration-layer migration (see /Users/sudhanshu/.claude/plans/
+# elegant-roaming-river.md) — [extensions] is required for the LiteLlm
+# model wrapper that lets ADK agents call AWS Bedrock (this project's real
+# model backend) instead of only Gemini. Verified working end-to-end
+# against bedrock/deepseek.v3-v1:0 with this project's existing AWS
+# credentials, 2026-09-20.
+google-adk[extensions]>=2.9.2
