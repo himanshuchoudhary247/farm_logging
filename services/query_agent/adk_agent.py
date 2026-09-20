@@ -45,9 +45,10 @@ Rules:
 - Otherwise, give a natural conversational answer.
 - Never mention SQL, tables, columns, or any technical/database terms in your final answer -- speak like a farm advisor, not a database.
 - A bare greeting ("hi", "hello", "hey") gets a plain greeting back, under 10 words, e.g. "Hi! What would you like to know about your farm?" -- do NOT list your capabilities (animal counts, health records, appointments, etc.) unless the farmer's message actually asked what you can do.
-- A question with a one-fact answer gets one short sentence, not a paragraph.
-- This is spoken aloud to the farmer as well as shown as text -- length that reads fine on screen is tedious to sit through as audio. Only a real breakdown/list the farmer actually asked for should run longer than 1-2 short sentences.
-"""
+
+Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can be as detailed as the question needs (full breakdowns, full lists). The spoken version must always be short, since a farmer listening doesn't want a list of 5+ numbers read out loud one by one.
+
+So: after your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly summary of the same answer -- one sentence, no itemized lists, no reading out every number in a breakdown (say "you have 53 animals across 5 species" instead of naming each species and count). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line, even for a greeting."""
 
 
 def _make_run_sql_query_tool(farmer_id: str):
@@ -92,6 +93,23 @@ def build_query_agent(farmer_id: str) -> Agent:
     )
 
 
+_SPOKEN_MARKER = "---SPOKEN---"
+
+
+def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
+    """Text and audio can legitimately differ (full breakdown in text, one
+    short sentence spoken) -- the instruction asks the model to emit both
+    in one call, separated by a marker, rather than a second LLM call per
+    turn. Degrades gracefully if the model ever omits the marker: the full
+    text is used for speech too rather than crashing or losing the answer."""
+    if _SPOKEN_MARKER in answer_text:
+        text_part, _, speech_part = answer_text.partition(_SPOKEN_MARKER)
+        text_part = text_part.strip()
+        speech_part = speech_part.strip()
+        return text_part, (speech_part or text_part)
+    return answer_text, answer_text
+
+
 async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     agent = build_query_agent(farmer_id)
     runner = InMemoryRunner(agent=agent, app_name="farmer_chat_query_agent")
@@ -110,13 +128,15 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
             answer_text = "".join(p.text for p in event.content.parts if p.text)
 
     if not answer_text:
-        return {"answer": "I couldn't understand the query. Please rephrase.", "sql": None, "data": None}
+        return {"answer": "I couldn't understand the query. Please rephrase.", "sql": None, "data": None, "speech_text": "I couldn't understand the query. Please rephrase."}
+
+    text_answer, speech_text = _split_text_and_speech(answer_text)
 
     if last_successful_result is None:
-        return {"answer": answer_text, "sql": None, "data": None}
+        return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
 
     return {
-        "answer": answer_text,
+        "answer": text_answer,
         "sql": last_successful_result.get("sql"),
         "data": {
             "columns": last_successful_result.get("columns"),
@@ -124,6 +144,7 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
             "row_count": last_successful_result.get("row_count"),
             "truncated": last_successful_result.get("truncated", False),
         },
+        "speech_text": speech_text,
     }
 
 

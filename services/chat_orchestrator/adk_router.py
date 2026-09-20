@@ -62,7 +62,8 @@ def _reply_text(agent: str, result: dict[str, Any]) -> str:
 
 def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_text: str,
               farmer_id: str, session_id: str, text: str,
-              include_audio: bool = False, language: str = "en-IN") -> dict[str, Any]:
+              include_audio: bool = False, language: str = "en-IN",
+              speech_text: "str | None" = None) -> dict[str, Any]:
     """Single exit point for route_turn_adk -- logs the actual question/
     answer text and builds the response envelope in one place.
 
@@ -74,16 +75,24 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
     response_audio_base64 and result.response_audio_base64 (confirmed with
     the UI side), so this adds the top-level one here for exactly the two
     agents that don't already embed it -- appointment_supervisor keeps its
-    existing nested field untouched, no double-synthesis."""
+    existing nested field untouched, no double-synthesis.
+
+    speech_text lets a caller give audio a shorter script than what's
+    displayed -- text can stay fully detailed (full breakdowns, full
+    figures) while audio stays a short, listenable summary. Defaults to
+    reply_text (old behavior: audio == text) when a branch doesn't have a
+    separate spoken version."""
     _log.info(
         "chat_orchestrator turn farmer=%s session=%s agent=%s intent=%s text=%r reply=%r",
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
-    if include_audio and agent != "appointment_supervisor" and reply_text.strip():
-        audio, audio_error = synthesize_speech(reply_text, target_lang=language.split("-")[0].lower())
-        envelope["response_audio_base64"] = b64encode(audio).decode("ascii") if audio else None
-        envelope["audio_error"] = audio_error
+    if include_audio and agent != "appointment_supervisor":
+        spoken = (speech_text if speech_text is not None else reply_text).strip()
+        if spoken:
+            audio, audio_error = synthesize_speech(spoken, target_lang=language.split("-")[0].lower())
+            envelope["response_audio_base64"] = b64encode(audio).decode("ascii") if audio else None
+            envelope["audio_error"] = audio_error
     return envelope
 
 
@@ -183,8 +192,8 @@ def route_turn_adk(
         weather = process_weather_query_adk(text, farmer_id)
         result = weather["result"]
         reply = weather["answer"] or _reply_text("weather_alert", result)
-        return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+        return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
 
     result = process_query_adk(text, farmer_id)
     reply = result.get("answer") or ""
-    return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+    return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))

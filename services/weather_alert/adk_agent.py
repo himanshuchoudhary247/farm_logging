@@ -38,7 +38,10 @@ Rules:
 - Base your answer only on the data the tool returns. Never invent numbers, prices, or facts not present in the data.
 - If the data doesn't contain what the farmer asked, say so simply, then give the closest relevant fact from the data instead of repeating an unrelated summary.
 - Never mention JSON, fields, tools, or any technical/database terms in your answer -- speak like a farm advisor.
-"""
+
+Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can include the specific numbers/advisories the farmer asked for. The spoken version must be even shorter -- the single most important fact and action, nothing else.
+
+After your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly one-sentence version (e.g. "Yes, heavy rain expected today -- move animals to shelter." rather than a sentence packed with mm/kph figures). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line."""
 
 
 def _make_get_weather_context_tool(farmer_id: str):
@@ -85,6 +88,23 @@ def build_weather_agent(farmer_id: str) -> Agent:
     )
 
 
+_SPOKEN_MARKER = "---SPOKEN---"
+
+
+def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
+    """Same rationale as query_agent's identical helper: text and audio can
+    legitimately differ (specific figures in text, a short actionable
+    sentence spoken), generated in one call via a marker rather than a
+    second LLM call per turn. Degrades to using the full text for speech
+    too if the model ever omits the marker."""
+    if _SPOKEN_MARKER in answer_text:
+        text_part, _, speech_part = answer_text.partition(_SPOKEN_MARKER)
+        text_part = text_part.strip()
+        speech_part = speech_part.strip()
+        return text_part, (speech_part or text_part)
+    return answer_text, answer_text
+
+
 async def _run_weather_async(query: str, farmer_id: str) -> dict[str, Any]:
     agent = build_weather_agent(farmer_id)
     runner = InMemoryRunner(agent=agent, app_name="farmer_chat_weather_agent")
@@ -103,11 +123,13 @@ async def _run_weather_async(query: str, farmer_id: str) -> dict[str, Any]:
             answer_text = "".join(p.text for p in event.content.parts if p.text)
 
     result = last_tool_result if last_tool_result is not None else {"error": "no_location", "message": "Need a PIN code or place name to check the weather."}
-    return {"result": result, "answer": answer_text or ""}
+    text_answer, speech_text = _split_text_and_speech(answer_text or "")
+    return {"result": result, "answer": text_answer, "speech_text": speech_text}
 
 
 def process_weather_query_adk(query: str, farmer_id: str) -> dict[str, Any]:
     """Drop-in replacement for chat_orchestrator's WEATHER_ALERT branch
     (get_pincode_data + _answer_weather_question), routed through an ADK
-    Agent. Returns {"result": <pincode data or error dict>, "answer": str}."""
+    Agent. Returns {"result": <pincode data or error dict>, "answer": str,
+    "speech_text": str}."""
     return asyncio.run(_run_weather_async(query, farmer_id))
