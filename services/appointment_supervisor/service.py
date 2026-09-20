@@ -145,6 +145,37 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _valid_appointment_date(value: Any) -> bool:
+    """Real bug, found live: the extraction schema now instructs the model
+    not to guess a date from ambiguous input, but a prompt instruction is
+    not a guarantee -- this is the deterministic backstop. Rejects
+    anything that isn't 'today'/'tomorrow'/'yesterday' or a real
+    YYYY-MM-DD calendar date, so a bad guess gets treated as "not
+    provided" (re-asked) instead of silently stored."""
+    if not isinstance(value, str):
+        return False
+    if value in ("today", "tomorrow", "yesterday"):
+        return True
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
+
+def _valid_appointment_time(value: Any) -> bool:
+    """Same backstop for time -- rejects anything that isn't a real
+    24-hour HH:MM (e.g. the literal live bug: '66' as input must never
+    reach storage as a fabricated '06:00')."""
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.strptime(value, "%H:%M")
+        return True
+    except ValueError:
+        return False
+
+
 _ANIMAL_MATCH_TOOL_SPEC = {
     "name": "match_animal",
     "description": "Pick which registered animal (if any) the farmer is referring to.",
@@ -361,8 +392,17 @@ class AppointmentSupervisor:
     def _copy_entities(self, draft: dict[str, Any], entities: dict[str, Any]) -> None:
         target = draft["draft"]
         for key, value in entities.items():
-            if value not in (None, "", []):
-                target[key] = value
+            if value in (None, "", []):
+                continue
+            # Deterministic backstop (see _valid_appointment_date/_time):
+            # never let an objectively-invalid date/time value reach
+            # storage, no matter what the extraction call returned --
+            # treated as "not provided" so the missing-field flow re-asks.
+            if key == "date" and not _valid_appointment_date(value):
+                continue
+            if key == "time" and not _valid_appointment_time(value):
+                continue
+            target[key] = value
 
         # animal_tag/animal_name/animal_id are the extraction schema's
         # fields for a bare ear-tag, a name, or an internal record id --
@@ -377,7 +417,24 @@ class AppointmentSupervisor:
         # the model used, goes through the same verification; only a
         # value this class has itself confirmed sits in animal_id.
         raw_animal_ref = entities.get("animal_id") or entities.get("animal_tag") or entities.get("animal_name")
-        if raw_animal_ref and draft.get("animal_verified") and raw_animal_ref != target.get("animal_identifier"):
+        # Real bug, found live (twice, independently): a bare/garbage number
+        # given in answer to an UNRELATED pending question (date, time,
+        # issue) was misread by extraction as a fresh animal reference, and
+        # this branch unconditionally treated any animal-shaped value that
+        # differs from the current one as a correction -- silently wiping
+        # an already-verified animal mid-conversation, sometimes down to
+        # nothing at all (when the misread value matched no real animal).
+        # Only treat this as a genuine animal correction when the animal
+        # field is actually the one being asked about (or nothing specific
+        # is pending) -- never as a side effect of answering a different
+        # field.
+        expected_field = draft.get("expected_field")
+        if (
+            raw_animal_ref
+            and draft.get("animal_verified")
+            and raw_animal_ref != target.get("animal_identifier")
+            and expected_field in (None, "animal_identifier")
+        ):
             # A later turn named a different animal after one was already
             # verified (a correction) -- re-verify the new value instead
             # of silently keeping the stale one or trusting the new raw

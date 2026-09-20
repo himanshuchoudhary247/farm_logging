@@ -279,7 +279,14 @@ _EXTRACTION_TOOL_SPEC = {
         "the field the pending question was asking about). Never invent "
         "values. issue/symptoms should be short English phrases even when "
         "the farmer spoke another language; animal_name and animal_tag stay "
-        "in the farmer's original script."
+        "in the farmer's original script. "
+        "When a short/ambiguous reply (e.g. a bare number) arrives while a "
+        "specific field is pending, put it toward THAT field, not a "
+        "different one it happens to superficially resemble -- e.g. if "
+        "the pending question asked for a date and the farmer's reply is "
+        "just a number, that number is a date attempt (or unparseable, see "
+        "the date field's own instructions), never a fresh animal_tag, "
+        "even though a bare number also looks like a tag."
     ),
     "inputSchema": {
         "json": {
@@ -358,14 +365,23 @@ _EXTRACTION_TOOL_SPEC = {
                 "date": {
                     "type": "string",
                     "description": (
-                        "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD"
+                        "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD. "
+                        "Only set this when the farmer's words clearly express a date. A "
+                        "bare number alone (e.g. '11', '55') does NOT clearly express a "
+                        "date -- do NOT guess a day-of-month or default to today. Leave "
+                        "this field empty instead; the farmer will be asked to clarify."
                     ),
                 },
                 "time": {
                     "type": "string",
                     "description": (
                         "24-hour HH:MM. If farmer says only a period of day with no exact "
-                        "hour, use morning=09:00, afternoon=14:00, evening=18:00, night=20:00."
+                        "hour, use morning=09:00, afternoon=14:00, evening=18:00, night=20:00. "
+                        "Only set this when the farmer's words clearly express a time or "
+                        "period of day. A bare number that is not a plausible hour (e.g. "
+                        "'66') does NOT clearly express a time -- do NOT invent a nearby "
+                        "valid time. Leave this field empty instead; the farmer will be "
+                        "asked to clarify."
                     ),
                 },
                 "weather_location": {

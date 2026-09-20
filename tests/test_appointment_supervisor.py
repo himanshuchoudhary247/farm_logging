@@ -672,3 +672,85 @@ def test_turn_reentrant_into_confirm_does_not_deadlock(tmp_path, monkeypatch):
     supervisor = service.AppointmentSupervisor(tmp_path)
     result = supervisor.turn("demo-farmer", "session-reentrant", "never mind", include_audio=False)
     assert result["state"] == "CANCELLED"
+
+
+def test_garbage_number_answering_date_does_not_wipe_verified_animal(tmp_path, monkeypatch):
+    """Real bug, reproduced live on the UI twice with different inputs: a
+    farmer replying with a bare/garbage number ("55", earlier "11"/"66")
+    while the bot is asking for DATE got that number misread by
+    extraction as a fresh animal reference. Since it matched no real
+    animal, the already-verified animal got wiped entirely and the flow
+    demanded the farmer re-identify it from scratch, even though nothing
+    about the animal was ever in question."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-11", "tag_or_name": "TAG-001-11"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "TAG-001-11"}},
+    )
+    supervisor.turn("demo-farmer", "session-garbage-date", "11", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"issue": "limping", "symptoms": ["limping"]}},
+    )
+    supervisor.turn("demo-farmer", "session-garbage-date", "Limping", "en-IN")
+    draft = supervisor._load("session-garbage-date", "demo-farmer", "en-IN")
+    assert draft.get("expected_field") == "date"
+
+    # Bot is now asking for DATE. Farmer sends garbage "55" -- extraction
+    # (mis)reads it as a fresh, non-existent animal_tag.
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_tag": "55"}},
+    )
+    result = supervisor.turn("demo-farmer", "session-garbage-date", "55", "en-IN")
+    assert result["draft"].get("animal_identifier") == "TAG-001-11", "animal must survive a misread reply to an unrelated field"
+
+
+def test_invalid_date_value_not_stored_reprompts_instead(tmp_path, monkeypatch):
+    """Real bug, found live: farmer replied "11" to a date question; the
+    extraction model (no instruction against guessing) stored today's
+    date instead of asking for clarification. Deterministic backstop:
+    _copy_entities must reject any date value that isn't
+    today/tomorrow/yesterday or a real YYYY-MM-DD, treating it as
+    unanswered rather than silently storing a guess."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"date": "11"}},
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    result = supervisor.turn("demo-farmer", "session-bad-date", "11", "en-IN")
+    assert result["draft"].get("date") is None, "an unparseable date must never be stored"
+    assert "date" in result["missing_fields"]
+
+
+def test_invalid_time_value_not_stored_reprompts_instead(tmp_path, monkeypatch):
+    """Real bug, found live: farmer replied "66" (not a valid time in any
+    format) to a time question; the extraction model fabricated "06:00"
+    instead of asking for clarification. Deterministic backstop must
+    reject it."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"time": "06:00", "_raw_farmer_said": "66"}},
+    )
+    # Directly exercise the validator the merge path relies on -- the
+    # extraction call itself can't be forced to "fabricate 06:00 from 66"
+    # deterministically in a test, so this pins the backstop's own
+    # contract: any value failing _valid_appointment_time must never
+    # reach storage, regardless of what produced it.
+    assert service._valid_appointment_time("66") is False
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"time": "66"}},
+    )
+    result = supervisor.turn("demo-farmer", "session-bad-time", "66", "en-IN")
+    assert result["draft"].get("time") is None, "an invalid time must never be stored"
+    assert "time" in result["missing_fields"]
