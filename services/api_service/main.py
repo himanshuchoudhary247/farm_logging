@@ -510,7 +510,17 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
         raise HTTPException(status_code=400, detail="Text is required")
     try:
         t0 = time.time()
-        result = chat_router.route_turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        if os.getenv("CHAT_ORCHESTRATOR_ADK", "").lower() in {"1", "true", "yes", "on"}:
+            # Phase 3/4 of the ADK orchestration migration (see
+            # /Users/sudhanshu/.claude/plans/elegant-roaming-river.md) --
+            # opt-in, reversible switch rather than a single cutover.
+            # Lazy import: google-adk needs Python 3.10+ and this app can
+            # still run under an older interpreter/venv with the flag left
+            # off, without ever touching the ADK import path.
+            from services.chat_orchestrator.adk_router import route_turn_adk
+            result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        else:
+            result = chat_router.route_turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
         result["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
         return result
     except ValueError as exc:
