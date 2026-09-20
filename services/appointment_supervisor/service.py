@@ -471,12 +471,18 @@ class AppointmentSupervisor:
             if k not in ("attachments", "miscellaneous_notes")
         )
 
-    def _summary(self, draft: dict[str, Any]) -> str:
+    def _summary(self, draft: dict[str, Any], only_fields: Optional[set[str]] = None) -> str:
+        """only_fields restricts the readback to a subset (used for the
+        per-turn spoken delta below, so audio says only what's new this
+        turn instead of re-reading every field captured so far); None
+        (the default) summarizes everything, as this always has."""
         values = draft["draft"]
         labels = _LABELS.get(_lang(draft["language"]), _LABELS["en"])
         values_map = _VALUES.get(_lang(draft["language"]), {})
         parts = []
         for field in ("animal_identifier", "issue", "symptoms", "duration", "severity", "date", "time"):
+            if only_fields is not None and field not in only_fields:
+                continue
             value = values.get(field)
             if value not in (None, "", []):
                 if isinstance(value, list):
@@ -484,7 +490,7 @@ class AppointmentSupervisor:
                 if isinstance(value, str):
                     value = values_map.get(value, value)
                 parts.append(f"{labels.get(field, field)}: {value}")
-        if values.get("miscellaneous_notes"):
+        if values.get("miscellaneous_notes") and (only_fields is None or "miscellaneous_notes" in only_fields):
             parts.append(f"{labels['notes']}: {values['miscellaneous_notes']}")
         return "; ".join(parts) or "no appointment details yet"
 
@@ -492,10 +498,23 @@ class AppointmentSupervisor:
         catalog = _TEXT.get(_lang(language), _TEXT["en"])
         return catalog[key].format(**values)
 
-    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET) -> dict[str, Any]:
+    def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET, speech: Any = _UNSET) -> dict[str, Any]:
         language = draft["language"]
+        # Real bug, found live: audio always spoke `text`, the fused
+        # "I understood: X; Y; Z..." readback -- and because that readback
+        # is built from the FULL cumulative draft every turn (_summary()
+        # walks every field, not just what changed), a normal multi-turn
+        # booking got a growing, increasingly redundant spoken readback
+        # each turn ("animal: TAG-001-11" repeated at every step even
+        # though only the date changed this time). `speech`, when given,
+        # lets a caller synthesize a short delta-only phrase instead --
+        # defaults to `text` (prior behavior) so every other call site
+        # that doesn't pass it (animal-not-found-with-shortlist, the
+        # post-correction re-summary) is unaffected; those genuinely
+        # benefit from the full message being spoken.
+        speech_source = text if speech is _UNSET else speech
         if include_audio:
-            audio, audio_error = synthesize_speech(text, target_lang=_lang(language))
+            audio, audio_error = synthesize_speech(speech_source, target_lang=_lang(language))
         else:
             audio, audio_error = None, None
         resp = {
@@ -506,19 +525,16 @@ class AppointmentSupervisor:
             "draft": draft["draft"],
             "missing_fields": self._missing(draft),
             "response_text": text,
-            # response_text also feeds synthesize_speech() above -- it MUST
-            # keep the "I understood: X" readback fused in, or a
-            # voice-only farmer never hears confirmation of what was
-            # captured before the next question. prompt_text is the
-            # UI-safe alternative: always just the bare next-step
-            # question/statement, never fused with field data, so a
-            # client that already renders `draft` as tags doesn't have to
-            # regex-parse prose out of response_text (real, reported
-            # breakage: field labels don't translate the same way across
-            # languages, and the field-dump glues onto the next sentence
-            # with no separator). None when this turn is a pure readback
-            # with no distinct next-step sentence to isolate (state alone
-            # tells the UI to show its own confirm buttons then).
+            # prompt_text is the UI-safe alternative to response_text:
+            # always just the bare next-step question/statement, never
+            # fused with field data, so a client that already renders
+            # `draft` as tags doesn't have to regex-parse prose out of
+            # response_text (real, reported breakage: field labels don't
+            # translate the same way across languages, and the field-dump
+            # glues onto the next sentence with no separator). None when
+            # this turn is a pure readback with no distinct next-step
+            # sentence to isolate (state alone tells the UI to show its
+            # own confirm buttons then).
             "prompt_text": text if prompt is _UNSET else prompt,
             "response_audio_base64": b64encode(audio).decode("ascii") if audio else None,
             "audio_error": audio_error,
@@ -807,7 +823,28 @@ class AppointmentSupervisor:
         # pure "I understood: X" readback with no distinct next-step
         # sentence; state=="CONFIRMING" alone tells the UI to show its own
         # yes/no confirm buttons rather than a prompt sentence.
-        return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options, prompt=prompt)
+        if missing:
+            # Real bug, found live: audio was speaking `message`, the FULL
+            # cumulative summary (_summary(draft) walks every field ever
+            # captured), every single intermediate turn -- so a farmer
+            # heard the animal/issue/symptoms repeated back at every step
+            # even when only the date was new this turn. Speak only what
+            # changed this turn (the before/after diff already computed
+            # above) plus the next question -- text (`message`) stays the
+            # full detailed readback, only audio gets the short version.
+            changed_fields = {k for k, v in draft["draft"].items() if before.get(k) != v}
+            delta_summary = self._summary(draft, only_fields=changed_fields) if changed_fields else ""
+            if delta_summary and delta_summary != "no appointment details yet":
+                speech = f"{self._message(draft['language'], 'correct', summary=delta_summary)} {prompt}"
+            else:
+                speech = prompt
+        else:
+            # Terminal readback right before the farmer must say yes/no --
+            # the whole booking needs to be heard here, not just a delta,
+            # since this is the one moment a voice-only farmer confirms
+            # everything at once.
+            speech = message
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options, prompt=prompt, speech=speech)
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         with self._session_lock(farmer_id, session_id):
