@@ -513,6 +513,68 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
 
 
+@app.post("/farmers/{farmer_id}/chat/voice/turn")
+async def chat_voice_turn(
+    farmer_id: str,
+    session_id: str,
+    language: str = "en-IN",
+    include_audio: bool = True,
+    audio: UploadFile = File(...),
+    _auth: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """Audio-upload counterpart to /chat/turn -- record-and-POST a whole
+    utterance (same client pattern as /appointments/voice/turn), get back
+    the transcript plus the same {agent, intent, result} shape chat_turn
+    returns, dispatched through chat_orchestrator's router rather than
+    being locked into the appointment-booking flow."""
+    audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
+    if audio_type not in {"audio/wav", "audio/x-wav", "audio/webm", "audio/mpeg", "audio/mp4", "audio/ogg"}:
+        raise HTTPException(status_code=415, detail="Upload a supported audio file")
+    data = await audio.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file is larger than 10 MB")
+    try:
+        import asyncio
+        from services.voice_agent.transcribe import transcribe_audio
+
+        media_formats = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/ogg": "ogg-amr"}
+        t0 = time.time()
+        text = await asyncio.to_thread(
+            transcribe_audio,
+            data,
+            media_format=media_formats[audio_type],
+            language_code=language,
+        )
+        t_transcribe = time.time()
+        if not text.strip():
+            raise HTTPException(status_code=422, detail="Could not transcribe any speech from the audio")
+        result = await asyncio.to_thread(
+            chat_router.route_turn, farmer_id, session_id, text, language, include_audio,
+        )
+        t_turn = time.time()
+        result["transcript"] = text
+        result["audio_filename"] = audio.filename
+        transcribe_ms = round((t_transcribe - t0) * 1000)
+        turn_ms = round((t_turn - t_transcribe) * 1000)
+        total_ms = round((t_turn - t0) * 1000)
+        result["timing"] = {
+            "transcribe_ms": transcribe_ms,
+            "turn_ms": turn_ms,
+            "total_ms": total_ms,
+        }
+        _log.info(
+            "LATENCY chat_voice_turn total=%dms transcribe=%dms turn=%dms farmer=%s session=%s",
+            total_ms, transcribe_ms, turn_ms, farmer_id, session_id,
+        )
+        return result
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Audio processing failed: {exc}")
+
+
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
 def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     if not req.text.strip():
