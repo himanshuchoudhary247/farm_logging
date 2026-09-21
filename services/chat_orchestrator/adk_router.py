@@ -29,6 +29,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
+from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
@@ -72,9 +73,11 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
     all, so a voice turn landing in either of them got no spoken reply back
     regardless of include_audio. Frontend already checks both a top-level
     response_audio_base64 and result.response_audio_base64 (confirmed with
-    the UI side), so this adds the top-level one here for exactly the two
-    agents that don't already embed it -- appointment_supervisor keeps its
-    existing nested field untouched, no double-synthesis.
+    the UI side), so this adds the top-level one here for exactly the
+    agents that don't already embed it -- appointment_supervisor and
+    animal_registration (which uses the identical internal-synthesis
+    pattern) keep their existing nested field untouched, no
+    double-synthesis.
 
     speech_text lets a caller give audio a shorter script than what's
     displayed -- text can stay fully detailed (full breakdowns, full
@@ -86,7 +89,7 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
-    if include_audio and agent != "appointment_supervisor":
+    if include_audio and agent not in ("appointment_supervisor", "animal_registration"):
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
             audio, audio_error = synthesize_speech(spoken, target_lang=language.split("-")[0].lower())
@@ -112,16 +115,35 @@ def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
     except Exception:
         return False
 
+
+def _has_active_registration_draft(farmer_id: str, session_id: str) -> bool:
+    """Same sticky-routing pattern as _has_active_booking_draft, for the
+    animal-registration flow -- a mid-registration turn (e.g. a bare
+    breed name, or a date answering "date of birth?") must not get
+    re-classified away by the router."""
+    path = _animal_registration_supervisor._path(farmer_id, session_id)
+    if not path.exists():
+        return False
+    try:
+        draft = _animal_registration_supervisor._load(session_id, farmer_id, "en-IN")
+        return draft.get("state") != "CANCELLED" and not draft.get("submitted", False)
+    except Exception:
+        return False
+
+
 _ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
 
 Categories:
-- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging any new health event that happened to an animal (a treatment given, a vaccination done, a symptom noticed, a checkup completed) -- anything that RECORDS something new. This is the only category that can write data.
+- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging a health event for an animal ALREADY on the farm (a treatment given, a vaccination done, a symptom noticed, a checkup completed).
+- "add_animal": registering a brand-new animal that isn't on the farm's records yet -- the farmer wants to ADD it as a new entry (a new goat/sheep they bought, were given, or that was born). This is about the animal's identity itself (ID, species, breed, sex), not a health event.
 - "weather": weather, rain, temperature, heat/cold stress, whether to move animals indoors, or feed-price/market questions tied to weather/season.
-- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" -- a farmer telling you what happened to their animal wants it recorded, not silently discarded.
+- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" or "add_animal" (whichever fits) -- a farmer telling you what happened wants it recorded, not silently discarded.
+
+"appointment" vs "add_animal": both can write data, but about different things -- "my goat has a fever" or "book a vet visit" is "appointment" (an EXISTING animal's health). "I got a new goat, register it" or "add a new sheep to my farm" is "add_animal" (the animal's own identity record, brand new).
 
 When genuinely ambiguous with no hint of a new event to record, prefer "query" -- it is the general-purpose fallback."""
 
-_VALID_INTENTS = ("appointment", "weather", "query")
+_VALID_INTENTS = ("appointment", "add_animal", "weather", "query")
 
 
 def _make_record_route_tool(captured: dict[str, str]):
@@ -210,6 +232,11 @@ def route_turn_adk(
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
+    if _has_active_registration_draft(farmer_id, session_id):
+        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        reply = _reply_text("animal_registration", result)
+        return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
+
     weather_key = _weather_session_key(farmer_id, session_id)
     if get_session(weather_key).get("awaiting_location"):
         # Sticky, exactly once: clear immediately so a second consecutive
@@ -226,6 +253,11 @@ def route_turn_adk(
         result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+    if intent == "add_animal":
+        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        reply = _reply_text("animal_registration", result)
+        return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
     if intent == "weather":
         return _run_weather(farmer_id, session_id, text, intent, include_audio, language)

@@ -41,8 +41,48 @@ def test_sticky_routing_bypasses_classifier_entirely(tmp_path, monkeypatch):
     assert result["reply_text"] == "sticky reply"
 
 
+def test_sticky_registration_routing_bypasses_classifier_entirely(tmp_path, monkeypatch):
+    """Same guard as booking's sticky check, for a farmer mid-animal-
+    registration -- must route straight back to animal_registration and
+    never touch the classifier, and must not regress the booking sticky
+    check (both are checked in sequence in route_turn_adk)."""
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: True)
+    called = {"classifier": False}
+
+    async def fail_if_called(text):
+        called["classifier"] = True
+        return "query"
+
+    monkeypatch.setattr(adk_router, "_classify_intent_async", fail_if_called)
+    monkeypatch.setattr(
+        adk_router._animal_registration_supervisor, "turn",
+        lambda farmer_id, session_id, text, language, include_audio=True: {"response_text": "sticky registration reply", "state": "COLLECTING"},
+    )
+    result = adk_router.route_turn_adk("f-001", "sticky-registration-session", "a goat")
+    assert called["classifier"] is False
+    assert result["agent"] == "animal_registration"
+    assert result["intent"] is None
+    assert result["reply_text"] == "sticky registration reply"
+
+
+def test_classified_add_animal_routes_to_animal_registration(monkeypatch):
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("add_animal"))
+    monkeypatch.setattr(
+        adk_router._animal_registration_supervisor, "turn",
+        lambda farmer_id, session_id, text, language, include_audio=True: {"response_text": "let's register it", "state": "COLLECTING"},
+    )
+    result = adk_router.route_turn_adk("f-001", "classify-add-animal", "I got a new goat, add it")
+    assert result["agent"] == "animal_registration"
+    assert result["intent"] == "add_animal"
+    assert result["reply_text"] == "let's register it"
+
+
 def test_classified_appointment_routes_to_appointment_supervisor(monkeypatch):
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("appointment"))
     monkeypatch.setattr(
         adk_router._appointment_supervisor, "turn",
@@ -56,6 +96,7 @@ def test_classified_appointment_routes_to_appointment_supervisor(monkeypatch):
 
 def test_classified_weather_routes_to_weather_agent(monkeypatch):
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("weather"))
     monkeypatch.setattr(
         adk_router, "process_weather_query_adk",
@@ -69,6 +110,7 @@ def test_classified_weather_routes_to_weather_agent(monkeypatch):
 
 def test_classified_query_routes_to_query_agent(monkeypatch):
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("query"))
     monkeypatch.setattr(
         adk_router, "process_query_adk",
