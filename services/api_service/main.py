@@ -46,7 +46,7 @@ from services.llm_service.bedrock_adapter import (
     generate_seasonal_advisory,
 )
 from services.emergency_alerts.api import fetch_alert_feed
-from services.query_agent.agent import process_query
+from services.query_agent.adk_agent import process_query_adk
 from difflib import get_close_matches
 from services.cache_refresh import (
     ensure_general_alert,
@@ -56,7 +56,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
-from services.chat_orchestrator import router as chat_router
+from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
 
 
@@ -313,7 +313,7 @@ def list_farmers(role: Optional[str] = None) -> list[FarmerPublic]:
 
 
 @app.get("/farmers/{farmer_id}/animals")
-def list_animals(farmer_id: str) -> list[dict[str, Any]]:
+def list_animals(farmer_id: str, _auth: None = Depends(require_api_key)) -> list[dict[str, Any]]:
     return [a.model_dump() for a in animals_for_farmer(farmer_id)]
 
 
@@ -353,9 +353,11 @@ def patch_animal(farmer_id: str, req: UpdateAnimalRequest) -> Animal:
 
 
 @app.post("/farmers/{farmer_id}/query")
-def data_query(farmer_id: str, req: DataQueryRequest) -> dict[str, Any]:
+def data_query(farmer_id: str, req: DataQueryRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query text is required")
     try:
-        return process_query(query=req.query, farmer_id=farmer_id)
+        return process_query_adk(req.query, farmer_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -363,6 +365,8 @@ def data_query(farmer_id: str, req: DataQueryRequest) -> dict[str, Any]:
 
 @app.post("/llm/extract-farm")
 def extract_farm(req: ExtractFarmRequest) -> dict[str, Any]:
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
     try:
         return extract_farm_onboarding(
             text=req.text,
@@ -501,16 +505,86 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
     """Single entry point for any farmer query -- weather, appointment
     booking, health logging, farm data questions. The main orchestrator
     agent classifies intent and dispatches to the right sub-agent; see
-    services/chat_orchestrator/router.py for the dispatch table."""
+    services/chat_orchestrator/adk_router.py for the dispatch logic."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
     try:
         t0 = time.time()
-        result = chat_router.route_turn(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
         result["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
+    except Exception as exc:
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught here -- route_turn_adk's Bedrock/ADK calls can raise
+        # RuntimeError, botocore exceptions, etc. that aren't ValueError,
+        # and those propagated as a raw, traceback-leaking 500 instead of
+        # a clean error response.
+        _log.exception("chat_turn failed farmer=%s session=%s", farmer_id, req.session_id)
+        raise HTTPException(status_code=500, detail="Something went wrong processing that message. Please try again.")
+
+
+@app.post("/farmers/{farmer_id}/chat/voice/turn")
+async def chat_voice_turn(
+    farmer_id: str,
+    session_id: str,
+    language: str = "en-IN",
+    include_audio: bool = True,
+    audio: UploadFile = File(...),
+    _auth: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """Audio-upload counterpart to /chat/turn -- record-and-POST a whole
+    utterance (same client pattern as /appointments/voice/turn), get back
+    the transcript plus the same {agent, intent, result} shape chat_turn
+    returns, dispatched through chat_orchestrator's ADK router rather than
+    being locked into the appointment-booking flow."""
+    audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
+    if audio_type not in {"audio/wav", "audio/x-wav", "audio/webm", "audio/mpeg", "audio/mp4", "audio/ogg"}:
+        raise HTTPException(status_code=415, detail="Upload a supported audio file")
+    data = await audio.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio file is larger than 10 MB")
+    try:
+        import asyncio
+        from services.voice_agent.transcribe import transcribe_audio
+
+        media_formats = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp4": "mp4", "audio/ogg": "ogg-amr"}
+        t0 = time.time()
+        text = await asyncio.to_thread(
+            transcribe_audio,
+            data,
+            media_format=media_formats[audio_type],
+            language_code=language,
+        )
+        t_transcribe = time.time()
+        if not text.strip():
+            raise HTTPException(status_code=422, detail="Could not transcribe any speech from the audio")
+        result = await asyncio.to_thread(
+            route_turn_adk, farmer_id, session_id, text, language, include_audio,
+        )
+        t_turn = time.time()
+        result["transcript"] = text
+        result["audio_filename"] = audio.filename
+        transcribe_ms = round((t_transcribe - t0) * 1000)
+        turn_ms = round((t_turn - t_transcribe) * 1000)
+        total_ms = round((t_turn - t0) * 1000)
+        result["timing"] = {
+            "transcribe_ms": transcribe_ms,
+            "turn_ms": turn_ms,
+            "total_ms": total_ms,
+        }
+        _log.info(
+            "LATENCY chat_voice_turn total=%dms transcribe=%dms turn=%dms farmer=%s session=%s",
+            total_ms, transcribe_ms, turn_ms, farmer_id, session_id,
+        )
+        return result
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Audio processing failed: {exc}")
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
@@ -560,6 +634,14 @@ async def appointment_voice_turn(
             language_code=language,
         )
         t_transcribe = time.time()
+        if not text.strip():
+            # Real gap, found in a robustness audit: unlike every text-entry
+            # endpoint (chat_turn, appointment_voice_text, etc.), whatever
+            # STT returned was never re-checked for emptiness before being
+            # fed into appointment_supervisor.turn() -- silence or
+            # unrecognized audio silently became an empty-string turn
+            # instead of a clear error.
+            raise HTTPException(status_code=422, detail="Could not transcribe any speech from that audio")
         result = await asyncio.to_thread(
             appointment_supervisor.turn,
             farmer_id, session_id, text, language, include_audio,
@@ -579,6 +661,8 @@ async def appointment_voice_turn(
             total_ms, transcribe_ms, turn_ms, farmer_id, session_id,
         )
         return result
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
@@ -625,15 +709,31 @@ async def appointment_voice_image(
             {"attachment_id": attachment_id, "type": "image", "filename": image.filename or "image", "content_type": image.content_type, "storage_path": str(path), "uploaded_at": datetime.now().isoformat()},
         )
     except ValueError as exc:
+        # Bug found in a robustness audit: the file above is written before
+        # attach() can reject it (cancelled/submitted draft) -- a rejected
+        # call left the image orphaned on disk forever. Clean it up on the
+        # rejection path.
+        path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/farmers/{farmer_id}/appointments/voice/{session_id}")
 def appointment_voice_draft(farmer_id: str, session_id: str, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
-    path = get_data_dir() / "appointment_intakes" / f"{''.join(ch for ch in session_id if ch.isalnum() or ch in '-_')}.json"
+    # Real bug, found in a robustness audit: this duplicated a second,
+    # farmer-unscoped, lossy session_id->filename scheme (stripped to alnum
+    # only -- "", "!!!", any emoji-only id all collapsed to the same "" path,
+    # shared across every farmer). Reuse appointment_supervisor's own
+    # farmer+session hashed path instead of a second hand-rolled copy, and
+    # verify the loaded draft actually belongs to this farmer_id as
+    # defense-in-depth even though the hashed path already makes
+    # cross-farmer collisions practically impossible.
+    path = appointment_supervisor._path(farmer_id, session_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Appointment draft not found")
-    return json.loads(path.read_text(encoding="utf-8"))
+    draft = json.loads(path.read_text(encoding="utf-8"))
+    if draft.get("farmer_id") != farmer_id:
+        raise HTTPException(status_code=404, detail="Appointment draft not found")
+    return draft
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/submit")
@@ -681,7 +781,7 @@ def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> d
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")
-def voice_health_log(farmer_id: str, req: VoiceHealthLogRequest) -> dict[str, Any]:
+def voice_health_log(farmer_id: str, req: VoiceHealthLogRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Empty input")
@@ -741,6 +841,13 @@ def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught -- a provider TypeError/KeyError (both now separately
+        # hardened at the source too) or network RuntimeError propagated
+        # as a raw 500 instead of a clean error response.
+        _log.exception("weather_alert failed location=%s", req.location_or_pin)
+        raise HTTPException(status_code=500, detail="Could not fetch weather for that location right now. Please try again.")
 
 
 @app.get("/weather/alerts")
@@ -759,6 +866,8 @@ def get_weather_preference(farmer_id: str) -> dict[str, Any]:
 
 @app.patch("/farmers/{farmer_id}/weather-preference")
 def patch_weather_preference(farmer_id: str, req: WeatherPreferenceRequest) -> dict[str, Any]:
+    if not req.weather_location.strip():
+        raise HTTPException(status_code=400, detail="weather_location is required")
     try:
         farmer = update_farmer_weather_location(farmer_id, req.weather_location)
         return {"farmer_id": farmer_id, "weather_location": farmer.weather_location}
@@ -788,3 +897,6 @@ def create_weather_notification(farmer_id: str, req: WeatherAlertRequest) -> Wea
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        _log.exception("create_weather_notification failed farmer=%s location=%s", farmer_id, req.location_or_pin)
+        raise HTTPException(status_code=500, detail="Could not create the weather notification right now. Please try again.")

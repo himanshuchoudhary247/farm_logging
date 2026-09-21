@@ -257,17 +257,19 @@ def _appointment_missing_fields(entities: Dict[str, Any]) -> List[str]:
     return missing
 
 
+APPOINTMENT_FIELD_LABELS = {
+    "animal_identifier": "animal ID or animal name/tag",
+    "issue": "issue/symptoms",
+    "duration": "duration",
+    "severity": "severity (mild/moderate/severe)",
+    "current_medication": "current medication (or 'none')",
+    "date": "appointment date",
+    "time": "appointment time",
+}
+
+
 def _build_appointment_followup(missing_fields: List[str]) -> str:
-    labels = {
-        "animal_identifier": "animal ID or animal name/tag",
-        "issue": "issue/symptoms",
-        "duration": "duration",
-        "severity": "severity (mild/moderate/severe)",
-        "current_medication": "current medication (or 'none')",
-        "date": "appointment date",
-        "time": "appointment time",
-    }
-    details = [labels[m] for m in missing_fields if m in labels]
+    details = [APPOINTMENT_FIELD_LABELS[m] for m in missing_fields if m in APPOINTMENT_FIELD_LABELS]
     if not details:
         return "Please share appointment details."
     return "Please provide: " + ", ".join(details) + "."
@@ -318,13 +320,28 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
     return questions
 
 
-def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]:
+def process_text_input(
+    text: str, session_id: str = "default", pending_questions_override: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """pending_questions_override lets a caller that manages its own
+    conversation state externally (e.g. appointment_supervisor, which
+    tracks its own required-field/missing-field state independently of
+    this module's session store) tell the extraction model exactly which
+    field its own last message asked for. Without this, a caller with its
+    own state machine gets none of the "pending question" disambiguation
+    this extraction call already does for its own native intents (see
+    _TOOL_SYSTEM_PROMPT's pending_questions handling and example 5) --
+    the model was extracting bare replies ('1122') blind, with no signal
+    that a specific field was just asked for, and guessing wrong."""
     t0 = time.time()
     working_text = text or ""
 
     session = get_session(session_id)
     entities = dict(session.get("entities") or {})
-    pending_questions = list(session.get("pending_questions") or [])
+    pending_questions = (
+        list(pending_questions_override) if pending_questions_override is not None
+        else list(session.get("pending_questions") or [])
+    )
     session_intent = session.get("intent")
 
     t_llm_start = time.time()
@@ -398,6 +415,7 @@ def process_text_input(text: str, session_id: str = "default") -> Dict[str, Any]
 
     return {
         "intent": intent,
+        "confirmation_signal": llm_response.get("confirmation_signal"),
         "target_tables": tables,
         "entities": entities,
         "disambiguation": {

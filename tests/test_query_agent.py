@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import threading
 import pytest
 
 from services.query_agent import db as query_db
@@ -144,3 +144,88 @@ def test_schema_describes_all_tables():
     schema = generate_schema_for_prompt()
     for name in ["animals", "farmers", "health_logs", "appointments", "farms", "weather_notifications", "ai_health_logs", "vaccination_records"]:
         assert name in schema, f"{name} missing from schema"
+
+
+def test_blocked_keyword_inside_string_literal_not_rejected():
+    """Real bug, found in a robustness audit: _BLOCKED_KEYWORDS matched
+    anywhere in the SQL text, including inside string literals -- a
+    legitimate query like WHERE notes LIKE '%update%' got rejected as
+    unsafe because "update" sat inside a quoted string, not as a SQL verb."""
+    sql = query_db.validate_sql("SELECT * FROM health_logs WHERE LOWER(notes) LIKE '%update%'", "f1")
+    assert sql.upper().startswith("SELECT")
+    assert "'%update%'" in sql, "the literal itself must survive unmodified in the executed query"
+
+
+def test_blocked_keyword_as_real_verb_still_rejected():
+    """The string-literal fix must not create a bypass -- a real UPDATE
+    statement, even one that also contains a quoted string, is still
+    blocked."""
+    with pytest.raises(ValueError, match="Only SELECT"):
+        query_db.validate_sql("UPDATE animals SET notes = 'update' WHERE id = 1", "f1")
+
+
+def test_db_cache_evicts_oldest_beyond_cap():
+    """Real bug, found in a robustness audit: _db_cache was unbounded,
+    farmer_id-keyed, connections never closed on eviction. Now an
+    LRU-bounded OrderedDict; verify eviction actually drops the oldest
+    connection once the cap is exceeded."""
+    query_db.clear_cache()
+    original_cap = query_db._MAX_CACHED_FARMERS
+    query_db._MAX_CACHED_FARMERS = 3
+    try:
+        conns = {fid: query_db.get_db(fid) for fid in ["ea1", "ea2", "ea3"]}
+        assert len(query_db._db_cache) == 3
+        query_db.get_db("ea4")
+        assert len(query_db._db_cache) == 3, "cache must not grow past the cap"
+        assert "ea1" not in query_db._db_cache, "oldest entry (ea1) must be evicted first"
+        assert "ea4" in query_db._db_cache
+    finally:
+        query_db._MAX_CACHED_FARMERS = original_cap
+        query_db.clear_cache()
+
+
+def test_db_cache_access_refreshes_lru_order():
+    """Accessing a cached connection must move it to the front of the LRU
+    order -- otherwise a hot farmer_id could still get evicted just for
+    being added first."""
+    query_db.clear_cache()
+    original_cap = query_db._MAX_CACHED_FARMERS
+    query_db._MAX_CACHED_FARMERS = 3
+    try:
+        for fid in ["eb1", "eb2", "eb3"]:
+            query_db.get_db(fid)
+        query_db.get_db("eb1")  # touch eb1 -- should no longer be the oldest
+        query_db.get_db("eb4")  # forces one eviction
+        assert "eb1" in query_db._db_cache, "recently touched entry must survive eviction"
+        assert "eb2" not in query_db._db_cache, "eb2, never touched again, is now the oldest"
+    finally:
+        query_db._MAX_CACHED_FARMERS = original_cap
+        query_db.clear_cache()
+
+
+def test_execute_query_thread_safe_concurrent_access():
+    """Real bug, found in a robustness audit: _db_cache connections were
+    opened with the sqlite3 default check_same_thread=True, but both
+    /query and /chat/turn are sync `def` endpoints -- FastAPI runs them on
+    arbitrary worker threads. A second request for the same farmer_id
+    landing on a different thread than the one that built the cached
+    connection hit sqlite3.ProgrammingError. Reproduce with real concurrent
+    threads hammering the same farmer_id's cached connection."""
+    query_db.clear_cache("ec-thread-test")
+    errors = []
+
+    def worker():
+        try:
+            for _ in range(20):
+                result = query_db.execute_query("SELECT COUNT(*) as c FROM animals", "ec-thread-test")
+                assert result["success"], result.get("error")
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+    assert not errors, f"concurrent access raised: {errors}"
+    query_db.clear_cache("ec-thread-test")
