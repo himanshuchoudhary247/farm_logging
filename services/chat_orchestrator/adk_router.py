@@ -32,6 +32,7 @@ from google.genai import types
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
+from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 
@@ -160,6 +161,37 @@ async def _classify_intent_async(text: str) -> str:
     return captured.get("intent", "query")
 
 
+def _weather_session_key(farmer_id: str, session_id: str) -> str:
+    return f"{farmer_id}:{session_id}:weather_pending"
+
+
+def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None",
+                  include_audio: bool, language: str, allow_rearm: bool = True) -> dict[str, Any]:
+    weather = process_weather_query_adk(text, farmer_id)
+    result = weather["result"]
+    # Real bug, found live testing the flokiquser test-conversation set:
+    # unlike appointment_supervisor, weather has zero multi-turn memory --
+    # every turn is classified from scratch with no idea a location was
+    # just asked for. "what's the weather" -> "I need a PIN code" ->
+    # farmer replies with a bare PIN (even a real, valid one) -> the
+    # classifier sees a bare number with no weather-sounding words and
+    # sends it to query_agent instead, which has no idea what to do with
+    # it either. Bounded sticky fix, mirroring _has_active_booking_draft's
+    # pattern but capped to exactly ONE follow-up turn total, not
+    # indefinite -- allow_rearm=False on the sticky-routed call below
+    # means a second consecutive miss falls back to normal classification
+    # instead of trapping the farmer in weather if they've actually moved
+    # on to something else.
+    if allow_rearm:
+        weather_key = _weather_session_key(farmer_id, session_id)
+        if result.get("error") == "no_location":
+            update_session(weather_key, {"awaiting_location": True})
+        else:
+            update_session(weather_key, {"awaiting_location": False})
+    reply = weather["answer"] or _reply_text("weather_alert", result)
+    return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
+
+
 def route_turn_adk(
     farmer_id: str,
     session_id: str,
@@ -178,6 +210,15 @@ def route_turn_adk(
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
+    weather_key = _weather_session_key(farmer_id, session_id)
+    if get_session(weather_key).get("awaiting_location"):
+        # Sticky, exactly once: clear immediately so a second consecutive
+        # miss (e.g. two bad PINs in a row) falls back to normal
+        # classification rather than locking the farmer into weather
+        # indefinitely if they've actually moved on to something else.
+        update_session(weather_key, {"awaiting_location": False})
+        return _run_weather(farmer_id, session_id, text, "weather", include_audio, language, allow_rearm=False)
+
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
 
@@ -187,10 +228,7 @@ def route_turn_adk(
         return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
     if intent == "weather":
-        weather = process_weather_query_adk(text, farmer_id)
-        result = weather["result"]
-        reply = weather["answer"] or _reply_text("weather_alert", result)
-        return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
+        return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
 
     result = process_query_adk(text, farmer_id)
     reply = result.get("answer") or ""
