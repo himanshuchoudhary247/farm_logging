@@ -29,7 +29,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from services.appointment_supervisor import AppointmentSupervisor
+from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.tts import synthesize_speech
@@ -39,8 +39,6 @@ _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
-
-_appointment_supervisor = AppointmentSupervisor()
 
 
 def _reply_text(agent: str, result: dict[str, Any]) -> str:
@@ -116,11 +114,11 @@ def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
 _ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
 
 Categories:
-- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment.
+- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging any new health event that happened to an animal (a treatment given, a vaccination done, a symptom noticed, a checkup completed) -- anything that RECORDS something new. This is the only category that can write data.
 - "weather": weather, rain, temperature, heat/cold stress, whether to move animals indoors, or feed-price/market questions tied to weather/season.
-- "query": anything else about the farmer's own animals or records -- counts, lists, history, "how many", "when was", vaccination records, health logs, past appointments, general greetings, or anything unclear.
+- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" -- a farmer telling you what happened to their animal wants it recorded, not silently discarded.
 
-When genuinely ambiguous, prefer "query" -- it is the general-purpose fallback."""
+When genuinely ambiguous with no hint of a new event to record, prefer "query" -- it is the general-purpose fallback."""
 
 _VALID_INTENTS = ("appointment", "weather", "query")
 

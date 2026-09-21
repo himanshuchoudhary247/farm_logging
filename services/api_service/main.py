@@ -55,7 +55,7 @@ from services.cache_refresh import (
     PinProfile,
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
-from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
+from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
 
@@ -78,7 +78,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-appointment_supervisor = AppointmentSupervisor()
 
 # FARMER_CHAT_API_KEY: shared-secret gate on the voice/chat surface (the
 # endpoints a server-to-server caller like flokiq's backend would hit).

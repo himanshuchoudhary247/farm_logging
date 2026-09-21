@@ -126,41 +126,103 @@ def _build_db(farmer_id: str) -> sqlite3.Connection:
     return conn
 
 
+def _find_or_build_locked(farmer_id: str) -> tuple[sqlite3.Connection, threading.Lock]:
+    """Must be called with _cache_lock already held. Finds or builds a
+    farmer's connection+lock and returns both -- does NOT acquire the
+    per-farmer lock itself (get_db()'s public contract is "no lock held
+    on return", used directly by callers/tests that just want the
+    connection object). execute_query's own locked variant below acquires
+    the returned lock before this function's caller releases _cache_lock."""
+    if farmer_id in _db_cache:
+        _db_cache.move_to_end(farmer_id)
+        return _db_cache[farmer_id], _db_locks[farmer_id]
+
+    conn = _build_db(farmer_id)
+    lock = threading.Lock()
+    _db_cache[farmer_id] = conn
+    _db_locks[farmer_id] = lock
+
+    while len(_db_cache) > _MAX_CACHED_FARMERS:
+        _evict_oldest_locked()
+
+    return conn, lock
+
+
+def _evict_oldest_locked() -> None:
+    """Must be called with _cache_lock already held. Pops the LRU-oldest
+    entry and closes it -- while still holding _cache_lock, acquires that
+    farmer's OWN per-farmer lock first, so a query already in flight on
+    that exact connection (holding the same lock object) finishes before
+    the connection underneath it is closed. Safe from deadlock only
+    because no code path in this module ever holds a per-farmer lock
+    while trying to acquire _cache_lock -- always the other order."""
+    evicted_id, evicted_conn = _db_cache.popitem(last=False)
+    evicted_lock = _db_locks.pop(evicted_id, None)
+    if evicted_lock is not None:
+        with evicted_lock:
+            evicted_conn.close()
+    else:
+        evicted_conn.close()
+
+
 def get_db(farmer_id: str) -> sqlite3.Connection:
     with _cache_lock:
-        if farmer_id in _db_cache:
-            _db_cache.move_to_end(farmer_id)
-            return _db_cache[farmer_id]
-
-        conn = _build_db(farmer_id)
-        _db_cache[farmer_id] = conn
-        _db_locks[farmer_id] = threading.Lock()
-
-        while len(_db_cache) > _MAX_CACHED_FARMERS:
-            evicted_id, evicted_conn = _db_cache.popitem(last=False)
-            _db_locks.pop(evicted_id, None)
-            evicted_conn.close()
-
+        conn, _lock = _find_or_build_locked(farmer_id)
         return conn
 
 
-def _get_lock(farmer_id: str) -> threading.Lock:
+def _get_conn_locked(farmer_id: str) -> tuple[sqlite3.Connection, threading.Lock]:
+    """execute_query's own accessor -- returns (conn, lock) with lock
+    ALREADY ACQUIRED. Caller MUST release it (try/finally) when done.
+
+    Real bug, found in code review, found again live via a direct stress
+    test after the first fix attempt: even fetching (conn, lock) as one
+    atomic pair under _cache_lock and then separately doing `with lock:`
+    left a gap -- a thread could release _cache_lock, get preempted before
+    reaching `with lock:`, and a concurrent clear_cache()/eviction could
+    pop+close that exact connection in that gap (it also only needs
+    _cache_lock to pop, then acquires the same lock uncontended since this
+    thread hadn't gotten there yet). Reproduced directly: 12 worker
+    threads hammering execute_query + clear_cache concurrently on the same
+    3 farmer_ids raised "Cannot operate on a closed database." Fix:
+    acquire the per-farmer lock BEFORE releasing _cache_lock, so there is
+    no gap between "this connection is the current one" and "it's
+    protected from being closed" for this thread to be preempted in."""
     with _cache_lock:
-        return _db_locks.setdefault(farmer_id, threading.Lock())
+        conn, lock = _find_or_build_locked(farmer_id)
+        lock.acquire()
+        return conn, lock
 
 
 def clear_cache(farmer_id: Optional[str] = None) -> None:
+    # Real bug, found in code review: this used to pop and close(1) a
+    # farmer's connection while holding only _cache_lock, never the
+    # per-farmer lock execute_query() holds during an in-flight query on
+    # that same connection -- storage.py calls this synchronously after
+    # every write, so a write landing mid-query could close the connection
+    # out from under an in-flight cursor and raise sqlite3.ProgrammingError.
+    # Same fix as eviction: acquire the per-farmer lock (still under
+    # _cache_lock, safe per the lock-ordering note above) before closing,
+    # so this waits for any in-flight query on that connection to finish.
     with _cache_lock:
         if farmer_id:
             conn = _db_cache.pop(farmer_id, None)
-            _db_locks.pop(farmer_id, None)
+            lock = _db_locks.pop(farmer_id, None)
             if conn is not None:
-                conn.close()
+                if lock is not None:
+                    with lock:
+                        conn.close()
+                else:
+                    conn.close()
         else:
-            for conn in _db_cache.values():
-                conn.close()
-            _db_cache.clear()
-            _db_locks.clear()
+            for fid in list(_db_cache.keys()):
+                conn = _db_cache.pop(fid)
+                lock = _db_locks.pop(fid, None)
+                if lock is not None:
+                    with lock:
+                        conn.close()
+                else:
+                    conn.close()
 
 
 _STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
@@ -193,28 +255,31 @@ def validate_sql(sql: str, farmer_id: str) -> str:
 
 def execute_query(sql: str, farmer_id: str) -> dict[str, Any]:
     safe_sql = validate_sql(sql, farmer_id)
-    conn = get_db(farmer_id)
-    lock = _get_lock(farmer_id)
+    # _get_conn_locked returns with the per-farmer lock already held --
+    # see its docstring for why acquiring it separately (even from an
+    # atomically-fetched pair) still left a real, reproduced race.
+    conn, lock = _get_conn_locked(farmer_id)
 
     try:
-        with lock:
-            cur = conn.execute(f"PRAGMA query_only=ON")
-            cur = conn.execute(safe_sql)
-            rows = cur.fetchmany(_MAX_ROWS + 1)
-            truncated = len(rows) > _MAX_ROWS
-            rows = rows[:_MAX_ROWS]
-            columns = [desc[0] for desc in cur.description]
-            return {
-                "success": True,
-                "sql": safe_sql,
-                "columns": columns,
-                "rows": [list(r) for r in rows],
-                "row_count": len(rows),
-                "truncated": truncated,
-            }
+        cur = conn.execute(f"PRAGMA query_only=ON")
+        cur = conn.execute(safe_sql)
+        rows = cur.fetchmany(_MAX_ROWS + 1)
+        truncated = len(rows) > _MAX_ROWS
+        rows = rows[:_MAX_ROWS]
+        columns = [desc[0] for desc in cur.description]
+        return {
+            "success": True,
+            "sql": safe_sql,
+            "columns": columns,
+            "rows": [list(r) for r in rows],
+            "row_count": len(rows),
+            "truncated": truncated,
+        }
     except Exception as e:
         return {
             "success": False,
             "sql": safe_sql,
             "error": str(e),
         }
+    finally:
+        lock.release()
