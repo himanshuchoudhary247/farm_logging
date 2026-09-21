@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import threading
 import uuid
@@ -26,6 +27,11 @@ from storage import (
     get_data_dir,
 )
 
+
+_log = logging.getLogger("appointment_supervisor")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
 
 SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
 _UNSET = object()  # distinguishes "caller didn't pass prompt" (default to full text) from an explicit prompt=None (genuinely no separate question this turn)
@@ -282,7 +288,13 @@ Which one (if any) does the farmer mean?"""
         matched_id = matched_id if matched_id in valid_ids else None
         candidates = [c for c in (tool_input.get("candidate_animal_ids") or []) if c in valid_ids]
         return matched_id, candidates
-    except Exception:
+    except Exception as exc:
+        # Real bug, found in code review: this swallowed every exception
+        # (Bedrock throttling, expired credentials, misconfigured region)
+        # with zero logging -- an outage was indistinguishable from a
+        # normal "no match" case, both producing the same silent (None,
+        # []) with nothing in the logs to tell them apart on-call.
+        _log.warning("animal fuzzy-match failed wanted=%r: %s", wanted, exc)
         return None, []
 
 

@@ -20,6 +20,8 @@ import uuid
 from typing import Any
 
 from google.adk import Agent
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from google.adk.agents.run_config import RunConfig
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -112,6 +114,19 @@ def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
     return answer_text, answer_text
 
 
+# Real bug, found in code review: the old hand-rolled loop had
+# MAX_RETRIES=2 (at most 3 SQL-generation attempts) with a clean fallback
+# message on exhaustion. The ADK migration dropped that cap entirely --
+# ADK's own default is 500 LLM calls per run, and process_query_adk never
+# caught the exception it raises on exceeding it, so a persistently
+# failing/ambiguous query could drive up to 500 calls before crashing
+# unhandled instead of failing cleanly. Explicit, much lower cap here,
+# matching the old bound's spirit (a handful of real attempts, not
+# hundreds) while still allowing for ADK's own tool-call/response
+# round-trips per attempt.
+_MAX_LLM_CALLS = 8
+
+
 async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     agent = build_query_agent(farmer_id)
     runner = InMemoryRunner(agent=agent, app_name="farmer_chat_query_agent")
@@ -122,12 +137,19 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     answer_text: str | None = None
     last_successful_result: dict[str, Any] | None = None
 
-    async for event in runner.run_async(user_id=user_id, session_id=session.id, new_message=message):
-        for fr in event.get_function_responses():
-            if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
-                last_successful_result = fr.response
-        if event.is_final_response() and event.content and event.content.parts:
-            answer_text = "".join(p.text for p in event.content.parts if p.text)
+    try:
+        async for event in runner.run_async(
+            user_id=user_id, session_id=session.id, new_message=message,
+            run_config=RunConfig(max_llm_calls=_MAX_LLM_CALLS),
+        ):
+            for fr in event.get_function_responses():
+                if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
+                    last_successful_result = fr.response
+            if event.is_final_response() and event.content and event.content.parts:
+                answer_text = "".join(p.text for p in event.content.parts if p.text)
+    except LlmCallsLimitExceededError:
+        fallback = "I encountered an error trying to answer that. Please try rephrasing your question."
+        return {"answer": fallback, "sql": None, "data": None, "speech_text": fallback}
 
     if not answer_text:
         return {"answer": "I couldn't understand the query. Please rephrase.", "sql": None, "data": None, "speech_text": "I couldn't understand the query. Please rephrase."}
