@@ -57,7 +57,7 @@ from services.cache_refresh import (
     PinProfile,
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
-from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
+from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
 
@@ -80,7 +80,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-appointment_supervisor = AppointmentSupervisor()
 
 # FARMER_CHAT_API_KEY: shared-secret gate on the voice/chat surface (the
 # endpoints a server-to-server caller like flokiq's backend would hit).
@@ -702,6 +701,15 @@ def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest, _au
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        # Real bug, found in code review: this endpoint only caught
+        # ValueError, but turn() can trigger a Bedrock/ADK off-topic-probe
+        # call (process_query_adk) mid-booking that raises non-ValueError
+        # exceptions -- unlike every sibling voice endpoint in this file,
+        # which already catches this generically. Unhandled, it propagated
+        # as a raw 500 with a leaked traceback.
+        _log.exception("appointment_voice_text failed farmer=%s session=%s", farmer_id, req.session_id)
+        raise HTTPException(status_code=502, detail=f"Something went wrong processing that message: {exc}")
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/turn")
@@ -841,7 +849,11 @@ def appointment_voice_submit(farmer_id: str, req: AppointmentVoiceConfirmRequest
     if req.response.strip().lower() not in {"submit", "yes", "y", "confirm"}:
         raise HTTPException(status_code=400, detail="Final submission requires explicit confirmation")
     try:
-        return appointment_supervisor.submit(farmer_id, req.session_id)
+        # Real bug, found in code review: this call never forwarded
+        # req.include_audio (the sibling confirm() call above does),
+        # so submit() always defaulted to synthesizing audio internally
+        # regardless of what the client actually asked for.
+        return appointment_supervisor.submit(farmer_id, req.session_id, include_audio=req.include_audio)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

@@ -92,7 +92,15 @@ def test_hindi_turn_uses_llm_extracted_entities(tmp_path, monkeypatch):
         "hi-IN",
     )
 
-    assert result["draft"]["animal_name"] == "सीमा"
+    # animal_name is a raw extraction-schema field, bridged into
+    # animal_identifier (and animal_id, once verified against real
+    # animals) rather than kept as a separate persisted key -- see
+    # _copy_entities, which deliberately excludes animal_id/animal_tag/
+    # animal_name from the generic per-key copy to prevent an unverified
+    # value from ever silently overwriting a verified one (code review
+    # fix). The verified identifier is the meaningful, documented field.
+    assert result["draft"]["animal_identifier"] == "सीमा"
+    assert result["draft"]["animal_id"] == "a-1"
     assert result["draft"]["issue"] == "lethargy"
     assert "not eating" in result["draft"]["symptoms"]
 
@@ -771,3 +779,98 @@ def test_invalid_time_value_not_stored_reprompts_instead(tmp_path, monkeypatch):
     result = supervisor.turn("demo-farmer", "session-bad-time", "66", "en-IN")
     assert result["draft"].get("time") is None, "an invalid time must never be stored"
     assert "time" in result["missing_fields"]
+
+
+def test_garbage_reply_as_literal_animal_id_key_does_not_clobber_verified_id(tmp_path, monkeypatch):
+    """Real bug, found in code review: _copy_entities's generic per-key
+    copy loop wrote animal_id/animal_tag/animal_name into the draft
+    unconditionally, BEFORE the verification-aware block below it ever
+    ran -- so if extraction ever misread a garbage reply specifically as
+    the literal key "animal_id" (not animal_tag/animal_name, which the
+    existing garbage-numeric-reply test above covers), the generic loop
+    clobbered draft["animal_id"] with zero guard at all, regardless of
+    expected_field or animal_verified. submit() reads draft["animal_id"]
+    directly as an already-trusted value, so this could have silently
+    saved a booking against a bogus, never-verified animal id."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-11", "tag_or_name": "TAG-001-11"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "TAG-001-11"}},
+    )
+    supervisor.turn("demo-farmer", "session-animal-id-clobber", "TAG-001-11", "en-IN")
+    draft = supervisor._load("session-animal-id-clobber", "demo-farmer", "en-IN")
+    assert draft.get("animal_verified") is True
+    assert draft["draft"].get("animal_id") == "a-11"
+
+    # Bot is now asking for issue/date/time -- farmer's reply gets
+    # misextracted with the literal key "animal_id" pointing at garbage.
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_id": "55"}},
+    )
+    result = supervisor.turn("demo-farmer", "session-animal-id-clobber", "55", "en-IN")
+    assert result["draft"].get("animal_id") == "a-11", "the verified animal_id must never be clobbered by a raw, unverified extraction value"
+    assert result["draft"].get("animal_identifier") == "TAG-001-11"
+
+
+def test_no_about_a_different_field_does_not_wipe_verified_animal(tmp_path, monkeypatch):
+    """Real bug, found in code review: the 'wrong tag' reset fired on ANY
+    unrelated 'no' once the animal was verified, not just a rejection
+    about the animal specifically. A farmer correcting the ISSUE ("no,
+    it's not fever, he's just tired") also wiped the correct,
+    already-verified animal, since confirmation_signal='no' alone
+    doesn't say WHAT is being rejected. Fixed by checking whether this
+    turn's entities carry a real value for some other field -- if so,
+    the rejection is about that field, not the animal."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-11", "tag_or_name": "TAG-001-11"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "TAG-001-11", "issue": "fever"}},
+    )
+    supervisor.turn("demo-farmer", "session-no-other-field", "TAG-001-11 has fever", "en-IN")
+    draft = supervisor._load("session-no-other-field", "demo-farmer", "en-IN")
+    assert draft.get("animal_verified") is True
+
+    # Farmer corrects the ISSUE, not the animal -- extraction reasonably
+    # returns confirmation_signal="no" (rejecting the prior "fever" value)
+    # alongside a real replacement value for "issue".
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"issue": "tired", "symptoms": ["lethargy"]}, "confirmation_signal": "no",
+        },
+    )
+    result = supervisor.turn("demo-farmer", "session-no-other-field", "no, it's not fever, he's just tired", "en-IN")
+    assert result["draft"].get("animal_identifier") == "TAG-001-11", "animal must survive a 'no' that is actually about a different field"
+    assert result["draft"].get("animal_id") == "a-11"
+    assert result["draft"].get("issue") == "tired", "the actual correction must still apply"
+
+
+def test_bare_wrong_tag_no_with_no_other_field_still_resets_animal(tmp_path, monkeypatch):
+    """Companion test to the one above -- confirms the fix's narrowing
+    doesn't remove the original 'wrong tag' behavior for the case it was
+    actually built for: a bare rejection with no other new field
+    information must still reset the animal for re-identification."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-11", "tag_or_name": "TAG-001-11"})()])
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "TAG-001-11"}},
+    )
+    supervisor.turn("demo-farmer", "session-bare-wrong-tag", "TAG-001-11", "en-IN")
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "no"},
+    )
+    result = supervisor.turn("demo-farmer", "session-bare-wrong-tag", "wrong tag", "en-IN")
+    assert result["draft"].get("animal_identifier") is None, "a bare rejection with nothing else stated must still reset the animal"
+    assert result["state"] == "COLLECTING"

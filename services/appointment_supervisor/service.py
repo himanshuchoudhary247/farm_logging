@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import threading
 import uuid
@@ -27,10 +28,14 @@ from storage import (
 )
 
 
+_log = logging.getLogger("appointment_supervisor")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
+
 SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
 _UNSET = object()  # distinguishes "caller didn't pass prompt" (default to full text) from an explicit prompt=None (genuinely no separate question this turn)
 REQUIRED_FIELDS = ("animal_identifier", "issue", "date", "time")
-_BOOKING_INTENTS = {"CREATE_APPOINTMENT", "LOG_HEALTH"}
 
 _TEXT = {
     "en": {
@@ -283,7 +288,13 @@ Which one (if any) does the farmer mean?"""
         matched_id = matched_id if matched_id in valid_ids else None
         candidates = [c for c in (tool_input.get("candidate_animal_ids") or []) if c in valid_ids]
         return matched_id, candidates
-    except Exception:
+    except Exception as exc:
+        # Real bug, found in code review: this swallowed every exception
+        # (Bedrock throttling, expired credentials, misconfigured region)
+        # with zero logging -- an outage was indistinguishable from a
+        # normal "no match" case, both producing the same silent (None,
+        # []) with nothing in the logs to tell them apart on-call.
+        _log.warning("animal fuzzy-match failed wanted=%r: %s", wanted, exc)
         return None, []
 
 
@@ -413,6 +424,20 @@ class AppointmentSupervisor:
                 continue
             if key == "time" and not _valid_appointment_time(value):
                 continue
+            # Real bug, found in code review: this loop was writing
+            # animal_id/animal_tag/animal_name here too, unconditionally,
+            # BEFORE the verification-aware block below ever runs -- so an
+            # already-verified animal_id could be silently overwritten by a
+            # misread value (e.g. a bare "55" answering an unrelated date
+            # question) regardless of expected_field or animal_verified.
+            # submit() reads target["animal_id"] directly as an
+            # already-trusted value, so a clobbered id here got saved
+            # against the wrong animal with no verification at all. These
+            # three keys are handled exclusively below, which already knows
+            # how to check expected_field/animal_verified correctly --
+            # never let this generic loop touch them.
+            if key in ("animal_id", "animal_tag", "animal_name"):
+                continue
             target[key] = value
 
         # animal_tag/animal_name/animal_id are the extraction schema's
@@ -454,9 +479,13 @@ class AppointmentSupervisor:
             target["animal_identifier"] = raw_animal_ref
             target.pop("animal_id", None)
         elif not draft.get("animal_verified") and not target.get("animal_identifier"):
-            identifier = target.pop("animal_id", None) or target.get("animal_tag") or target.get("animal_name")
-            if identifier:
-                target["animal_identifier"] = identifier
+            # raw_animal_ref (above) already reads straight from `entities`
+            # -- target itself never holds animal_id/animal_tag/animal_name
+            # (the generic loop above deliberately skips them), so read the
+            # already-computed value rather than a target.get() that would
+            # now always be None.
+            if raw_animal_ref:
+                target["animal_identifier"] = raw_animal_ref
         if target.get("issue") and not target.get("symptoms"):
                 target["symptoms"] = [target["issue"]]
 
@@ -712,7 +741,25 @@ class AppointmentSupervisor:
         # awaiting_confirmation/READY_TO_SUBMIT states. Fires regardless of
         # state as long as an animal was verified and the farmer hasn't
         # already moved on by answering the next field in the same turn.
-        if confirmation_signal == "no" and draft.get("animal_verified") and not answers_expected_field:
+        #
+        # Real bug, found in code review: this fired on ANY unrelated "no"
+        # once the animal was verified, not just a rejection about the
+        # animal specifically -- e.g. "no, it's not fever, he's just
+        # tired" (correcting the ISSUE) also wiped the correct, already-
+        # verified animal, since confirmation_signal="no" alone doesn't
+        # say WHAT is being rejected. Disambiguate the only way available
+        # without a schema change: if this turn's raw entities also carry
+        # a real value for some OTHER field (issue/symptoms/date/time/
+        # etc), the farmer is clearly correcting THAT field, not the
+        # animal -- let it fall through to the normal merge path below
+        # instead. Only a "no" with no other new field information (the
+        # bare "wrong tag"/"no" the original bug report actually tested)
+        # still triggers the animal reset.
+        corrects_other_field = any(
+            turn_entities.get(f) not in (None, "", [])
+            for f in ("issue", "symptoms", "duration", "severity", "date", "time", "miscellaneous_notes")
+        )
+        if confirmation_signal == "no" and draft.get("animal_verified") and not answers_expected_field and not corrects_other_field:
             draft["draft"]["animal_identifier"] = None
             draft["draft"].pop("animal_id", None)
             draft["draft"].pop("animal_tag", None)

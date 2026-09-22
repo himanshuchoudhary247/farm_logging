@@ -20,6 +20,8 @@ import uuid
 from typing import Any
 
 from google.adk import Agent
+from google.adk.agents.invocation_context import LlmCallsLimitExceededError
+from google.adk.agents.run_config import RunConfig
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -47,6 +49,7 @@ Rules:
 - A bare greeting ("hi", "hello", "hey") with NO real question attached gets a plain greeting back, under 10 words, e.g. "Hi! What would you like to know about your farm?" -- do NOT list your capabilities (animal counts, health records, appointments, etc.) unless the farmer's message actually asked what you can do.
 - If the farmer's message contains a greeting word ("hello", "namaste", "hi") ALONGSIDE a real question (e.g. "hello, how many animals do I have"), answer the question directly -- do NOT prepend a greeting/"hello"/"namaste" to the answer. One farmer message, one direct answer; the greeting word was just how they opened their sentence, not a separate thing to reply to.
 - Never open an answer with "thank you"/"धन्यवाद" or similar courtesy filler either -- go straight to the answer.
+- You are a farm/livestock assistant ONLY -- not a general-purpose chatbot. If the farmer's message has nothing to do with their farm, animals, or records (general knowledge, world facts, other topics entirely), do NOT answer it from your own knowledge even if you know the answer. Say plainly that you can only help with questions about their farm, and ask what they'd like to know about it instead. This applies however confidently you could answer -- being able to answer something is not the same as it being in scope.
 
 Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can be as detailed as the question needs (full breakdowns, full lists). The spoken version must always be short, since a farmer listening doesn't want a list of 5+ numbers read out loud one by one.
 
@@ -112,6 +115,19 @@ def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
     return answer_text, answer_text
 
 
+# Real bug, found in code review: the old hand-rolled loop had
+# MAX_RETRIES=2 (at most 3 SQL-generation attempts) with a clean fallback
+# message on exhaustion. The ADK migration dropped that cap entirely --
+# ADK's own default is 500 LLM calls per run, and process_query_adk never
+# caught the exception it raises on exceeding it, so a persistently
+# failing/ambiguous query could drive up to 500 calls before crashing
+# unhandled instead of failing cleanly. Explicit, much lower cap here,
+# matching the old bound's spirit (a handful of real attempts, not
+# hundreds) while still allowing for ADK's own tool-call/response
+# round-trips per attempt.
+_MAX_LLM_CALLS = 8
+
+
 async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     agent = build_query_agent(farmer_id)
     runner = InMemoryRunner(agent=agent, app_name="farmer_chat_query_agent")
@@ -122,12 +138,19 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     answer_text: str | None = None
     last_successful_result: dict[str, Any] | None = None
 
-    async for event in runner.run_async(user_id=user_id, session_id=session.id, new_message=message):
-        for fr in event.get_function_responses():
-            if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
-                last_successful_result = fr.response
-        if event.is_final_response() and event.content and event.content.parts:
-            answer_text = "".join(p.text for p in event.content.parts if p.text)
+    try:
+        async for event in runner.run_async(
+            user_id=user_id, session_id=session.id, new_message=message,
+            run_config=RunConfig(max_llm_calls=_MAX_LLM_CALLS),
+        ):
+            for fr in event.get_function_responses():
+                if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
+                    last_successful_result = fr.response
+            if event.is_final_response() and event.content and event.content.parts:
+                answer_text = "".join(p.text for p in event.content.parts if p.text)
+    except LlmCallsLimitExceededError:
+        fallback = "I encountered an error trying to answer that. Please try rephrasing your question."
+        return {"answer": fallback, "sql": None, "data": None, "speech_text": fallback}
 
     if not answer_text:
         return {"answer": "I couldn't understand the query. Please rephrase.", "sql": None, "data": None, "speech_text": "I couldn't understand the query. Please rephrase."}

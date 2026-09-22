@@ -417,11 +417,14 @@ _EXTRACTION_TOOL_SPEC = {
                     "description": (
                         "24-hour HH:MM. If farmer says only a period of day with no exact "
                         "hour, use morning=09:00, afternoon=14:00, evening=18:00, night=20:00. "
-                        "Only set this when the farmer's words clearly express a time or "
-                        "period of day. A bare number that is not a plausible hour (e.g. "
-                        "'66') does NOT clearly express a time -- do NOT invent a nearby "
-                        "valid time. Leave this field empty instead; the farmer will be "
-                        "asked to clarify."
+                        "Only set this when the farmer's words clearly express a complete "
+                        "time (both hour and minute, or a recognized period-of-day word). A "
+                        "bare number alone (e.g. '55', '66', '12') does NOT clearly express "
+                        "a complete time, whether or not the number itself looks like a "
+                        "plausible hour or a plausible minute count -- do NOT invent the "
+                        "missing half (an hour to go with it, or a minute to go with it) to "
+                        "build a full HH:MM out of a single bare number. Leave this field "
+                        "empty instead; the farmer will be asked to clarify."
                     ),
                 },
                 "weather_location": {
