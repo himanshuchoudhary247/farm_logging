@@ -5,6 +5,7 @@ import logging
 from enum import Enum
 from pathlib import Path
 import boto3
+import requests
 from botocore.config import Config
 from typing import Optional, Dict, Any
 
@@ -133,6 +134,22 @@ def _get_client():
     return _bedrock_client, _bedrock_model
 
 
+def _proxy_base_url() -> Optional[str]:
+    """If set, every BedrockTextAdapter call routes over HTTP to this app's
+    own /proxy/bedrock/* endpoints instead of calling AWS directly -- lets a
+    dev machine with no AWS credentials at all run the real agentic system
+    against a shared sandbox proxy (the proxy server itself must NOT have
+    this set, or it would call itself). Unset by default -- every call site
+    (orchestrator.py, query_agent, etc.) needs zero changes, this is the one
+    place the branch happens."""
+    return os.getenv("LLM_PROXY_BASE_URL")
+
+
+def _proxy_headers() -> Dict[str, str]:
+    key = os.getenv("DEV_PROXY_API_KEY")
+    return {"X-Dev-Proxy-Key": key} if key else {}
+
+
 class BedrockTextAdapter:
     """Bedrock Converse client with per-task model resolution.
 
@@ -155,6 +172,16 @@ class BedrockTextAdapter:
             self.task = "legacy"
 
     def complete(self, messages, system=None):
+        proxy = _proxy_base_url()
+        if proxy:
+            resp = requests.post(
+                f"{proxy}/proxy/bedrock/complete",
+                json={"task": self.task, "messages": messages, "system": system},
+                headers=_proxy_headers(), timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["result"]
+
         # Always route through the unified Converse API — Anthropic, Nova,
         # DeepSeek, OpenAI (India Geo), Cohere, Mistral all support it and
         # return the same response shape (output.message.content[].text).
@@ -192,6 +219,19 @@ class BedrockTextAdapter:
         tool_choice_name forces the named tool via toolChoice.tool; omit to
         allow the model to choose any provided tool via toolChoice.any.
         """
+        proxy = _proxy_base_url()
+        if proxy:
+            resp = requests.post(
+                f"{proxy}/proxy/bedrock/converse_with_tool",
+                json={
+                    "task": self.task, "messages": messages, "tool_spec": tool_spec,
+                    "system": system, "tool_choice_name": tool_choice_name,
+                },
+                headers=_proxy_headers(), timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["result"]
+
         req = {
             "modelId": self.model_id,
             "messages": [

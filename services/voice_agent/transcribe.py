@@ -192,6 +192,20 @@ def transcribe_audio(audio_bytes: bytes, media_format: str = "wav", language_cod
     3. Run Transcribe job
     4. Return text
     """
+    proxy = os.getenv("LLM_PROXY_BASE_URL")
+    if proxy:
+        import requests
+        key = os.getenv("DEV_PROXY_API_KEY")
+        resp = requests.post(
+            f"{proxy}/proxy/transcribe",
+            params={"language_code": language_code or "en-IN"},
+            files={"audio": (f"audio.{media_format}", audio_bytes)},
+            headers={"X-Dev-Proxy-Key": key} if key else {},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["result"]
+
     # Auto dev mode: if not explicitly set, fall back to config/llm.yaml's
     # stt.provider (env STT_PROVIDER > yaml > "aws-transcribe"), then to
     # local unless AWS is fully configured.
