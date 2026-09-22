@@ -614,6 +614,21 @@ class AnimalRegistrationSupervisor:
             message = self._message(draft["language"], "correct", summary=self._summary(draft))
             return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
 
+        # Real bug found in review: a farmer who said "no" at the confirm
+        # step (state -> CORRECTING) and then gave a plain correction with
+        # no explicit "no"/skip signal fell through into the branch below,
+        # which unconditionally re-enters COLLECTING_OPTIONAL and asks
+        # "want to add optional details?" instead of re-showing a fresh
+        # confirm summary -- the farmer would have to say "no" again
+        # (now meaning something else) just to get back to confirming.
+        # Any correction turn from CORRECTING goes straight back to a
+        # fresh CONFIRMING summary instead.
+        if draft["state"] == "CORRECTING":
+            draft["state"] = "CONFIRMING"
+            self._save(draft)
+            message = self._message(draft["language"], "correct", summary=self._summary(draft))
+            return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
+
         # Past required fields, not explicitly skipping -- either just
         # arrived here (first time) or adding more optional detail on a
         # later turn. First arrival gets the full explanation of what's

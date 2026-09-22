@@ -74,10 +74,19 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
     regardless of include_audio. Frontend already checks both a top-level
     response_audio_base64 and result.response_audio_base64 (confirmed with
     the UI side), so this adds the top-level one here for exactly the
-    agents that don't already embed it -- appointment_supervisor and
-    animal_registration (which uses the identical internal-synthesis
-    pattern) keep their existing nested field untouched, no
-    double-synthesis.
+    branches that don't already embed it.
+
+    The skip check below is structural, not agent-name-based: any
+    supervisor that already did its own internal synthesis puts a
+    "response_audio_base64" key in `result` (both appointment_supervisor's
+    and animal_registration's _response() always include that key, even
+    as None) -- so this method skips top-level synthesis automatically
+    for it. Originally this was a hardcoded tuple of agent names, which
+    was a footgun: the next agent added with internal audio synthesis
+    would silently get double-synthesized here unless someone remembered
+    to add its name. Checking for the key itself makes that impossible to
+    forget -- confirmed weather_alert/adk_agent.py and
+    query_agent/adk_agent.py never emit this key in their result dicts.
 
     speech_text lets a caller give audio a shorter script than what's
     displayed -- text can stay fully detailed (full breakdowns, full
@@ -89,7 +98,7 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
-    if include_audio and agent not in ("appointment_supervisor", "animal_registration"):
+    if include_audio and "response_audio_base64" not in result:
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
             audio, audio_error = synthesize_speech(spoken, target_lang=language.split("-")[0].lower())

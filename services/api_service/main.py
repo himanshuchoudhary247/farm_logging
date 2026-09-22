@@ -123,6 +123,28 @@ async def prewarm_connections() -> None:
     await asyncio.get_event_loop().run_in_executor(None, _warm)
 
 
+@app.on_event("startup")
+async def purge_stale_session_files() -> None:
+    """Gap found in review: voice sessions and appointment/animal-
+    registration draft files are written per-session/per-draft and never
+    deleted -- unlike query_agent's in-memory cache (which has real LRU
+    eviction), these accumulate forever. No scheduler exists in this app,
+    so a best-effort sweep at boot is the simplest fix that doesn't need
+    new infra; a long-running deployment across many restarts still
+    bounds growth without needing a cron job."""
+    from storage import get_data_dir, purge_stale_files
+
+    data_dir = get_data_dir()
+    for subdir, max_age_days in (
+        ("voice_sessions", 7),
+        ("appointment_intakes", 30),
+        ("animal_registration_intakes", 30),
+    ):
+        removed = purge_stale_files(data_dir / subdir, max_age_days)
+        if removed:
+            _log.info("Purged %d stale file(s) from %s", removed, subdir)
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str

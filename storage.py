@@ -54,6 +54,33 @@ def atomic_write_json(path: Path, obj: Any) -> None:
     tmp.replace(path)
 
 
+def purge_stale_files(directory: Path, max_age_days: float, suffix: str = ".json") -> int:
+    """Delete files older than max_age_days from a per-session/per-draft
+    directory (voice_sessions, appointment_intakes, animal_registration_intakes,
+    etc). Gap found in review: unlike query_agent's in-memory cache (which
+    has a real LRU eviction), these file-backed stores accumulate one file
+    per session forever -- submitted, cancelled, and simply abandoned
+    drafts are never deleted. mtime-based rather than reading each file's
+    own state, since an abandoned draft this old is stale regardless of
+    what state it's stuck in. Best-effort: a file that vanishes or can't
+    be stat'd/removed between listing and unlink (concurrent write/clear)
+    is skipped, not an error. Returns the number of files removed."""
+    import time
+
+    if not directory.exists():
+        return 0
+    cutoff = time.time() - max_age_days * 86400
+    removed = 0
+    for path in directory.glob(f"*{suffix}"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except OSError:
+            continue
+    return removed
+
+
 def _with_file_lock(path: Path, fn: Callable[[], T]) -> T:
     lock = FileLock(str(path) + ".lock")
     with lock:
