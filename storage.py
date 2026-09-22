@@ -54,6 +54,33 @@ def atomic_write_json(path: Path, obj: Any) -> None:
     tmp.replace(path)
 
 
+def purge_stale_files(directory: Path, max_age_days: float, suffix: str = ".json") -> int:
+    """Delete files older than max_age_days from a per-session/per-draft
+    directory (voice_sessions, appointment_intakes, animal_registration_intakes,
+    etc). Gap found in review: unlike query_agent's in-memory cache (which
+    has a real LRU eviction), these file-backed stores accumulate one file
+    per session forever -- submitted, cancelled, and simply abandoned
+    drafts are never deleted. mtime-based rather than reading each file's
+    own state, since an abandoned draft this old is stale regardless of
+    what state it's stuck in. Best-effort: a file that vanishes or can't
+    be stat'd/removed between listing and unlink (concurrent write/clear)
+    is skipped, not an error. Returns the number of files removed."""
+    import time
+
+    if not directory.exists():
+        return 0
+    cutoff = time.time() - max_age_days * 86400
+    removed = 0
+    for path in directory.glob(f"*{suffix}"):
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except OSError:
+            continue
+    return removed
+
+
 def _with_file_lock(path: Path, fn: Callable[[], T]) -> T:
     lock = FileLock(str(path) + ".lock")
     with lock:
@@ -136,11 +163,31 @@ def append_animal(
     breed: str = "",
     age_years: Optional[float] = None,
     feeding_details: str = "",
+    status: str = "active",
+    birth_date: Optional[str] = None,
+    sire_id: str = "",
+    dam_id: str = "",
+    initial_weight_kg: str = "",
+    current_location: str = "",
+    official_tag_type: str = "",
+    official_tag_number: str = "",
+    acquisition_date: Optional[str] = None,
+    acquisition_source: str = "",
 ) -> Animal:
     path = _path("animals.json")
 
     def work() -> Animal:
         rows = _load_json_list(path)
+        # Real gap, found while designing the animal-registration agent:
+        # nothing here ever checked for a duplicate tag_or_name -- two
+        # animals with the identical farmer-chosen ID could silently
+        # coexist. Checked inside the same file-lock as the write (not a
+        # separate pre-check) to avoid a check-then-insert race between
+        # two concurrent registrations for the same tag.
+        wanted = tag_or_name.strip().lower()
+        for r in rows:
+            if r.get("farmer_id") == farmer_id and str(r.get("tag_or_name", "")).strip().lower() == wanted:
+                raise ValueError(f"An animal with ID '{tag_or_name}' is already registered.")
         aid = str(uuid.uuid4())
         row = Animal(
             id=aid,
@@ -151,6 +198,16 @@ def append_animal(
             breed=breed,
             age_years=age_years,
             feeding_details=feeding_details,
+            status=status,
+            birth_date=birth_date,
+            sire_id=sire_id,
+            dam_id=dam_id,
+            initial_weight_kg=initial_weight_kg,
+            current_location=current_location,
+            official_tag_type=official_tag_type,
+            official_tag_number=official_tag_number,
+            acquisition_date=acquisition_date,
+            acquisition_source=acquisition_source,
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
