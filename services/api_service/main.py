@@ -42,6 +42,8 @@ from storage import (
 from services.voice_agent.extractor import detect_intent, extract_health_log
 from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
 from services.llm_service.bedrock_adapter import (
+    BedrockTextAdapter,
+    TaskTier,
     extract_farm_onboarding,
     generate_seasonal_advisory,
 )
@@ -94,6 +96,101 @@ def require_api_key(x_api_key: str = Header(default="")) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing X-Api-Key")
 
 
+# DEV_PROXY_API_KEY: gates /proxy/* -- lets a dev machine with no AWS
+# credentials at all run the real agentic system against this server's real
+# AWS access (Bedrock/Transcribe/Polly), via services.llm_service.
+# bedrock_adapter's LLM_PROXY_BASE_URL client-side branch. Separate from any
+# server-to-server key (e.g. a future flokiq integration key) so either can
+# be rotated without affecting the other. Every proxied call bills this
+# real AWS account -- the in-memory daily counter below is cheap insurance
+# against a shared key running up surprise cost, not a hard security
+# boundary (resets on process restart, per-process not per-cluster).
+_DEV_PROXY_API_KEY = os.getenv("DEV_PROXY_API_KEY", "")
+_DEV_PROXY_DAILY_LIMIT = int(os.getenv("DEV_PROXY_DAILY_LIMIT", "200"))
+_dev_proxy_usage: dict[str, int] = {}
+
+
+def require_dev_proxy_key(x_dev_proxy_key: str = Header(default="")) -> None:
+    if not _DEV_PROXY_API_KEY:
+        raise HTTPException(status_code=503, detail="Dev proxy not configured on this server")
+    if x_dev_proxy_key != _DEV_PROXY_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Dev-Proxy-Key")
+    today = datetime.now().strftime("%Y-%m-%d")
+    usage_key = f"{x_dev_proxy_key}:{today}"
+    count = _dev_proxy_usage.get(usage_key, 0)
+    if count >= _DEV_PROXY_DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Daily dev-proxy limit ({_DEV_PROXY_DAILY_LIMIT} requests) reached")
+    _dev_proxy_usage[usage_key] = count + 1
+
+
+class ProxyBedrockCompleteRequest(BaseModel):
+    task: str = "legacy"
+    messages: list[dict[str, Any]]
+    system: Optional[str] = None
+
+
+class ProxyBedrockToolRequest(BaseModel):
+    task: str = "legacy"
+    messages: list[dict[str, Any]]
+    tool_spec: dict[str, Any]
+    system: Optional[str] = None
+    tool_choice_name: Optional[str] = None
+
+
+class ProxyTtsRequest(BaseModel):
+    text: str
+    language: Optional[str] = None
+
+
+def _adapter_for_task(task: str) -> BedrockTextAdapter:
+    if task == "legacy" or not task:
+        return BedrockTextAdapter()
+    return BedrockTextAdapter(task=TaskTier(task))
+
+
+@app.post("/proxy/bedrock/complete")
+def proxy_bedrock_complete(req: ProxyBedrockCompleteRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    adapter = _adapter_for_task(req.task)
+    result = adapter.complete(req.messages, system=req.system)
+    return {"result": result}
+
+
+@app.post("/proxy/bedrock/converse_with_tool")
+def proxy_bedrock_converse_with_tool(req: ProxyBedrockToolRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    adapter = _adapter_for_task(req.task)
+    result = adapter.converse_with_tool(
+        req.messages, req.tool_spec, system=req.system, tool_choice_name=req.tool_choice_name,
+    )
+    return {"result": result}
+
+
+@app.post("/proxy/transcribe")
+async def proxy_transcribe(
+    language_code: str = "en-IN",
+    audio: UploadFile = File(...),
+    _auth: None = Depends(require_dev_proxy_key),
+) -> dict[str, Any]:
+    from services.voice_agent.transcribe import transcribe_audio
+    import asyncio
+
+    data = await audio.read()
+    media_format = (Path(audio.filename or "audio.wav").suffix.lstrip(".") or "wav")
+    text = await asyncio.to_thread(transcribe_audio, data, media_format=media_format, language_code=language_code)
+    return {"result": text}
+
+
+@app.post("/proxy/tts")
+def proxy_tts(req: ProxyTtsRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    from services.voice_agent.tts import synthesize_speech
+    from base64 import b64encode
+
+    audio, err = synthesize_speech(req.text, target_lang=req.language)
+    return {
+        "audio_base64": b64encode(audio).decode("ascii") if audio else None,
+        "error": err,
+    }
+
+
 # Validate env at startup
 validate_env()
 
@@ -105,6 +202,9 @@ async def prewarm_connections() -> None:
     import asyncio
 
     def _warm() -> None:
+        if os.getenv("LLM_PROXY_BASE_URL"):
+            _log.info("Bedrock pre-warm skipped (dev-proxy mode, no direct AWS connection to warm)")
+            return
         try:
             from services.llm_service.bedrock_adapter import BedrockTextAdapter
 
