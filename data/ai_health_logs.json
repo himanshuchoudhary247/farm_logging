@@ -1,0 +1,82 @@
+[
+  {
+    "log_id": "c30edce1-7e6e-4c8b-b1cd-ec9ef55c1b56",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "pincode": "",
+    "symptoms_reported": [
+      "fever"
+    ],
+    "ai_diagnosis_suggestion": "This fever could be a sign of various infections or inflammatory conditions, possibly related to respiratory issues, parasitic infections, or other underlying health problems that a veterinarian would need to examine to confirm.",
+    "potential_ailments": [
+      "Respiratory infection",
+      "Parasitic infestation",
+      "General infection or inflammation",
+      "Stress-related fever"
+    ],
+    "first_aid_advice": "Keep the goat in a clean, well-ventilated but draft-free area. Ensure access to fresh, clean water to prevent dehydration. You can offer easily digestible feed like green fodder. Monitor the goat's temperature if you have a thermometer, and watch for any changes in behavior, appetite, or breathing. Do not attempt to give any medications without veterinary guidance. Remember, this is only temporary care advice while you wait for your scheduled vet appointment - the veterinarian will need to perform a proper examination to determine the exact cause and appropriate treatment. If the goat's condition worsens significantly or it shows signs of severe distress, seek immediate veterinary help.",
+    "risk_level": "Low",
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T11:24:27.847519+00:00"
+  },
+  {
+    "log_id": "ccb08929-8c5c-4f83-b68c-7ceedd0b27f6",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "pincode": "",
+    "symptoms_reported": [
+      "not eating"
+    ],
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or an underlying illness that's causing loss of appetite in your goat.",
+    "potential_ailments": [
+      "Digestive disturbance",
+      "Dental issues",
+      "Parasitic infection",
+      "General illness or fever"
+    ],
+    "first_aid_advice": "Keep the goat in a clean, comfortable area with access to fresh water. Offer small amounts of fresh, palatable food like green leaves or tender grass. Monitor for any other symptoms like diarrhea, bloating, or lethargy. Keep the animal separated from others if possible to prevent potential spread of illness. Remember, this is not a substitute for the veterinary examination you already have scheduled - if the goat becomes weak, shows signs of pain, or stops drinking water, seek immediate veterinary care.",
+    "risk_level": null,
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T11:42:45.840634+00:00"
+  },
+  {
+    "log_id": "a21a4059-400c-4c86-b9c2-a5613bcb39b0",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "pincode": "",
+    "symptoms_reported": [
+      "not eating"
+    ],
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or general illness that's causing loss of appetite in your goat.",
+    "potential_ailments": [
+      "Digestive disturbance",
+      "Dental issues",
+      "General illness or fever",
+      "Parasite burden"
+    ],
+    "first_aid_advice": "Ensure the goat has access to fresh, clean water at all times. Offer small amounts of fresh, palatable food like green leaves or tender grass. Keep the animal in a quiet, comfortable environment with proper shelter. Monitor for any other symptoms like diarrhea, bloating, or lethargy. Remember that this is only preliminary guidance while you wait for your veterinary appointment - the vet will need to examine your goat properly to determine the exact cause and provide appropriate treatment. If your goat becomes weak, collapses, or shows signs of severe distress, seek immediate veterinary help rather than waiting.",
+    "risk_level": null,
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T11:51:21.563448+00:00"
+  },
+  {
+    "log_id": "483390d7-6492-4d1d-8ab2-4c9d258a807b",
+    "farmer_id": "f-001",
+    "animal_id": "a-f-001-99",
+    "pincode": "",
+    "symptoms_reported": [
+      "not eating"
+    ],
+    "ai_diagnosis_suggestion": "This could be a sign of digestive issues, dental problems, or mild illness, but a proper veterinary examination is needed to determine the exact cause.",
+    "potential_ailments": [
+      "Digestive upset",
+      "Dental issues",
+      "Mild infection",
+      "Parasite burden"
+    ],
+    "first_aid_advice": "Ensure the goat has access to fresh, clean water at all times. Offer small amounts of fresh, palatable food like tender green leaves or hay. Keep the animal in a quiet, comfortable environment and monitor closely for any changes in behavior or additional symptoms. Check if there are any signs of bloating, diarrhea, or lethargy. This preliminary guidance is not a substitute for the veterinary appointment you already have scheduled. If the goat's condition worsens, becomes lethargic, shows signs of pain, or stops drinking water, seek immediate veterinary assistance.",
+    "risk_level": "Low",
+    "source": "ai_unverified",
+    "log_timestamp": "2026-09-19T12:39:33.221265+00:00"
+  }
+]

@@ -66,14 +66,6 @@ def _load_from_disk(path: Path) -> Dict[str, Any]:
         return dict(_DEFAULT_SESSION)
 
 
-def _write_to_disk(path: Path, data: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with FileLock(str(path) + ".lock"):
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(path)
-
-
 def get_session(session_id: str) -> Dict[str, Any]:
     if _use_memory_fallback():
         with _MEMORY_LOCK:
@@ -90,18 +82,34 @@ def get_session(session_id: str) -> Dict[str, Any]:
 
 
 def update_session(session_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    session = get_session(session_id)
-    session.update(data)
+    # Bug found in a robustness audit: this used to read (get_session, no
+    # lock) then write (_write_to_disk, locked) as two separate steps --
+    # two concurrent turns on the same session_id could both read the same
+    # starting state, then each write back their own version, one silently
+    # clobbering the other's update (lost update). Now the read, merge, and
+    # write all happen inside one lock acquisition.
     if _use_memory_fallback():
         with _MEMORY_LOCK:
+            session = _MEMORY_FALLBACK.setdefault(session_id, dict(_DEFAULT_SESSION))
+            session.update(data)
             _MEMORY_FALLBACK[session_id] = session
-        return session
+            return session
     try:
-        _write_to_disk(_session_path(session_id), session)
+        path = _session_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(str(path) + ".lock"):
+            session = _load_from_disk(path) if path.exists() else dict(_DEFAULT_SESSION)
+            session.update(data)
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(session, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
+        return session
     except Exception:
         with _MEMORY_LOCK:
+            session = _MEMORY_FALLBACK.setdefault(session_id, dict(_DEFAULT_SESSION))
+            session.update(data)
             _MEMORY_FALLBACK[session_id] = session
-    return session
+            return session
 
 
 def clear_session(session_id: str) -> None:

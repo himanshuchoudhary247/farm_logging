@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import OrderedDict
 from typing import Any, Optional
 
 from services.weather_alert.service import get_weather_alert, get_seasonal_advisory_data
@@ -35,7 +36,8 @@ if not _log.handlers:
     _log.setLevel(logging.INFO)
 
 _DEFAULT_TTL_SEC = 60 * 60  # 1 hour -- forecast/feed prices are hourly-ish signals
-_store: dict[str, tuple[float, dict[str, Any]]] = {}
+_MAX_STORE_ENTRIES = 500  # bug found in robustness audit: this store was unbounded
+_store: "OrderedDict[str, tuple[float, dict[str, Any]]]" = OrderedDict()
 _lock = threading.Lock()
 
 
@@ -88,11 +90,15 @@ def get_pincode_data(pin: str, force_refresh: bool = False, ttl_sec: int = _DEFA
         if cached and not force_refresh:
             fetched_at, data = cached
             if time.time() - fetched_at < ttl_sec:
+                _store.move_to_end(pin)
                 return data
 
     data = _build(pin)
     with _lock:
         _store[pin] = (time.time(), data)
+        _store.move_to_end(pin)
+        while len(_store) > _MAX_STORE_ENTRIES:
+            _store.popitem(last=False)
     _log.info("pincode_store refreshed pin=%s errors=%s", pin, data["errors"])
     return data
 

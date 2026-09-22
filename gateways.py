@@ -12,7 +12,7 @@ from services.farmer_onboarding_service.models import OnboardingRequest
 from services.farmer_onboarding_service.service import process_turn as _process_onboarding_turn
 from services.llm_service.bedrock_adapter import generate_seasonal_advisory
 from services.emergency_alerts.storage import last_run, load_feed
-from services.query_agent.agent import process_query
+from services.query_agent.adk_agent import process_query_adk
 from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 try:
@@ -328,7 +328,7 @@ def complete_text(messages: list[dict[str, str]], system: str) -> str:
 
 def process_data_query(farmer_id: str, query: str) -> dict[str, Any]:
     if not is_remote_mode():
-        return process_query(query=query, farmer_id=farmer_id)
+        return process_query_adk(query, farmer_id)
 
     resp = requests.post(
         f"{_api_base()}/farmers/{farmer_id}/query",

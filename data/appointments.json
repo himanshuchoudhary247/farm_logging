@@ -1,1 +1,67 @@
-[]
+[
+  {
+    "id": "50dc7dc4-cd69-436d-a297-f155f35c95a5",
+    "farmer_id": "f-001",
+    "date": "2026-09-20",
+    "time": "17:00",
+    "status": "pending",
+    "doctor_id": "",
+    "notes": "",
+    "health_log_id": "7683f43d-541b-4f98-a466-0ee8da2cfc7d",
+    "animal_id": "a-f-001-99",
+    "issue_summary": "not eating",
+    "triage": {
+      "symptoms": [
+        "not eating"
+      ],
+      "attachments": [],
+      "miscellaneous_notes": "",
+      "animal_name": "GAURI",
+      "animal_id": "a-f-001-99",
+      "species": "goat",
+      "breed": "Sirohi",
+      "age_years": 2.5,
+      "feeding_details": "green fodder morning and evening",
+      "farmer_id": "f-001",
+      "animal_record_mode": "existing",
+      "animal_identifier": "GAURI",
+      "issue": "not eating",
+      "date": "2026-09-20",
+      "time": "17:00"
+    },
+    "created_at": "2026-09-19T11:51:20.111921+00:00"
+  },
+  {
+    "id": "0c2cba97-66f6-4aaa-9043-11646a06f1a2",
+    "farmer_id": "f-001",
+    "date": "2026-09-20",
+    "time": "17:00",
+    "status": "pending",
+    "doctor_id": "",
+    "notes": "",
+    "health_log_id": "622b121f-f887-44b9-b094-eba8c16c9c18",
+    "animal_id": "a-f-001-99",
+    "issue_summary": "not eating",
+    "triage": {
+      "symptoms": [
+        "not eating"
+      ],
+      "attachments": [],
+      "miscellaneous_notes": "",
+      "animal_name": "GAURI",
+      "severity": "mild",
+      "date": "2026-09-20",
+      "time": "17:00",
+      "animal_id": "a-f-001-99",
+      "species": "goat",
+      "breed": "Sirohi",
+      "age_years": 2.5,
+      "feeding_details": "green fodder morning and evening",
+      "farmer_id": "f-001",
+      "animal_record_mode": "existing",
+      "issue": "not eating",
+      "animal_identifier": "GAURI"
+    },
+    "created_at": "2026-09-19T12:39:31.635677+00:00"
+  }
+]

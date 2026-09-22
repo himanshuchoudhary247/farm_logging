@@ -16,6 +16,7 @@ from models import (
     Farm,
     Farmer,
     HealthLog,
+    VaccinationRecord,
     WeatherNotification,
     utc_now_iso,
 )
@@ -59,6 +60,20 @@ def _with_file_lock(path: Path, fn: Callable[[], T]) -> T:
         return fn()
 
 
+def _invalidate_query_cache(farmer_id: str) -> None:
+    """Best-effort invalidation of query_agent's per-farmer in-memory SQLite
+    cache after a mutation to farmer-scoped queryable data. Deferred
+    (function-local) import: services.query_agent.db imports storage.py at
+    module load time, so a top-level import here would be circular. Never
+    allowed to block or fail the actual write -- this is a derived read-side
+    cache, not the source of truth."""
+    try:
+        from services.query_agent.db import clear_cache
+        clear_cache(farmer_id)
+    except Exception:
+        pass
+
+
 def load_farmers() -> list[Farmer]:
     return [Farmer.model_validate(x) for x in _load_json_list(_path("farmers.json"))]
 
@@ -99,6 +114,7 @@ def update_farmer_weather_location(farmer_id: str, weather_location: str) -> Far
         updated["weather_location"] = (weather_location or "").strip()
         rows[idx] = updated
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return Farmer.model_validate(updated)
 
     return _with_file_lock(path, work)
@@ -138,6 +154,7 @@ def append_animal(
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return row
 
     return _with_file_lock(path, work)
@@ -182,6 +199,7 @@ def update_animal(
                 row[k] = v
         rows[target_idx] = row
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return Animal.model_validate(row)
 
     return _with_file_lock(path, work)
@@ -237,6 +255,7 @@ def append_weather_notification(
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return row
 
     return _with_file_lock(path, work)
@@ -267,9 +286,18 @@ def append_health_log(
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return row
 
     return _with_file_lock(path, work)
+
+
+def load_ai_health_logs() -> list[AIHealthLog]:
+    return [AIHealthLog.model_validate(x) for x in _load_json_list(_path("ai_health_logs.json"))]
+
+
+def ai_health_logs_for_farmer(farmer_id: str) -> list[AIHealthLog]:
+    return [x for x in load_ai_health_logs() if x.farmer_id == farmer_id]
 
 
 def append_ai_health_log(
@@ -303,6 +331,7 @@ def append_ai_health_log(
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return row
 
     return _with_file_lock(path, work)
@@ -345,6 +374,7 @@ def append_appointment(
         )
         rows.append(row.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return row
 
     return _with_file_lock(path, work)
@@ -435,6 +465,7 @@ def save_farm(farmer_id: str, data: dict[str, Any]) -> Farm:
         else:
             rows.append(farm.model_dump())
         atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
         return farm
 
     return _with_file_lock(path, work)
@@ -478,3 +509,74 @@ def ensure_farmer_animal(farmer_id: str, animal_id: str) -> bool:
         if a.id == animal_id:
             return True
     return False
+
+
+def load_vaccination_records() -> list[VaccinationRecord]:
+    return [VaccinationRecord.model_validate(x) for x in _load_json_list(_path("vaccination_records.json"))]
+
+
+def vaccination_records_for_farmer(farmer_id: str) -> list[VaccinationRecord]:
+    return [v for v in load_vaccination_records() if v.farmer_id == farmer_id]
+
+
+def append_vaccination_record(
+    farmer_id: str,
+    animal_id: str,
+    vaccine_name: str,
+    status: str = "pending",
+    due_date: Optional[str] = None,
+    administered_date: Optional[str] = None,
+    veterinarian_notes: str = "",
+) -> VaccinationRecord:
+    if not ensure_farmer_animal(farmer_id, animal_id):
+        raise ValueError("Animal not found for this farmer")
+    path = _path("vaccination_records.json")
+
+    def work() -> VaccinationRecord:
+        rows = _load_json_list(path)
+        row = VaccinationRecord(
+            id=str(uuid.uuid4()),
+            farmer_id=farmer_id,
+            animal_id=animal_id,
+            vaccine_name=vaccine_name,
+            status=status,
+            due_date=due_date,
+            administered_date=administered_date,
+            veterinarian_notes=veterinarian_notes,
+        )
+        rows.append(row.model_dump())
+        atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
+        return row
+
+    return _with_file_lock(path, work)
+
+
+def update_vaccination_status(
+    farmer_id: str,
+    record_id: str,
+    status: str,
+    administered_date: Optional[str] = None,
+) -> VaccinationRecord:
+    path = _path("vaccination_records.json")
+
+    def work() -> VaccinationRecord:
+        rows = _load_json_list(path)
+        target_idx = -1
+        for i, r in enumerate(rows):
+            if r.get("farmer_id") == farmer_id and r.get("id") == record_id:
+                target_idx = i
+                break
+        if target_idx < 0:
+            raise ValueError("Vaccination record not found for this farmer")
+
+        row = dict(rows[target_idx])
+        row["status"] = status
+        if administered_date is not None:
+            row["administered_date"] = administered_date
+        rows[target_idx] = row
+        atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
+        return VaccinationRecord.model_validate(row)
+
+    return _with_file_lock(path, work)
