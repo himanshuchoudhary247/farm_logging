@@ -91,6 +91,7 @@ _VALID_SEX = {"male", "female"}
 _VALID_SPECIES = {"goat", "sheep"}
 _VALID_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
 _VALID_TAG_TYPE = {"visual", "rfid", "tattoo"}
+_BREED_UNSPECIFIED = "Not specified (local/mixed breed)"
 
 _ANIMAL_REGISTRATION_TOOL_SPEC = {
     "name": "record_animal_registration",
@@ -138,6 +139,14 @@ _ANIMAL_REGISTRATION_TOOL_SPEC = {
                 "wants_to_skip_optional": {
                     "type": "boolean",
                     "description": "true ONLY when the farmer is explicitly declining to add more optional details (e.g. 'no', 'that's all', 'skip', 'just submit') -- never true just because they answered one question.",
+                },
+                "field_unknown": {
+                    "type": "boolean",
+                    "description": "true ONLY when the farmer explicitly says they don't know or aren't sure about the field currently being asked (e.g. 'no idea', 'not sure', 'I don't know', 'skip it' as a direct reply to a question) -- never true just because the message doesn't obviously answer anything.",
+                },
+                "corrects_identity": {
+                    "type": "boolean",
+                    "description": "true ONLY when the farmer is explicitly correcting the animal ID, species, breed, or sex that was already captured earlier (e.g. 'actually the ID is...', 'no wait, change it to...', 'I meant a sheep, not a goat'). false for a plain new statement -- this only matters once those fields are already set.",
                 },
                 "confirmation_signal": {
                     "type": "string",
@@ -196,10 +205,11 @@ _TEXT = {
     "en": {
         "welcome": "Let's register a new animal. Please tell me the animal ID, species (goat or sheep), breed, and sex.",
         "ask_field": "Please provide the {field}.",
+        "ask_breed": "Please provide the breed. If you're not sure, just say 'not sure'.",
         "ask_optional": "The required details are saved. Would you like to add any optional details (date of birth, weight, location, parent IDs, tag info, acquisition details)? Say what you'd like to add, or say 'no' to submit now.",
         "got_it": "Got it: {delta}.",
         "ask_more": "Anything else to add, or say 'no' to submit?",
-        "breed_species_mismatch": "'{breed}' isn't a recognized {species} breed. Please give the breed again, or say the exact name if you're sure.",
+        "breed_species_mismatch": "'{breed}' isn't a recognized {species} breed. Please give the breed again, or say 'not sure' if you don't know it.",
         "duplicate_id": "An animal with ID '{identifier}' is already registered to you. Please give a different ID.",
         "correct": "Here's everything for this new animal: {summary}. Shall I save this?",
         "no": "What would you like to correct?",
@@ -209,10 +219,11 @@ _TEXT = {
     "hi": {
         "welcome": "एक नया पशु दर्ज करते हैं। कृपया पशु आईडी, प्रजाति (बकरी या भेड़), नस्ल और लिंग बताएं।",
         "ask_field": "कृपया {field} बताएं।",
+        "ask_breed": "कृपया नस्ल बताएं। अगर पता नहीं है, तो 'पता नहीं' कहें।",
         "ask_optional": "आवश्यक जानकारी सेव हो गई है। क्या आप कोई वैकल्पिक जानकारी जोड़ना चाहते हैं (जन्म तिथि, वजन, स्थान, माता-पिता की आईडी, टैग जानकारी)? बताएं क्या जोड़ना है, या अभी सबमिट करने के लिए 'नहीं' कहें।",
         "got_it": "समझ गया: {delta}।",
         "ask_more": "और कुछ जोड़ना है, या सबमिट करने के लिए 'नहीं' कहें?",
-        "breed_species_mismatch": "'{breed}' एक मान्य {species} नस्ल नहीं है। कृपया नस्ल फिर से बताएं।",
+        "breed_species_mismatch": "'{breed}' एक मान्य {species} नस्ल नहीं है। कृपया नस्ल फिर से बताएं, या अगर पता नहीं है तो 'पता नहीं' कहें।",
         "duplicate_id": "आईडी '{identifier}' वाला पशु पहले से पंजीकृत है। कृपया अलग आईडी बताएं।",
         "correct": "इस नए पशु का पूरा विवरण: {summary}। क्या मैं इसे सेव करूं?",
         "no": "आप क्या सुधारना चाहते हैं?",
@@ -222,10 +233,11 @@ _TEXT = {
     "ta": {
         "welcome": "ஒரு புதிய விலங்கை பதிவு செய்வோம். விலங்கு ஐடி, இனம் (ஆடு அல்லது செம்மறியாடு), இனவகை மற்றும் பாலினம் தெரிவிக்கவும்.",
         "ask_field": "தயவுசெய்து {field} தெரிவிக்கவும்.",
+        "ask_breed": "தயவுசெய்து இனவகை தெரிவிக்கவும். தெரியாவிட்டால் 'தெரியாது' என்று சொல்லுங்கள்.",
         "ask_optional": "தேவையான விவரங்கள் சேமிக்கப்பட்டன. விருப்ப விவரங்கள் (பிறந்த தேதி, எடை, இடம், பெற்றோர் ஐடி, டேக் தகவல்) சேர்க்க விரும்புகிறீர்களா? சேர்க்க வேண்டியதைச் சொல்லுங்கள், அல்லது இப்போது சமர்ப்பிக்க 'இல்லை' என்று சொல்லுங்கள்.",
         "got_it": "சரி: {delta}.",
         "ask_more": "இன்னும் ஏதாவது சேர்க்க வேண்டுமா, அல்லது சமர்ப்பிக்க 'இல்லை' என்று சொல்லுங்கள்?",
-        "breed_species_mismatch": "'{breed}' என்பது சரியான {species} இனவகை அல்ல. தயவுசெய்து மீண்டும் தெரிவிக்கவும்.",
+        "breed_species_mismatch": "'{breed}' என்பது சரியான {species} இனவகை அல்ல. தயவுசெய்து மீண்டும் தெரிவிக்கவும், அல்லது தெரியாவிட்டால் 'தெரியாது' என்று சொல்லுங்கள்.",
         "duplicate_id": "'{identifier}' ஐடி கொண்ட விலங்கு ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது. வேறு ஐடி தெரிவிக்கவும்.",
         "correct": "இந்த புதிய விலங்கின் முழு விவரம்: {summary}. இதை சேமிக்கவா?",
         "no": "எதை திருத்த வேண்டும்?",
@@ -235,10 +247,11 @@ _TEXT = {
     "te": {
         "welcome": "కొత్త జంతువును నమోదు చేద్దాం. దయచేసి జంతువు ఐడి, జాతి (మేక లేదా గొర్రె), బ్రీడ్ మరియు లింగం చెప్పండి.",
         "ask_field": "దయచేసి {field} చెప్పండి.",
+        "ask_breed": "దయచేసి బ్రీడ్ చెప్పండి. తెలియకపోతే 'తెలియదు' అని చెప్పండి.",
         "ask_optional": "అవసరమైన వివరాలు సేవ్ అయ్యాయి. ఐచ్ఛిక వివరాలు (పుట్టిన తేదీ, బరువు, స్థానం, తల్లిదండ్రుల ఐడి, ట్యాగ్ సమాచారం) జోడించాలనుకుంటున్నారా? ఏమి జోడించాలో చెప్పండి, లేదా ఇప్పుడే సమర్పించడానికి 'లేదు' అని చెప్పండి.",
         "got_it": "అర్థమైంది: {delta}.",
         "ask_more": "ఇంకేమైనా జోడించాలా, లేదా సమర్పించడానికి 'లేదు' అని చెప్పండి?",
-        "breed_species_mismatch": "'{breed}' చెల్లుబాటు అయ్యే {species} బ్రీడ్ కాదు. దయచేసి మళ్ళీ చెప్పండి.",
+        "breed_species_mismatch": "'{breed}' చెల్లుబాటు అయ్యే {species} బ్రీడ్ కాదు. దయచేసి మళ్ళీ చెప్పండి, లేదా తెలియకపోతే 'తెలియదు' అని చెప్పండి.",
         "duplicate_id": "'{identifier}' ఐడితో జంతువు ఇప్పటికే నమోదు చేయబడింది. దయచేసి వేరే ఐడి చెప్పండి.",
         "correct": "ఈ కొత్త జంతువు యొక్క పూర్తి వివరాలు: {summary}. దీన్ని సేవ్ చేయనా?",
         "no": "మీరు దేన్ని సరిచేయాలనుకుంటున్నారు?",
@@ -248,10 +261,11 @@ _TEXT = {
     "kn": {
         "welcome": "ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸೋಣ. ದಯವಿಟ್ಟು ಪ್ರಾಣಿ ಐಡಿ, ಪ್ರಭೇದ (ಮೇಕೆ ಅಥವಾ ಕುರಿ), ತಳಿ ಮತ್ತು ಲಿಂಗವನ್ನು ತಿಳಿಸಿ.",
         "ask_field": "ದಯವಿಟ್ಟು {field} ತಿಳಿಸಿ.",
+        "ask_breed": "ದಯವಿಟ್ಟು ತಳಿ ತಿಳಿಸಿ. ಗೊತ್ತಿಲ್ಲದಿದ್ದರೆ 'ಗೊತ್ತಿಲ್ಲ' ಎಂದು ಹೇಳಿ.",
         "ask_optional": "ಅಗತ್ಯ ವಿವರಗಳು ಉಳಿಸಲಾಗಿದೆ. ಐಚ್ಛಿಕ ವಿವರಗಳನ್ನು (ಜನನ ದಿನಾಂಕ, ತೂಕ, ಸ್ಥಳ, ಪೋಷಕರ ಐಡಿ, ಟ್ಯಾಗ್ ಮಾಹಿತಿ) ಸೇರಿಸಲು ಬಯಸುವಿರಾ? ಏನು ಸೇರಿಸಬೇಕೆಂದು ಹೇಳಿ, ಅಥವಾ ಈಗಲೇ ಸಲ್ಲಿಸಲು 'ಇಲ್ಲ' ಎಂದು ಹೇಳಿ.",
         "got_it": "ಅರ್ಥವಾಯಿತು: {delta}.",
         "ask_more": "ಇನ್ನೇನಾದರೂ ಸೇರಿಸಬೇಕೇ, ಅಥವಾ ಸಲ್ಲಿಸಲು 'ಇಲ್ಲ' ಎಂದು ಹೇಳಿ?",
-        "breed_species_mismatch": "'{breed}' ಮಾನ್ಯವಾದ {species} ತಳಿಯಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ತಿಳಿಸಿ.",
+        "breed_species_mismatch": "'{breed}' ಮಾನ್ಯವಾದ {species} ತಳಿಯಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ತಿಳಿಸಿ, ಅಥವಾ ಗೊತ್ತಿಲ್ಲದಿದ್ದರೆ 'ಗೊತ್ತಿಲ್ಲ' ಎಂದು ಹೇಳಿ.",
         "duplicate_id": "'{identifier}' ಐಡಿ ಹೊಂದಿರುವ ಪ್ರಾಣಿ ಈಗಾಗಲೇ ನೋಂದಾಯಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಬೇರೆ ಐಡಿ ತಿಳಿಸಿ.",
         "correct": "ಈ ಹೊಸ ಪ್ರಾಣಿಯ ಸಂಪೂರ್ಣ ವಿವರ: {summary}. ಇದನ್ನು ಉಳಿಸಲೇ?",
         "no": "ನೀವು ಏನನ್ನು ಸರಿಪಡಿಸಲು ಬಯಸುವಿರಿ?",
@@ -372,10 +386,52 @@ class AnimalRegistrationSupervisor:
 
     def _extract(self, draft: dict[str, Any], text: str) -> dict[str, Any]:
         """Dedicated Converse tool-use call, own tool spec -- deliberately
-        NOT the shared _EXTRACTION_TOOL_SPEC (see module docstring)."""
+        NOT the shared _EXTRACTION_TOOL_SPEC (see module docstring).
+
+        Live testing (a peer session running the real UI against this
+        branch, 2026-09-22) found a real bug here: the system prompt
+        claims "you will be told which field is currently being asked
+        about" but this method never actually said so -- so a bare reply
+        like "Bort" or "12" got guessed at freely by the model instead of
+        being anchored to the pending field, producing wrong-field
+        extraction (a short numeric ID guessed as initial_weight_kg, then
+        a breed guess silently overwriting the already-captured
+        unique_animal_id on the next turn). The pending-field hint below
+        is the actual fix -- not a rewrite, the missing piece."""
+        pending_hint = ""
+        if draft["state"] == "COLLECTING":
+            missing = self._missing_required(draft)
+            if missing:
+                pending_hint = (
+                    f"\nPHASE: collecting REQUIRED fields only. Still missing: {', '.join(missing)}. "
+                    f"The farmer was just asked specifically for '{missing[0]}'. If their message is a "
+                    f"plausible direct answer to that -- even a bare word, number, or short phrase with "
+                    f"no field name attached -- treat it as '{missing[0]}', not as any other field. Do "
+                    f"NOT populate an optional field (birth_date, sire_id, dam_id, initial_weight_kg, "
+                    f"current_location, official_tag_type, official_tag_number, acquisition_date, "
+                    f"acquisition_source) during this phase unless the farmer's words unmistakably name "
+                    f"that field or its unit (e.g. actually says 'weight' or 'kg', or a place name for "
+                    f"location) -- a bare number alone almost always answers '{missing[0]}', never weight."
+                )
+        elif draft["state"] == "COLLECTING_OPTIONAL":
+            locked = {f: draft["draft"].get(f) for f in REQUIRED_FIELDS if draft["draft"].get(f)}
+            if locked:
+                locked_desc = "; ".join(f"{k}={v}" for k, v in locked.items())
+                pending_hint = (
+                    f"\nPHASE: optional fields. Required fields are already captured and correct "
+                    f"({locked_desc}) -- do NOT change unique_animal_id, species, breed, or sex "
+                    f"unless the farmer's words unmistakably say they want to correct one of those "
+                    f"specific fields (e.g. 'actually the ID is...', 'wrong breed, it's...'). If so, "
+                    f"also set corrects_identity to true. A bare word or number with no such "
+                    f"correction language most likely answers one of the OPTIONAL fields (birth_date, "
+                    f"sire_id, dam_id, initial_weight_kg, current_location, official_tag_type, "
+                    f"official_tag_number, acquisition_date, acquisition_source), or nothing at all if "
+                    f"it doesn't clearly fit any of those -- never re-guess it as a new ID."
+                )
         context = (
             f"Currently captured so far (do not repeat these back as new): "
-            f"{self._summary(draft) if draft['draft'] else 'nothing yet'}.\n"
+            f"{self._summary(draft) if draft['draft'] else 'nothing yet'}."
+            f"{pending_hint}\n"
             f"Farmer just said: \"{text}\""
         )
         try:
@@ -400,6 +456,13 @@ class AnimalRegistrationSupervisor:
         a crash."""
         target = draft["draft"]
         changed: dict[str, Any] = {}
+        # A breed mismatch previously short-circuited this whole method via
+        # an early `return` -- found live: on a turn stating several fields
+        # at once (e.g. "12 goat aa male"), a failed breed guess silently
+        # dropped every field that would otherwise have been applied after
+        # it (sex, unique_animal_id, everything in the loop below). Now the
+        # breed error is deferred and every other field still applies.
+        breed_error: Optional[str] = None
 
         species = entities.get("species")
         if species and species in _VALID_SPECIES:
@@ -416,7 +479,7 @@ class AnimalRegistrationSupervisor:
                     changed["breed"] = matched
                     target["breed"] = matched
                 else:
-                    return changed, self._message(
+                    breed_error = self._message(
                         draft["language"], "breed_species_mismatch",
                         breed=breed_raw, species=effective_species,
                     )
@@ -449,11 +512,28 @@ class AnimalRegistrationSupervisor:
                     "birth_date", "acquisition_date"):
             value = entities.get(key)
             if value not in (None, ""):
+                # Found live: once required-field collection is done, a
+                # stray ambiguous word (e.g. "Bort") could get guessed as
+                # a *new* unique_animal_id and silently overwrite the
+                # already-correct one -- species/breed/sex are naturally
+                # guarded by enum/breed-list validation, but the ID is
+                # free text with none. Require an explicit correction
+                # signal to touch it once it's already set and required
+                # collection has moved on -- same principle as
+                # appointment_supervisor's fix for its own verified
+                # animal_id not being clobbered by an unrelated reply.
+                if (
+                    key == "unique_animal_id"
+                    and target.get("unique_animal_id")
+                    and draft["state"] != "COLLECTING"
+                    and not entities.get("corrects_identity")
+                ):
+                    continue
                 if target.get(key) != value:
                     changed[key] = value
                 target[key] = value
 
-        return changed, None
+        return changed, breed_error
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
               include_audio: bool = True) -> dict[str, Any]:
@@ -479,13 +559,14 @@ class AnimalRegistrationSupervisor:
 
         changed, error = self._copy_entities(draft, entities)
 
-        if error:
-            self._save(draft)
-            return self._response(draft, error, input_transcript=text, include_audio=include_audio)
-
         # Duplicate-tag check as soon as the ID is given, not deferred to
         # submit() -- same "catch it right after they say it" principle
-        # appointment_supervisor uses for animal verification.
+        # appointment_supervisor uses for animal verification. Runs even
+        # when `error` (a breed mismatch) is also set this turn -- a
+        # duplicate ID and a bad breed guess can land in the same turn
+        # since _copy_entities no longer drops sibling fields on a breed
+        # error, and the duplicate must still surface, not silently pass
+        # while the farmer's attention is on the breed re-ask instead.
         if "unique_animal_id" in changed:
             wanted = str(draft["draft"]["unique_animal_id"]).strip().lower()
             existing = [a for a in animals_for_farmer(farmer_id) if a.tag_or_name.strip().lower() == wanted]
@@ -495,12 +576,33 @@ class AnimalRegistrationSupervisor:
                 self._save(draft)
                 return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
+        if error:
+            self._save(draft)
+            return self._response(draft, error, input_transcript=text, include_audio=include_audio)
+
+        # Breed is the one required field a farmer can legitimately not
+        # know (crossbreeds/local names are common) -- an explicit "don't
+        # know" while breed is the pending field accepts a fallback value
+        # instead of looping forever. Found missing live: without this, a
+        # farmer who genuinely doesn't know had no path forward at all.
+        if (
+            entities.get("field_unknown")
+            and draft["state"] == "COLLECTING"
+            and not draft["draft"].get("breed")
+            and self._missing_required(draft)
+            and self._missing_required(draft)[0] == "breed"
+        ):
+            draft["draft"]["breed"] = _BREED_UNSPECIFIED
+            changed["breed"] = _BREED_UNSPECIFIED
+
         missing = self._missing_required(draft)
         if missing:
             draft["state"] = "COLLECTING"
             self._save(draft)
             field_label = _LABELS.get(_lang(draft["language"]), _LABELS["en"]).get(missing[0], missing[0])
-            if draft["draft"]:
+            if missing[0] == "breed":
+                message = self._message(draft["language"], "ask_breed")
+            elif draft["draft"]:
                 message = self._message(draft["language"], "ask_field", field=field_label)
             else:
                 message = self._message(draft["language"], "welcome")

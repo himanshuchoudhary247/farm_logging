@@ -135,6 +135,83 @@ def test_duplicate_tag_rejected(tmp_path, monkeypatch):
     assert result["draft"].get("unique_animal_id") is None
 
 
+def test_field_unknown_accepts_fallback_breed(tmp_path, monkeypatch):
+    """Real bug found live (peer session testing the UI, 2026-09-22): a
+    farmer who genuinely doesn't know their animal's breed had no way to
+    proceed -- every turn produced the byte-identical "Please provide the
+    breed." with no escape. field_unknown must unblock the flow."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    _mock_extract(sup, [
+        {"unique_animal_id": "UNK-1", "species": "goat", "sex": "male"},
+        {"field_unknown": True},
+    ])
+
+    sup.turn("f-001", "s8", "UNK-1 goat male", include_audio=False)
+    result = sup.turn("f-001", "s8", "no idea", include_audio=False)
+    assert result["state"] == "COLLECTING_OPTIONAL", "an explicit don't-know must unblock the required-field phase, not loop"
+    assert result["draft"]["breed"]
+
+
+def test_breed_mismatch_does_not_drop_sibling_fields_from_same_turn(tmp_path, monkeypatch):
+    """Real bug found live: _copy_entities used to `return` the instant a
+    breed guess failed to match, silently dropping every other field
+    extracted in that same turn (sex, unique_animal_id, ...). A single
+    turn stating several fields plus a bad breed guess must still apply
+    the good fields."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    _mock_extract(sup, [{
+        "unique_animal_id": "SIB-1", "species": "goat", "sex": "male", "breed": "Not A Real Breed",
+    }])
+
+    result = sup.turn("f-001", "s9", "SIB-1 goat male, breed is Not A Real Breed", include_audio=False)
+    assert "Not A Real Breed" in result["response_text"]
+    assert result["draft"].get("breed") is None
+    assert result["draft"].get("unique_animal_id") == "SIB-1", "sibling field must survive a breed mismatch in the same turn"
+    assert result["draft"].get("sex") == "male", "sibling field must survive a breed mismatch in the same turn"
+
+
+def test_duplicate_id_detected_even_alongside_a_breed_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    existing_animal = type("Animal", (), {"id": "a-1", "tag_or_name": "DUP-1"})()
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [existing_animal])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    _mock_extract(sup, [{"unique_animal_id": "dup-1", "species": "goat", "breed": "Not A Real Breed"}])
+
+    result = sup.turn("f-001", "s10", "dup-1 goat, breed Not A Real Breed", include_audio=False)
+    assert "already registered" in result["response_text"], "duplicate ID must still surface even when the same turn also has a breed error"
+    assert result["draft"].get("unique_animal_id") is None
+
+
+def test_optional_phase_does_not_let_a_stray_reply_clobber_the_captured_id(tmp_path, monkeypatch):
+    """Real bug found live: once required fields were done, a bare
+    ambiguous word got guessed as a *new* unique_animal_id and silently
+    overwrote the already-correct one. Must require an explicit
+    corrects_identity signal to change it past that point."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    _mock_extract(sup, [
+        {"unique_animal_id": "GOOD-1", "species": "goat", "breed": "Jamunapari", "sex": "male"},
+        {"unique_animal_id": "Stray"},  # no corrects_identity -- must be ignored
+        {"unique_animal_id": "Fixed-1", "corrects_identity": True},  # explicit -- must apply
+    ])
+
+    sup.turn("f-001", "s11", "GOOD-1 goat Jamunapari male", include_audio=False)
+    r2 = sup.turn("f-001", "s11", "Stray", include_audio=False)
+    assert r2["draft"]["unique_animal_id"] == "GOOD-1", "a stray guess without corrects_identity must not overwrite the captured ID"
+
+    r3 = sup.turn("f-001", "s11", "actually change the ID to Fixed-1", include_audio=False)
+    assert r3["draft"]["unique_animal_id"] == "Fixed-1", "an explicit correction with corrects_identity must be allowed through"
+
+
 def test_cancel_mid_registration(tmp_path, monkeypatch):
     monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
     monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
