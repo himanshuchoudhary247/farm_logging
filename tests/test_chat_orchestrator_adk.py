@@ -95,6 +95,12 @@ def test_classified_appointment_routes_to_appointment_supervisor(monkeypatch):
 
 
 def test_classified_weather_routes_to_weather_agent(monkeypatch):
+    """Real bug found in CI (not caught locally -- local runs have real AWS
+    creds in .env masking it): weather/query are the two branches _envelope
+    actually calls synthesize_speech for (see its docstring), and this test
+    never mocked it, so it made a live, unmocked Polly call. Passed locally,
+    failed in CI with botocore.exceptions.NoCredentialsError -- CI has none.
+    Mocked here, matching the suite's own stated network-boundary convention."""
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("weather"))
@@ -102,6 +108,7 @@ def test_classified_weather_routes_to_weather_agent(monkeypatch):
         adk_router, "process_weather_query_adk",
         lambda text, farmer_id: {"result": {"weather": {}}, "answer": "it will rain"},
     )
+    monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
     result = adk_router.route_turn_adk("f-001", "classify-weather", "will it rain today")
     assert result["agent"] == "weather_alert"
     assert result["intent"] == "weather"
@@ -116,6 +123,7 @@ def test_classified_query_routes_to_query_agent(monkeypatch):
         adk_router, "process_query_adk",
         lambda query, farmer_id: {"answer": "you have 53 animals", "sql": "SELECT COUNT(*)...", "data": {}},
     )
+    monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
     result = adk_router.route_turn_adk("f-001", "classify-query", "how many animals do I have")
     assert result["agent"] == "query_agent"
     assert result["intent"] == "query"
