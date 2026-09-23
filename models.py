@@ -29,6 +29,22 @@ class Animal(BaseModel):
     breed: str = ""
     age_years: Optional[float] = None
     feeding_details: str = ""
+    # Fields below mirror flokiquser's real "Add Animal" form
+    # (src/pages/farm-management/add-animal/add-animal.tsx), added for the
+    # conversational animal-registration agent. All optional/defaulted so
+    # every existing caller (append_animal, query_agent, appointment
+    # flow's animal-matching) and the existing 53-animal demo dataset
+    # keep working unchanged.
+    status: str = "active"
+    birth_date: Optional[str] = None
+    sire_id: str = ""
+    dam_id: str = ""
+    initial_weight_kg: str = ""
+    current_location: str = ""
+    official_tag_type: str = ""
+    official_tag_number: str = ""
+    acquisition_date: Optional[str] = None
+    acquisition_source: str = ""
 
 
 class HealthLog(BaseModel):

@@ -29,9 +29,11 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
-from services.appointment_supervisor import AppointmentSupervisor
+from services.animal_registration import default_supervisor as _animal_registration_supervisor
+from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
+from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 
@@ -39,8 +41,6 @@ _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
-
-_appointment_supervisor = AppointmentSupervisor()
 
 
 def _reply_text(agent: str, result: dict[str, Any]) -> str:
@@ -73,9 +73,20 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
     all, so a voice turn landing in either of them got no spoken reply back
     regardless of include_audio. Frontend already checks both a top-level
     response_audio_base64 and result.response_audio_base64 (confirmed with
-    the UI side), so this adds the top-level one here for exactly the two
-    agents that don't already embed it -- appointment_supervisor keeps its
-    existing nested field untouched, no double-synthesis.
+    the UI side), so this adds the top-level one here for exactly the
+    branches that don't already embed it.
+
+    The skip check below is structural, not agent-name-based: any
+    supervisor that already did its own internal synthesis puts a
+    "response_audio_base64" key in `result` (both appointment_supervisor's
+    and animal_registration's _response() always include that key, even
+    as None) -- so this method skips top-level synthesis automatically
+    for it. Originally this was a hardcoded tuple of agent names, which
+    was a footgun: the next agent added with internal audio synthesis
+    would silently get double-synthesized here unless someone remembered
+    to add its name. Checking for the key itself makes that impossible to
+    forget -- confirmed weather_alert/adk_agent.py and
+    query_agent/adk_agent.py never emit this key in their result dicts.
 
     speech_text lets a caller give audio a shorter script than what's
     displayed -- text can stay fully detailed (full breakdowns, full
@@ -87,7 +98,7 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
-    if include_audio and agent != "appointment_supervisor":
+    if include_audio and "response_audio_base64" not in result:
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
             audio, audio_error = synthesize_speech(spoken, target_lang=language.split("-")[0].lower())
@@ -113,16 +124,35 @@ def _has_active_booking_draft(farmer_id: str, session_id: str) -> bool:
     except Exception:
         return False
 
+
+def _has_active_registration_draft(farmer_id: str, session_id: str) -> bool:
+    """Same sticky-routing pattern as _has_active_booking_draft, for the
+    animal-registration flow -- a mid-registration turn (e.g. a bare
+    breed name, or a date answering "date of birth?") must not get
+    re-classified away by the router."""
+    path = _animal_registration_supervisor._path(farmer_id, session_id)
+    if not path.exists():
+        return False
+    try:
+        draft = _animal_registration_supervisor._load(session_id, farmer_id, "en-IN")
+        return draft.get("state") != "CANCELLED" and not draft.get("submitted", False)
+    except Exception:
+        return False
+
+
 _ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
 
 Categories:
-- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment.
+- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging a health event for an animal ALREADY on the farm (a treatment given, a vaccination done, a symptom noticed, a checkup completed).
+- "add_animal": registering a brand-new animal that isn't on the farm's records yet -- the farmer wants to ADD it as a new entry (a new goat/sheep they bought, were given, or that was born). This is about the animal's identity itself (ID, species, breed, sex), not a health event.
 - "weather": weather, rain, temperature, heat/cold stress, whether to move animals indoors, or feed-price/market questions tied to weather/season.
-- "query": anything else about the farmer's own animals or records -- counts, lists, history, "how many", "when was", vaccination records, health logs, past appointments, general greetings, or anything unclear.
+- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" or "add_animal" (whichever fits) -- a farmer telling you what happened wants it recorded, not silently discarded.
 
-When genuinely ambiguous, prefer "query" -- it is the general-purpose fallback."""
+"appointment" vs "add_animal": both can write data, but about different things -- "my goat has a fever" or "book a vet visit" is "appointment" (an EXISTING animal's health). "I got a new goat, register it" or "add a new sheep to my farm" is "add_animal" (the animal's own identity record, brand new).
 
-_VALID_INTENTS = ("appointment", "weather", "query")
+When genuinely ambiguous with no hint of a new event to record, prefer "query" -- it is the general-purpose fallback."""
+
+_VALID_INTENTS = ("appointment", "add_animal", "weather", "query")
 
 
 def _make_record_route_tool(captured: dict[str, str]):
@@ -162,6 +192,37 @@ async def _classify_intent_async(text: str) -> str:
     return captured.get("intent", "query")
 
 
+def _weather_session_key(farmer_id: str, session_id: str) -> str:
+    return f"{farmer_id}:{session_id}:weather_pending"
+
+
+def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None",
+                  include_audio: bool, language: str, allow_rearm: bool = True) -> dict[str, Any]:
+    weather = process_weather_query_adk(text, farmer_id)
+    result = weather["result"]
+    # Real bug, found live testing the flokiquser test-conversation set:
+    # unlike appointment_supervisor, weather has zero multi-turn memory --
+    # every turn is classified from scratch with no idea a location was
+    # just asked for. "what's the weather" -> "I need a PIN code" ->
+    # farmer replies with a bare PIN (even a real, valid one) -> the
+    # classifier sees a bare number with no weather-sounding words and
+    # sends it to query_agent instead, which has no idea what to do with
+    # it either. Bounded sticky fix, mirroring _has_active_booking_draft's
+    # pattern but capped to exactly ONE follow-up turn total, not
+    # indefinite -- allow_rearm=False on the sticky-routed call below
+    # means a second consecutive miss falls back to normal classification
+    # instead of trapping the farmer in weather if they've actually moved
+    # on to something else.
+    if allow_rearm:
+        weather_key = _weather_session_key(farmer_id, session_id)
+        if result.get("error") == "no_location":
+            update_session(weather_key, {"awaiting_location": True})
+        else:
+            update_session(weather_key, {"awaiting_location": False})
+    reply = weather["answer"] or _reply_text("weather_alert", result)
+    return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
+
+
 def route_turn_adk(
     farmer_id: str,
     session_id: str,
@@ -180,6 +241,20 @@ def route_turn_adk(
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
+    if _has_active_registration_draft(farmer_id, session_id):
+        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        reply = _reply_text("animal_registration", result)
+        return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
+
+    weather_key = _weather_session_key(farmer_id, session_id)
+    if get_session(weather_key).get("awaiting_location"):
+        # Sticky, exactly once: clear immediately so a second consecutive
+        # miss (e.g. two bad PINs in a row) falls back to normal
+        # classification rather than locking the farmer into weather
+        # indefinitely if they've actually moved on to something else.
+        update_session(weather_key, {"awaiting_location": False})
+        return _run_weather(farmer_id, session_id, text, "weather", include_audio, language, allow_rearm=False)
+
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
 
@@ -188,11 +263,13 @@ def route_turn_adk(
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
+    if intent == "add_animal":
+        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        reply = _reply_text("animal_registration", result)
+        return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
     if intent == "weather":
-        weather = process_weather_query_adk(text, farmer_id)
-        result = weather["result"]
-        reply = weather["answer"] or _reply_text("weather_alert", result)
-        return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
+        return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
 
     result = process_query_adk(text, farmer_id)
     reply = result.get("answer") or ""

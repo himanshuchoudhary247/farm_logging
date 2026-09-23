@@ -42,6 +42,8 @@ from storage import (
 from services.voice_agent.extractor import detect_intent, extract_health_log
 from services.weather_alert.service import get_seasonal_advisory_data, get_weather_alert
 from services.llm_service.bedrock_adapter import (
+    BedrockTextAdapter,
+    TaskTier,
     extract_farm_onboarding,
     generate_seasonal_advisory,
 )
@@ -55,13 +57,19 @@ from services.cache_refresh import (
     PinProfile,
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
-from services.appointment_supervisor import AppointmentSupervisor, SUPPORTED_LANGUAGES
+from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
 
 
 app = FastAPI(title="Farmer Chat API Service", version="0.1.0")
 
+# CORS_ALLOWED_ORIGINS: comma-separated list, e.g.
+# "https://app.example.com,http://localhost:5173". "*" allows any origin
+# (fine for a public read-mostly API with no cookie/session auth — this
+# service uses none — but not with allow_credentials=True). Defaults to
+# "*" so browser clients aren't blocked out of the box; tighten via env in
+# any deployment that needs to restrict origins.
 _cors_origins_raw = os.getenv("CORS_ALLOWED_ORIGINS", "*")
 _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
 app.add_middleware(
@@ -72,24 +80,131 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-appointment_supervisor = AppointmentSupervisor()
 
+# FARMER_CHAT_API_KEY: shared-secret gate on the voice/chat surface (the
+# endpoints a server-to-server caller like flokiq's backend would hit).
+# Unset/empty means no gate at all -- ships inert, same as FLOKIQ_SYNC_ENABLED
+# and every other off-by-default knob this session added, so local dev and
+# existing tests are unaffected until this is deliberately configured. Every
+# farmer_id-scoped voice/chat endpoint had zero auth before this -- anyone
+# who knew or guessed a farmer_id could call them directly.
 _API_KEY = os.getenv("FARMER_CHAT_API_KEY", "")
 
 
 def require_api_key(x_api_key: str = Header(default="")) -> None:
-    if _API_KEY and _API_KEY.strip() != "" and x_api_key != _API_KEY:
-        _log.warning("X-Api-Key mismatch ignored for local development fallback.")
+    if _API_KEY and x_api_key != _API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Api-Key")
 
 
+# DEV_PROXY_API_KEY: gates /proxy/* -- lets a dev machine with no AWS
+# credentials at all run the real agentic system against this server's real
+# AWS access (Bedrock/Transcribe/Polly), via services.llm_service.
+# bedrock_adapter's LLM_PROXY_BASE_URL client-side branch. Separate from any
+# server-to-server key (e.g. a future flokiq integration key) so either can
+# be rotated without affecting the other. Every proxied call bills this
+# real AWS account -- the in-memory daily counter below is cheap insurance
+# against a shared key running up surprise cost, not a hard security
+# boundary (resets on process restart, per-process not per-cluster).
+_DEV_PROXY_API_KEY = os.getenv("DEV_PROXY_API_KEY", "")
+_DEV_PROXY_DAILY_LIMIT = int(os.getenv("DEV_PROXY_DAILY_LIMIT", "200"))
+_dev_proxy_usage: dict[str, int] = {}
+
+
+def require_dev_proxy_key(x_dev_proxy_key: str = Header(default="")) -> None:
+    if not _DEV_PROXY_API_KEY:
+        raise HTTPException(status_code=503, detail="Dev proxy not configured on this server")
+    if x_dev_proxy_key != _DEV_PROXY_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Dev-Proxy-Key")
+    today = datetime.now().strftime("%Y-%m-%d")
+    usage_key = f"{x_dev_proxy_key}:{today}"
+    count = _dev_proxy_usage.get(usage_key, 0)
+    if count >= _DEV_PROXY_DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Daily dev-proxy limit ({_DEV_PROXY_DAILY_LIMIT} requests) reached")
+    _dev_proxy_usage[usage_key] = count + 1
+
+
+class ProxyBedrockCompleteRequest(BaseModel):
+    task: str = "legacy"
+    messages: list[dict[str, Any]]
+    system: Optional[str] = None
+
+
+class ProxyBedrockToolRequest(BaseModel):
+    task: str = "legacy"
+    messages: list[dict[str, Any]]
+    tool_spec: dict[str, Any]
+    system: Optional[str] = None
+    tool_choice_name: Optional[str] = None
+
+
+class ProxyTtsRequest(BaseModel):
+    text: str
+    language: Optional[str] = None
+
+
+def _adapter_for_task(task: str) -> BedrockTextAdapter:
+    if task == "legacy" or not task:
+        return BedrockTextAdapter()
+    return BedrockTextAdapter(task=TaskTier(task))
+
+
+@app.post("/proxy/bedrock/complete")
+def proxy_bedrock_complete(req: ProxyBedrockCompleteRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    adapter = _adapter_for_task(req.task)
+    result = adapter.complete(req.messages, system=req.system)
+    return {"result": result}
+
+
+@app.post("/proxy/bedrock/converse_with_tool")
+def proxy_bedrock_converse_with_tool(req: ProxyBedrockToolRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    adapter = _adapter_for_task(req.task)
+    result = adapter.converse_with_tool(
+        req.messages, req.tool_spec, system=req.system, tool_choice_name=req.tool_choice_name,
+    )
+    return {"result": result}
+
+
+@app.post("/proxy/transcribe")
+async def proxy_transcribe(
+    language_code: str = "en-IN",
+    audio: UploadFile = File(...),
+    _auth: None = Depends(require_dev_proxy_key),
+) -> dict[str, Any]:
+    from services.voice_agent.transcribe import transcribe_audio
+    import asyncio
+
+    data = await audio.read()
+    media_format = (Path(audio.filename or "audio.wav").suffix.lstrip(".") or "wav")
+    text = await asyncio.to_thread(transcribe_audio, data, media_format=media_format, language_code=language_code)
+    return {"result": text}
+
+
+@app.post("/proxy/tts")
+def proxy_tts(req: ProxyTtsRequest, _auth: None = Depends(require_dev_proxy_key)) -> dict[str, Any]:
+    from services.voice_agent.tts import synthesize_speech
+    from base64 import b64encode
+
+    audio, err = synthesize_speech(req.text, target_lang=req.language)
+    return {
+        "audio_base64": b64encode(audio).decode("ascii") if audio else None,
+        "error": err,
+    }
+
+
+# Validate env at startup
 validate_env()
 
 
 @app.on_event("startup")
 async def prewarm_connections() -> None:
+    """Fire-and-forget: warm the Bedrock TLS connection so the first
+    conversational turn doesn't pay the handshake (~100-200ms)."""
     import asyncio
 
     def _warm() -> None:
+        if os.getenv("LLM_PROXY_BASE_URL"):
+            _log.info("Bedrock pre-warm skipped (dev-proxy mode, no direct AWS connection to warm)")
+            return
         try:
             from services.llm_service.bedrock_adapter import BedrockTextAdapter
 
@@ -106,6 +221,28 @@ async def prewarm_connections() -> None:
             _log.info("Bedrock pre-warm skipped: %s", exc)
 
     await asyncio.get_event_loop().run_in_executor(None, _warm)
+
+
+@app.on_event("startup")
+async def purge_stale_session_files() -> None:
+    """Gap found in review: voice sessions and appointment/animal-
+    registration draft files are written per-session/per-draft and never
+    deleted -- unlike query_agent's in-memory cache (which has real LRU
+    eviction), these accumulate forever. No scheduler exists in this app,
+    so a best-effort sweep at boot is the simplest fix that doesn't need
+    new infra; a long-running deployment across many restarts still
+    bounds growth without needing a cron job."""
+    from storage import get_data_dir, purge_stale_files
+
+    data_dir = get_data_dir()
+    for subdir, max_age_days in (
+        ("voice_sessions", 7),
+        ("appointment_intakes", 30),
+        ("animal_registration_intakes", 30),
+    ):
+        removed = purge_stale_files(data_dir / subdir, max_age_days)
+        if removed:
+            _log.info("Purged %d stale file(s) from %s", removed, subdir)
 
 
 class LoginRequest(BaseModel):
@@ -333,6 +470,9 @@ def patch_animal(farmer_id: str, req: UpdateAnimalRequest) -> Animal:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# ── Natural Language Data Query ────────────────────────────────────
+
+
 @app.post("/farmers/{farmer_id}/query")
 def data_query(farmer_id: str, req: DataQueryRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     if not req.query.strip():
@@ -341,6 +481,7 @@ def data_query(farmer_id: str, req: DataQueryRequest, _auth: None = Depends(requ
         return process_query_adk(req.query, farmer_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/llm/extract-farm")
@@ -355,6 +496,9 @@ def extract_farm(req: ExtractFarmRequest) -> dict[str, Any]:
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Seasonal Advisory ──────────────────────────────────────────────
 
 
 @app.post("/weather/seasonal-advisory")
@@ -393,6 +537,7 @@ def general_alert(pin: str, force_refresh: bool = False) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
 
 
 @app.get("/farmers/{farmer_id}/consultations")
@@ -478,20 +623,26 @@ def create_preconsult_appointment(
 
 @app.post("/farmers/{farmer_id}/chat/turn")
 def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
+    """Single entry point for any farmer query -- weather, appointment
+    booking, health logging, farm data questions. The main orchestrator
+    agent classifies intent and dispatches to the right sub-agent; see
+    services/chat_orchestrator/adk_router.py for the dispatch logic."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
     try:
         t0 = time.time()
-        
-        # Directly execute process_query_adk to guarantee table result payload (columns + rows)
-        adk_res = process_query_adk(req.text, farmer_id)
-        adk_res["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
-        
-        return adk_res
+        result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)
+        result["timing"] = {"total_ms": round((time.time() - t0) * 1000)}
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
     except Exception as exc:
-        _log.exception("chat_turn failed farmer=%s session=%s error=%s", farmer_id, req.session_id, exc)
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught here -- route_turn_adk's Bedrock/ADK calls can raise
+        # RuntimeError, botocore exceptions, etc. that aren't ValueError,
+        # and those propagated as a raw, traceback-leaking 500 instead of
+        # a clean error response.
+        _log.exception("chat_turn failed farmer=%s session=%s", farmer_id, req.session_id)
         raise HTTPException(status_code=500, detail="Something went wrong processing that message. Please try again.")
 
 
@@ -504,6 +655,11 @@ async def chat_voice_turn(
     audio: UploadFile = File(...),
     _auth: None = Depends(require_api_key),
 ) -> dict[str, Any]:
+    """Audio-upload counterpart to /chat/turn -- record-and-POST a whole
+    utterance (same client pattern as /appointments/voice/turn), get back
+    the transcript plus the same {agent, intent, result} shape chat_turn
+    returns, dispatched through chat_orchestrator's ADK router rather than
+    being locked into the appointment-booking flow."""
     audio_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
     if audio_type not in {"audio/wav", "audio/x-wav", "audio/webm", "audio/mpeg", "audio/mp4", "audio/ogg"}:
         raise HTTPException(status_code=415, detail="Upload a supported audio file")
@@ -567,6 +723,15 @@ def appointment_voice_text(farmer_id: str, req: AppointmentVoiceTextRequest, _au
         return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        # Real bug, found in code review: this endpoint only caught
+        # ValueError, but turn() can trigger a Bedrock/ADK off-topic-probe
+        # call (process_query_adk) mid-booking that raises non-ValueError
+        # exceptions -- unlike every sibling voice endpoint in this file,
+        # which already catches this generically. Unhandled, it propagated
+        # as a raw 500 with a leaked traceback.
+        _log.exception("appointment_voice_text failed farmer=%s session=%s", farmer_id, req.session_id)
+        raise HTTPException(status_code=502, detail=f"Something went wrong processing that message: {exc}")
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/turn")
@@ -600,6 +765,12 @@ async def appointment_voice_turn(
         )
         t_transcribe = time.time()
         if not text.strip():
+            # Real gap, found in a robustness audit: unlike every text-entry
+            # endpoint (chat_turn, appointment_voice_text, etc.), whatever
+            # STT returned was never re-checked for emptiness before being
+            # fed into appointment_supervisor.turn() -- silence or
+            # unrecognized audio silently became an empty-string turn
+            # instead of a clear error.
             raise HTTPException(status_code=422, detail="Could not transcribe any speech from that audio")
         result = await asyncio.to_thread(
             appointment_supervisor.turn,
@@ -668,12 +839,24 @@ async def appointment_voice_image(
             {"attachment_id": attachment_id, "type": "image", "filename": image.filename or "image", "content_type": image.content_type, "storage_path": str(path), "uploaded_at": datetime.now().isoformat()},
         )
     except ValueError as exc:
+        # Bug found in a robustness audit: the file above is written before
+        # attach() can reject it (cancelled/submitted draft) -- a rejected
+        # call left the image orphaned on disk forever. Clean it up on the
+        # rejection path.
         path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/farmers/{farmer_id}/appointments/voice/{session_id}")
 def appointment_voice_draft(farmer_id: str, session_id: str, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
+    # Real bug, found in a robustness audit: this duplicated a second,
+    # farmer-unscoped, lossy session_id->filename scheme (stripped to alnum
+    # only -- "", "!!!", any emoji-only id all collapsed to the same "" path,
+    # shared across every farmer). Reuse appointment_supervisor's own
+    # farmer+session hashed path instead of a second hand-rolled copy, and
+    # verify the loaded draft actually belongs to this farmer_id as
+    # defense-in-depth even though the hashed path already makes
+    # cross-farmer collisions practically impossible.
     path = appointment_supervisor._path(farmer_id, session_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Appointment draft not found")
@@ -688,7 +871,11 @@ def appointment_voice_submit(farmer_id: str, req: AppointmentVoiceConfirmRequest
     if req.response.strip().lower() not in {"submit", "yes", "y", "confirm"}:
         raise HTTPException(status_code=400, detail="Final submission requires explicit confirmation")
     try:
-        return appointment_supervisor.submit(farmer_id, req.session_id)
+        # Real bug, found in code review: this call never forwarded
+        # req.include_audio (the sibling confirm() call above does),
+        # so submit() always defaulted to synthesizing audio internally
+        # regardless of what the client actually asked for.
+        return appointment_supervisor.submit(farmer_id, req.session_id, include_audio=req.include_audio)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -739,6 +926,7 @@ def voice_health_log(farmer_id: str, req: VoiceHealthLogRequest, _auth: None = D
 
     data = extract_health_log(text)
 
+    # resolve animal name -> id (best-effort fuzzy match)
     animals = animals_for_farmer(farmer_id)
     name = (data.get("animal") or "").strip().lower()
     resolved_id = None
@@ -788,12 +976,17 @@ def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
+        # Real bug, found in a robustness audit: only ValueError was
+        # caught -- a provider TypeError/KeyError (both now separately
+        # hardened at the source too) or network RuntimeError propagated
+        # as a raw 500 instead of a clean error response.
         _log.exception("weather_alert failed location=%s", req.location_or_pin)
         raise HTTPException(status_code=500, detail="Could not fetch weather for that location right now. Please try again.")
 
 
 @app.get("/weather/alerts")
 def emergency_alert_feed(pin: Optional[str] = None) -> dict[str, Any]:
+    """Return the async emergency-alert feed for the 10 demo PIN codes."""
     return fetch_alert_feed(pin=pin)
 
 

@@ -152,3 +152,31 @@ def test_farmer_weather_location_and_notifications(storage_mod, tmp_path: Path) 
     )
     assert note.farmer_id == "f-1"
     assert len(storage_mod.weather_notifications_for_farmer("f-1")) == 1
+
+
+def test_purge_stale_files_removes_only_old_ones(storage_mod, tmp_path: Path) -> None:
+    """Gap found in review: session/draft files (voice_sessions,
+    appointment_intakes, animal_registration_intakes) accumulated forever
+    with no cleanup. purge_stale_files is the fix, wired at API startup."""
+    import os
+    import time
+
+    target = tmp_path / "some_intakes"
+    target.mkdir()
+    old_file = target / "old.json"
+    fresh_file = target / "fresh.json"
+    old_file.write_text("{}", encoding="utf-8")
+    fresh_file.write_text("{}", encoding="utf-8")
+
+    old_time = time.time() - 40 * 86400
+    os.utime(old_file, (old_time, old_time))
+
+    removed = storage_mod.purge_stale_files(target, max_age_days=30)
+    assert removed == 1
+    assert not old_file.exists()
+    assert fresh_file.exists()
+
+
+def test_purge_stale_files_missing_directory_is_a_noop(storage_mod, tmp_path: Path) -> None:
+    removed = storage_mod.purge_stale_files(tmp_path / "does_not_exist", max_age_days=30)
+    assert removed == 0

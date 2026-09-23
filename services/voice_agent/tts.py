@@ -149,6 +149,22 @@ def synthesize_speech(text: str, target_lang: Optional[str] = None) -> Tuple[Opt
     if not enabled:
         return None, None
 
+    proxy = os.getenv("LLM_PROXY_BASE_URL")
+    if proxy:
+        import base64
+        import requests
+        key = os.getenv("DEV_PROXY_API_KEY")
+        resp = requests.post(
+            f"{proxy}/proxy/tts",
+            json={"text": text, "language": target_lang},
+            headers={"X-Dev-Proxy-Key": key} if key else {},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        audio_b64 = body.get("audio_base64")
+        return (base64.b64decode(audio_b64) if audio_b64 else None), body.get("error")
+
     lang = (target_lang or _infer_lang(text)).strip().lower()
 
     from services.llm_service.bedrock_adapter import get_tts_polly_languages, get_tts_fallback_provider
