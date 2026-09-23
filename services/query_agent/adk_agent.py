@@ -30,6 +30,115 @@ from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
 
+# Matches SUPPORTED_LANGUAGES elsewhere (appointment_supervisor,
+# animal_registration) -- kept to the same 5, not adding a 6th
+# (Malayalam) here alone, since that would give query_agent language
+# coverage the rest of the app (booking, registration) doesn't have.
+_NATIVE_DIGITS = {
+    "hi": "०१२३४५६७८९",
+    "ta": "௦௧௨௩௪௫௬௭௮௯",
+    "te": "౦౧౨౩౪౫౬౭౮౯",
+    "kn": "೦೧೨೩೪೫೬೭೮೯",
+}
+
+# Unicode script ranges, checked in order -- first match wins. A query with
+# no script-specific characters (Latin/English, or a bare number) falls
+# through to "en", where digit conversion is a no-op.
+_SCRIPT_RANGES = (
+    ("hi", (0x0900, 0x097F)),  # Devanagari
+    ("ta", (0x0B80, 0x0BFF)),
+    ("te", (0x0C00, 0x0C7F)),
+    ("kn", (0x0C80, 0x0CFF)),
+)
+
+
+def detect_language(text: str) -> str:
+    """Script-based detection for the one thing the model can't be trusted
+    to do consistently on its own: converting digits to native numerals
+    within an otherwise-correct-language reply (verified live -- the model
+    replies in Hindi/Tamil/etc fine, but leaves numbers as plain Western
+    digits inconsistently). Deterministic post-processing, not a second
+    LLM call -- same "LLM for judgment, code for correctness" split this
+    codebase already uses for dates, PINs, and breed validation."""
+    for lang, (lo, hi) in _SCRIPT_RANGES:
+        if any(lo <= ord(ch) <= hi for ch in text):
+            return lang
+    return "en"
+
+
+def _to_native_digits(text: str, lang: str) -> str:
+    digits = _NATIVE_DIGITS.get(lang)
+    if not digits or not isinstance(text, str):
+        return text
+    return text.translate(str.maketrans("0123456789", digits))
+
+
+def _localize_numbers(value: Any, lang: str) -> Any:
+    """Recurse through a query result (string / int / float / dict / list)
+    converting every digit to the target language's native numerals. A
+    no-op for English. Applied to the model's text/speech answer AND the
+    raw SQL result rows, so a table of numbers is localized the same way
+    the spoken summary is."""
+    if lang == "en":
+        return value
+    if isinstance(value, str):
+        return _to_native_digits(value, lang)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return _to_native_digits(str(value), lang)
+    if isinstance(value, dict):
+        return {k: _localize_numbers(v, lang) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_localize_numbers(v, lang) for v in value]
+    return value
+
+
+# Static translation catalog for the fixed, known column names a SELECT
+# against animals/health_logs/appointments actually returns -- reuses the
+# same labels already established in animal_registration/appointment_
+# supervisor's own _LABELS catalogs for the overlapping fields, so a
+# farmer sees the identical word for "breed" everywhere in the app.
+# Deliberately NOT an LLM call: an aggregate/alias column (COUNT(*), AS
+# total, ...) isn't in this dict and is left as-is in English rather than
+# guessed at -- same "don't invent, leave it out" principle used
+# throughout this codebase. Covers the common case (a farmer asking for
+# raw fields); an aliased query is the one case this doesn't localize.
+_COLUMN_LABELS = {
+    "hi": {
+        "species": "प्रजाति", "breed": "नस्ल", "sex": "लिंग", "tag_or_name": "टैग/नाम",
+        "status": "स्थिति", "birth_date": "जन्म तिथि", "current_location": "स्थान",
+        "age_years": "उम्र (वर्ष)", "issue": "समस्या", "notes": "नोट्स",
+        "date": "तारीख", "time": "समय",
+    },
+    "ta": {
+        "species": "இனம்", "breed": "இனவகை", "sex": "பாலினம்", "tag_or_name": "டேக்/பெயர்",
+        "status": "நிலை", "birth_date": "பிறந்த தேதி", "current_location": "இடம்",
+        "age_years": "வயது (ஆண்டுகள்)", "issue": "பிரச்சினை", "notes": "குறிப்புகள்",
+        "date": "தேதி", "time": "நேரம்",
+    },
+    "te": {
+        "species": "జాతి", "breed": "బ్రీడ్", "sex": "లింగం", "tag_or_name": "ట్యాగ్/పేరు",
+        "status": "స్థితి", "birth_date": "పుట్టిన తేదీ", "current_location": "స్థానం",
+        "age_years": "వయస్సు (సంవత్సరాలు)", "issue": "సమస్య", "notes": "గమనికలు",
+        "date": "తేదీ", "time": "సమయం",
+    },
+    "kn": {
+        "species": "ಪ್ರಭೇದ", "breed": "ತಳಿ", "sex": "ಲಿಂಗ", "tag_or_name": "ಟ್ಯಾಗ್/ಹೆಸರು",
+        "status": "ಸ್ಥಿತಿ", "birth_date": "ಜನನ ದಿನಾಂಕ", "current_location": "ಸ್ಥಳ",
+        "age_years": "ವಯಸ್ಸು (ವರ್ಷಗಳು)", "issue": "ಸಮಸ್ಯೆ", "notes": "ಟಿಪ್ಪಣಿಗಳು",
+        "date": "ದಿನಾಂಕ", "time": "ಸಮಯ",
+    },
+}
+
+
+def _localize_columns(columns: "list[str] | None", lang: str) -> "list[str] | None":
+    if not columns or lang not in _COLUMN_LABELS:
+        return columns
+    labels = _COLUMN_LABELS[lang]
+    return [labels.get(c, c) for c in columns]
+
+
 _INSTRUCTION_TEMPLATE = """You are a livestock data analyst answering one farmer's questions about \
 their own farm records.
 
@@ -41,6 +150,7 @@ Rules:
 - The query MUST be a single SQLite SELECT statement.
 - Use COUNT(*) when counting; GROUP BY when the farmer wants a breakdown by category; ORDER BY for listing/sorting.
 - Use LOWER() for case-insensitive text filtering.
+- The database stores species/breed/status and other enum-like values in English only (e.g. 'goat', 'sheep', 'active'). Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
 - If asking for a single total/count, give just the number in your answer.
 - If asking for a breakdown by category, show EACH group with its count -- never summarize or say "ranging from"/"most are" when specific data was requested.
@@ -157,6 +267,14 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
 
     text_answer, speech_text = _split_text_and_speech(answer_text)
 
+    # Deterministic post-processing: the model replies in the right
+    # language but is inconsistent about native-digit numerals within it
+    # (verified live) -- fix that in code rather than trusting the model,
+    # same split used throughout this codebase. English is a no-op.
+    lang = detect_language(query)
+    text_answer = _localize_numbers(text_answer, lang)
+    speech_text = _localize_numbers(speech_text, lang)
+
     if last_successful_result is None:
         return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
 
@@ -164,8 +282,8 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
         "answer": text_answer,
         "sql": last_successful_result.get("sql"),
         "data": {
-            "columns": last_successful_result.get("columns"),
-            "rows": last_successful_result.get("rows"),
+            "columns": _localize_columns(last_successful_result.get("columns"), lang),
+            "rows": _localize_numbers(last_successful_result.get("rows"), lang),
             "row_count": last_successful_result.get("row_count"),
             "truncated": last_successful_result.get("truncated", False),
         },
