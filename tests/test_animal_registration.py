@@ -251,3 +251,28 @@ def test_concurrent_turns_do_not_lose_transcript_entries(tmp_path, monkeypatch):
 
     draft = sup._load("s7", "f-001", "en-IN")
     assert len(draft["transcript_history"]) == 5, "every concurrent turn's transcript entry must survive"
+
+
+def test_extract_tells_model_when_confirming(tmp_path, monkeypatch):
+    """The confirmation_signal guidance only works if the model is told a
+    confirm question was asked. Checks the CONFIRMING phase hint actually
+    reaches the model's context, without any live Bedrock call."""
+    captured = {}
+
+    class FakeAdapter:
+        def __init__(self, task=None):
+            pass
+
+        def converse_with_tool(self, messages, tool_spec, system=None, tool_choice_name=None):
+            captured["context"] = messages[0]["content"]
+            return {"tool_input": {}}
+
+    monkeypatch.setattr("services.animal_registration.service.BedrockTextAdapter", FakeAdapter)
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s12", "f-001", "en-IN")
+    draft["state"] = "CONFIRMING"
+    draft["draft"] = {"unique_animal_id": "C-1", "species": "goat", "breed": "Jamunapari", "sex": "male"}
+
+    sup._extract(draft, "there's no problem, go ahead")
+    assert "PHASE: confirming" in captured["context"]
