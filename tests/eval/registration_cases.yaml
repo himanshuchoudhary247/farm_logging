@@ -1,0 +1,78 @@
+# animal_registration extraction eval set.
+# Used by scripts/eval_registration.py to check what the REAL model puts into
+# the record_animal_registration tool call (AnimalRegistrationSupervisor._extract).
+# The unit tests in tests/test_animal_registration.py mock _extract, so they
+# cannot catch prompt/extraction regressions; this set exists for that.
+#
+# Each case:
+#   id:            unique id
+#   lang:          farmer's language (en-IN, hi-IN, ta-IN, te-IN, kn-IN, ml-IN)
+#   note:          why this case exists (which gap or live bug it guards)
+#   state:         registration state when the farmer spoke
+#                  (COLLECTING | COLLECTING_OPTIONAL | CONFIRMING | CORRECTING)
+#   captured:      fields already captured in the draft before this turn
+#   text:          what the farmer said
+#   expect:        fields that must come out, with these values
+#                  (confirmation_signal: none also passes when the field is omitted)
+#   expect_absent: fields that must NOT come out (the model must not invent them)
+#
+# Pending field: in COLLECTING, the model is told the first missing required
+# field (order: unique_animal_id, species, breed, sex) is the one just asked.
+#
+# A few texts deliberately match the few-shot examples in _REGISTRATION_SYSTEM
+# (regression checks for the exact live bugs). Most are held-out variants, so a
+# pass means the model generalised rather than copied an example.
+#
+# Keep expectations conservative: only assert what a human annotator agrees is
+# unambiguous in the utterance.
+
+# =============================================================================
+# Gap B: native-language species words (state COLLECTING, species pending)
+# =============================================================================
+- {id: reg-b-hi-goat, lang: hi-IN, note: "Gap B - Hindi goat", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "एक बकरी", expect: {species: goat}}
+- {id: reg-b-hi-sheep, lang: hi-IN, note: "Gap B - Hindi sheep", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "भेड़ है", expect: {species: sheep}}
+- {id: reg-b-ta-goat, lang: ta-IN, note: "Gap B - Tamil goat (known weak spot per model-evaluation doc)", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ஆடு", expect: {species: goat}}
+- {id: reg-b-ta-sheep, lang: ta-IN, note: "Gap B - Tamil sheep word ends with the goat word", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ஒரு செம்மறியாடு", expect: {species: sheep}}
+- {id: reg-b-te-goat, lang: te-IN, note: "Gap B - Telugu goat", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "మేక", expect: {species: goat}}
+- {id: reg-b-te-sheep, lang: te-IN, note: "Gap B - Telugu sheep", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "గొర్రె", expect: {species: sheep}}
+- {id: reg-b-kn-goat, lang: kn-IN, note: "Gap B - Kannada goat (known weak spot per model-evaluation doc)", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ಆಡು", expect: {species: goat}}
+- {id: reg-b-kn-sheep, lang: kn-IN, note: "Gap B - Kannada sheep", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ಕುರಿ", expect: {species: sheep}}
+- {id: reg-b-ml-goat, lang: ml-IN, note: "Gap B - Malayalam goat (weakest language per model-evaluation doc)", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ആട്", expect: {species: goat}}
+- {id: reg-b-ml-sheep, lang: ml-IN, note: "Gap B - Malayalam sheep word ends with the goat word", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ഒരു ചെമ്മരിയാട്", expect: {species: sheep}}
+- {id: reg-b-no-animal, lang: en-IN, note: "No-guess rule - no animal word, species must stay empty", state: COLLECTING, captured: {}, text: "I want to add an animal", expect: {}, expect_absent: [species, unique_animal_id, breed, sex]}
+
+# =============================================================================
+# Gap A: confirmation by meaning, not keyword (state CONFIRMING)
+# =============================================================================
+- {id: reg-a-en-noproblem, lang: en-IN, note: "Gap A - contains 'no' but means yes (prompt example)", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "there's no problem, go ahead", expect: {confirmation_signal: "yes"}}
+- {id: reg-a-en-noproblem-2, lang: en-IN, note: "Gap A - held-out variant", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "no problem at all, save it", expect: {confirmation_signal: "yes"}}
+- {id: reg-a-en-enough, lang: en-IN, note: "Gap A - 'enough' contains no-like letters, still not a rejection", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "enough already, just save it", expect: {confirmation_signal: "yes"}}
+- {id: reg-a-en-wrong, lang: en-IN, note: "Gap A - rejection with no literal 'no'", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "that's wrong, change it", expect: {confirmation_signal: "no"}}
+- {id: reg-a-hi-yes, lang: hi-IN, note: "Gap A - Hindi yes", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "हाँ, सेव कर दो", expect: {confirmation_signal: "yes"}}
+- {id: reg-a-hi-no, lang: hi-IN, note: "Gap A - Hindi rejection", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "नहीं, नस्ल गलत है", expect: {confirmation_signal: "no"}}
+- {id: reg-a-ta-yes, lang: ta-IN, note: "Gap A - Tamil yes", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "சரி, சேமிக்கவும்", expect: {confirmation_signal: "yes"}}
+- {id: reg-a-question, lang: en-IN, note: "Gap A - unrelated question is not a rejection", state: CONFIRMING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "what will the weather be tomorrow?", expect: {confirmation_signal: none}}
+
+# =============================================================================
+# Past live bugs (breed loop, ID clobber, bare number) and cancel
+# =============================================================================
+- {id: reg-bug-bare-number, lang: en-IN, note: "Live bug - bare number answering the ID question is the ID, never weight", state: COLLECTING, captured: {}, text: "47", expect: {unique_animal_id: "47"}, expect_absent: [initial_weight_kg]}
+- {id: reg-bug-multi-field, lang: en-IN, note: "Several fields in one turn must all be extracted", state: COLLECTING, captured: {}, text: "tag 305, female sheep", expect: {unique_animal_id: "305", species: sheep, sex: female}}
+- {id: reg-bug-breed-unknown-hi, lang: hi-IN, note: "Breed loop - Hindi don't-know must set field_unknown, not invent a breed", state: COLLECTING, captured: {unique_animal_id: B-1, species: goat}, text: "मुझे नहीं पता", expect: {field_unknown: true}, expect_absent: [breed]}
+- {id: reg-bug-breed-unknown-en, lang: en-IN, note: "Breed loop - English don't-know", state: COLLECTING, captured: {unique_animal_id: B-1, species: goat}, text: "no idea about the breed", expect: {field_unknown: true}, expect_absent: [breed]}
+- {id: reg-bug-stray-word, lang: en-IN, note: "ID clobber - stray word in optional phase is not a new ID (prompt example)", state: COLLECTING_OPTIONAL, captured: {unique_animal_id: GOOD-1, species: goat, breed: Jamunapari, sex: male}, text: "Bort", expect: {}, expect_absent: [unique_animal_id]}
+- {id: reg-bug-correct-id, lang: en-IN, note: "Explicit ID correction must set corrects_identity", state: COLLECTING_OPTIONAL, captured: {unique_animal_id: GOOD-1, species: goat, breed: Jamunapari, sex: male}, text: "wait, the ID should be 2208", expect: {unique_animal_id: "2208", corrects_identity: true}}
+- {id: reg-opt-weight, lang: en-IN, note: "Optional field with unit", state: COLLECTING_OPTIONAL, captured: {unique_animal_id: GOOD-1, species: goat, breed: Jamunapari, sex: male}, text: "she weighs 30 kg", expect: {initial_weight_kg: "30"}, expect_absent: [unique_animal_id]}
+- {id: reg-opt-skip-en, lang: en-IN, note: "Declining optional details", state: COLLECTING_OPTIONAL, captured: {unique_animal_id: GOOD-1, species: goat, breed: Jamunapari, sex: male}, text: "nothing more, that's it", expect: {wants_to_skip_optional: true}}
+- {id: reg-opt-skip-hi, lang: hi-IN, note: "Declining optional details in Hindi", state: COLLECTING_OPTIONAL, captured: {unique_animal_id: GOOD-1, species: goat, breed: Jamunapari, sex: male}, text: "बस इतना ही", expect: {wants_to_skip_optional: true}}
+- {id: reg-cancel-hinglish, lang: hi-IN, note: "Cancel mid-registration", state: COLLECTING, captured: {unique_animal_id: X-1}, text: "chhodo, registration cancel kar do", expect: {confirmation_signal: cancel}}
+
+# =============================================================================
+# CORRECTING state: farmer said "no" at confirm and was asked what to correct.
+# _extract gives no phase hint here, so these check the model still extracts
+# the correction (and sets corrects_identity for the ID, which _copy_entities
+# requires outside COLLECTING, otherwise the new ID is silently ignored).
+# =============================================================================
+- {id: reg-corr-breed, lang: en-IN, note: "CORRECTING - breed correction", state: CORRECTING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "the breed should be Beetal", expect: {breed: Beetal}, expect_absent: [unique_animal_id]}
+- {id: reg-corr-sex-hi, lang: hi-IN, note: "CORRECTING - Hindi sex correction", state: CORRECTING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "नर नहीं, मादा है", expect: {sex: female}}
+- {id: reg-corr-id, lang: en-IN, note: "CORRECTING - ID correction must set corrects_identity or it is dropped", state: CORRECTING, captured: {unique_animal_id: C-1, species: goat, breed: Jamunapari, sex: male}, text: "the ID is wrong, it is 3301", expect: {unique_animal_id: "3301", corrects_identity: true}}

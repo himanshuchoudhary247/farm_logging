@@ -1,0 +1,75 @@
+# appointment extraction eval set (Extraction review - Root cause, part 2).
+# Used by scripts/eval_appointment_extraction.py to check the REAL model's
+# call_bedrock output for the past appointment_supervisor bugs that until now
+# only lived in code comments.
+#
+# Why a separate set: these bugs only happen when the bot has just asked a
+# specific question. appointment_supervisor passes that question to
+# call_bedrock as pending_questions (via process_text_input's
+# pending_questions_override). eval_extraction.py calls call_bedrock with no
+# context, and eval_conversations.py never sets the override, so neither can
+# reproduce these.
+#
+# Each case:
+#   id, lang, note:  same meaning as registration_cases.yaml
+#   pending:         what the bot just asked, exactly as appointment_supervisor sends it
+#                    confirm         -> "confirm these details are correct (yes/no), or cancel"
+#                    submit          -> "submit the appointment now (yes/submit), or cancel"
+#                    field:<name>    -> APPOINTMENT_FIELD_LABELS[<name>] from orchestrator.py
+#   entities:        entities already known in the session (optional)
+#   text:            what the farmer said
+#   expect:          must come out with these values (confirmation_signal is top-level,
+#                    everything else is an entity). date accepts today/tomorrow or the ISO date.
+#   expect_absent:   must NOT come out
+#   expect_one_of:   at least one of these must come out (any value)
+#
+# Languages: en, hi, ta, te, kn, ml. Keep expectations conservative.
+
+# =============================================================================
+# Bug 1: "1122 is id only arnt you smart enough"
+# An ID-only reply (with frustration) must be read as the ID, not as a
+# confirmation, and never as an issue/symptom.
+# =============================================================================
+- {id: apt-1122-confirm-en, lang: en-IN, note: "Bug 1 - prompt example 8 (regression): at confirm step this is a correction carrying the tag", pending: confirm, entities: {animal_tag: "1212", issue: fever}, text: "1122 is id only arnt you smart enough", expect: {confirmation_signal: "no", animal_tag: "1122"}}
+- {id: apt-1122-field-en, lang: en-IN, note: "Bug 1 - ID asked, frustrated reply is just the ID", pending: "field:animal_identifier", text: "1122 is id only arnt you smart enough", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+- {id: apt-1122-field-hi, lang: hi-IN, note: "Bug 1 - Hindi", pending: "field:animal_identifier", text: "1122 ही आईडी है, इतना भी समझ नहीं आता?", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+- {id: apt-1122-field-ta, lang: ta-IN, note: "Bug 1 - Tamil", pending: "field:animal_identifier", text: "1122 தான் ஐடி", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+- {id: apt-1122-field-te, lang: te-IN, note: "Bug 1 - Telugu", pending: "field:animal_identifier", text: "1122 అదే ఐడి", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+- {id: apt-1122-field-kn, lang: kn-IN, note: "Bug 1 - Kannada", pending: "field:animal_identifier", text: "1122 ಅದೇ ಐಡಿ", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+- {id: apt-1122-field-ml, lang: ml-IN, note: "Bug 1 - Malayalam", pending: "field:animal_identifier", text: "1122 ആണ് ഐഡി", expect: {animal_tag: "1122"}, expect_absent: [confirmation_signal, issue, symptoms]}
+
+# =============================================================================
+# Bug 2: "FAKEANIMAL999"
+# A made-up value must not be labelled animal_id (the internal record id,
+# which code used to trust without checking). It should come out as a tag or
+# name, so appointment_supervisor verifies it against real animals.
+# =============================================================================
+- {id: apt-fake-en, lang: en-IN, note: "Bug 2 - made-up identifier is not an internal animal_id", pending: "field:animal_identifier", text: "FAKEANIMAL999", expect_absent: [animal_id], expect_one_of: [animal_tag, animal_name]}
+- {id: apt-fake-hi, lang: hi-IN, note: "Bug 2 - Hindi", pending: "field:animal_identifier", text: "मेरा जानवर FAKEANIMAL999 है", expect_absent: [animal_id], expect_one_of: [animal_tag, animal_name]}
+- {id: apt-fake-ml, lang: ml-IN, note: "Bug 2 - Malayalam", pending: "field:animal_identifier", text: "എന്റെ മൃഗം FAKEANIMAL999", expect_absent: [animal_id], expect_one_of: [animal_tag, animal_name]}
+- {id: apt-real-internal-id, lang: en-IN, note: "Control - a real internal-id format should still be animal_id", pending: "field:animal_identifier", text: "a-f-001-2", expect: {animal_id: "a-f-001-2"}}
+
+# =============================================================================
+# Bug 3: bare number turned into an invented date/time
+# A bare number alone is not a complete date or time. Must be left empty
+# (the bot re-asks), and must not become a fresh animal_tag either.
+# =============================================================================
+- {id: apt-num-date-en, lang: en-IN, note: "Bug 3 - bare number for date", pending: "field:date", entities: {animal_tag: "1122", issue: fever}, text: "11", expect_absent: [date, animal_tag]}
+- {id: apt-num-date-55, lang: en-IN, note: "Bug 3 - impossible day number for date", pending: "field:date", entities: {animal_tag: "1122", issue: fever}, text: "55", expect_absent: [date, animal_tag]}
+- {id: apt-num-time-66, lang: en-IN, note: "Bug 3 - '66' must never become a fabricated 06:00", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "66", expect_absent: [time, animal_tag]}
+- {id: apt-num-time-5, lang: en-IN, note: "Bug 3 - bare '5' is not a complete time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "5", expect_absent: [time, animal_tag]}
+- {id: apt-num-date-hi, lang: hi-IN, note: "Bug 3 - Hindi bare number word for date", pending: "field:date", entities: {animal_tag: "1122", issue: fever}, text: "ग्यारह", expect_absent: [date, animal_tag]}
+- {id: apt-num-time-hi, lang: hi-IN, note: "Bug 3 - Hindi bare 'five' for time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "पाँच", expect_absent: [time, animal_tag]}
+- {id: apt-num-time-ta, lang: ta-IN, note: "Bug 3 - Tamil bare 'five' for time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "ஐந்து", expect_absent: [time, animal_tag]}
+- {id: apt-num-time-te, lang: te-IN, note: "Bug 3 - Telugu bare 'five' for time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "ఐదు", expect_absent: [time, animal_tag]}
+- {id: apt-num-time-kn, lang: kn-IN, note: "Bug 3 - Kannada bare 'five' for time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "ಐದು", expect_absent: [time, animal_tag]}
+- {id: apt-num-time-ml, lang: ml-IN, note: "Bug 3 - Malayalam bare 'five' for time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "അഞ്ച്", expect_absent: [time, animal_tag]}
+
+# =============================================================================
+# Controls: a complete date/time must still be extracted, so a model that
+# simply leaves everything empty cannot pass the set.
+# =============================================================================
+- {id: apt-ok-time-en, lang: en-IN, note: "Control - prompt example 5 (regression)", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "10 am", expect: {time: "10:00"}}
+- {id: apt-ok-time-hi, lang: hi-IN, note: "Control - Hindi complete time", pending: "field:time", entities: {animal_tag: "1122", issue: fever, date: tomorrow}, text: "शाम पाँच बजे", expect: {time: "17:00"}}
+- {id: apt-ok-date-kn, lang: kn-IN, note: "Control - Kannada 'tomorrow'", pending: "field:date", entities: {animal_tag: "1122", issue: fever}, text: "ನಾಳೆ", expect: {date: tomorrow}}
+- {id: apt-ok-date-ml, lang: ml-IN, note: "Control - Malayalam 'tomorrow'", pending: "field:date", entities: {animal_tag: "1122", issue: fever}, text: "നാളെ", expect: {date: tomorrow}}
