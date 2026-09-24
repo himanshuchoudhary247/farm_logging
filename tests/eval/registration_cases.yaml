@@ -6,7 +6,7 @@
 #
 # Each case:
 #   id:            unique id
-#   lang:          farmer's language (en-IN, hi-IN, ta-IN, te-IN, kn-IN)
+#   lang:          farmer's language (en-IN, hi-IN, ta-IN, te-IN, kn-IN, ml-IN)
 #   note:          why this case exists (which gap or live bug it guards)
 #   state:         registration state when the farmer spoke
 #                  (COLLECTING | COLLECTING_OPTIONAL | CONFIRMING | CORRECTING)
@@ -37,6 +37,8 @@
 - {id: reg-b-te-sheep, lang: te-IN, note: "Gap B - Telugu sheep", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "గొర్రె", expect: {species: sheep}}
 - {id: reg-b-kn-goat, lang: kn-IN, note: "Gap B - Kannada goat (known weak spot per model-evaluation doc)", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ಆಡು", expect: {species: goat}}
 - {id: reg-b-kn-sheep, lang: kn-IN, note: "Gap B - Kannada sheep", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ಕುರಿ", expect: {species: sheep}}
+- {id: reg-b-ml-goat, lang: ml-IN, note: "Gap B - Malayalam goat (weakest language per model-evaluation doc)", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ആട്", expect: {species: goat}}
+- {id: reg-b-ml-sheep, lang: ml-IN, note: "Gap B - Malayalam sheep word ends with the goat word", state: COLLECTING, captured: {unique_animal_id: G-1}, text: "ഒരു ചെമ്മരിയാട്", expect: {species: sheep}}
 - {id: reg-b-no-animal, lang: en-IN, note: "No-guess rule - no animal word, species must stay empty", state: COLLECTING, captured: {}, text: "I want to add an animal", expect: {}, expect_absent: [species, unique_animal_id, breed, sex]}
 
 # =============================================================================
