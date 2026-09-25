@@ -17,6 +17,7 @@ pytest.importorskip("google.adk")
 
 from services.query_agent import db as query_db
 from services.query_agent.adk_agent import (
+    _answer_is_native_script,
     _localize_columns,
     _localize_numbers,
     _make_run_sql_query_tool,
@@ -75,3 +76,19 @@ def test_localize_columns_translates_known_fields_leaves_unknown_alone():
     assert result == ["ಪ್ರಭೇದ", "ತಳಿ", "COUNT(*)"], "an aggregate/alias column isn't in the catalog, left as-is rather than guessed"
     assert _localize_columns(["species"], "en") == ["species"], "English must be a no-op"
     assert _localize_columns(None, "hi") is None
+
+
+def test_answer_is_native_script_gates_localization():
+    """Real bug (code review): a Hindi query with an English fallback
+    answer got its digits translated, producing 'You have १२ animals' --
+    mixed-script gibberish. The gate must return False for that case so
+    localization is skipped entirely."""
+    assert _answer_is_native_script("आपके पास १२ जानवर हैं", "hi") is True
+    assert _answer_is_native_script("You have 12 animals", "hi") is False, (
+        "answer with zero Devanagari must not be treated as Hindi"
+    )
+    assert _answer_is_native_script("You have 12 animals", "en") is False, (
+        "English is a no-op regardless of content"
+    )
+    assert _answer_is_native_script("", "hi") is False
+    assert _answer_is_native_script("hello", "ta") is False

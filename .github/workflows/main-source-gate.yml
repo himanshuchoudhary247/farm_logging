@@ -13,10 +13,23 @@ jobs:
   require-dev-source:
     runs-on: ubuntu-latest
     steps:
-      - name: Require PR source branch to be dev
+      - name: Require PR source branch to be dev in this repository
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
         run: |
-          if [ "${{ github.head_ref }}" != "dev" ]; then
-            echo "::error::Pull requests into main are only allowed from 'dev' (this PR is from '${{ github.head_ref }}'). Merge into dev first, then open dev -> main."
+          # Real hole found in review: the previous check compared only the
+          # branch name, so a fork whose branch was literally named 'dev'
+          # would pass the gate even though it isn't this repo's integration
+          # branch. Require BOTH the branch name AND that the PR's head repo
+          # is the same as the base repo (i.e. same-repo, not a fork).
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "::error::PRs into main must come from a branch in this repository (this PR is from fork '$HEAD_REPO'). Open the PR from '$BASE_REPO':dev."
             exit 1
           fi
-          echo "Source branch is dev -- OK"
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::Pull requests into main are only allowed from 'dev' (this PR is from '$HEAD_REF'). Merge into dev first, then open dev -> main."
+            exit 1
+          fi
+          echo "Source branch is dev in $BASE_REPO -- OK"

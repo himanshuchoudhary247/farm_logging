@@ -126,6 +126,22 @@ def test_message_falls_back_to_english_for_unknown_language(tmp_path):
     )
 
 
+def test_message_missing_english_and_missing_language_raises_named_key(tmp_path):
+    """Real risk (code review): the previous fallback `MESSAGES["en"]`
+    would KeyError inside the request-handler path with a confusing
+    'en'-not-found message if a subclass shipped only non-English
+    catalogs. Now the missing-catalog case degrades to an empty catalog,
+    so the final failure points at the specific missing key -- clearer
+    diagnostic without hiding the real problem."""
+    class HindiOnly(_MinimalSupervisor):
+        MESSAGES = {"hi": {"hello": "नमस्ते {name}"}}
+
+    sup = HindiOnly(data_dir=tmp_path)
+    assert sup._message("hi-IN", "hello", name="Asha") == "नमस्ते Asha"
+    with pytest.raises(KeyError, match="hello"):
+        sup._message("fr-FR", "hello", name="Asha")
+
+
 def test_session_lock_is_reentrant(tmp_path):
     """turn() may call self.confirm()/self.submit() on the same thread while
     already holding the session lock; a plain Lock would deadlock on that
