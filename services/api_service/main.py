@@ -205,6 +205,10 @@ async def prewarm_connections() -> None:
         if os.getenv("LLM_PROXY_BASE_URL"):
             _log.info("Bedrock pre-warm skipped (dev-proxy mode, no direct AWS connection to warm)")
             return
+        from services.llm_service import freellmapi_adapter as _freellm
+        if _freellm.is_active():
+            _log.info("Bedrock pre-warm skipped: LLM_PROVIDER=freellmapi active")
+            return
         try:
             from services.llm_service.bedrock_adapter import BedrockTextAdapter
 

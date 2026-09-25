@@ -158,7 +158,20 @@ class BedrockTextAdapter:
     """
 
     def __init__(self, task: Optional[TaskTier] = None):
-        self.client, default_model = _get_client()
+        # Skip the eager boto3 client construction when the fallback bridge
+        # is on -- no reason to require AWS creds just to route to a local
+        # OpenAI-compatible endpoint. The default_model still comes from
+        # config/env so the log lines and task tiering keep working.
+        from services.llm_service import freellmapi_adapter as _freellm
+        if _freellm.is_active():
+            self.client = None
+            default_model = (
+                os.getenv("BEDROCK_MODEL_ID")
+                or (_load_llm_config().get("models") or {}).get("extraction", {}).get("id")
+                or "mistral.mistral-large-3-675b-instruct"
+            )
+        else:
+            self.client, default_model = _get_client()
         if task is not None:
             spec = model_for_task(task)
             self.model_id = spec["id"]
@@ -172,6 +185,15 @@ class BedrockTextAdapter:
             self.task = "legacy"
 
     def complete(self, messages, system=None):
+        # Optional escape hatch (personal dev only): route to a local
+        # OpenAI-compatible endpoint (e.g. freellmapi) instead of Bedrock,
+        # via env LLM_PROVIDER=freellmapi. Every other code path stays
+        # untouched. See services/llm_service/freellmapi_adapter.py.
+        from services.llm_service import freellmapi_adapter as _freellm
+        if _freellm.is_active():
+            return _freellm.complete(
+                self.task, messages, system, self.max_tokens, self.temperature,
+            )
         proxy = _proxy_base_url()
         if proxy:
             resp = requests.post(
@@ -219,6 +241,12 @@ class BedrockTextAdapter:
         tool_choice_name forces the named tool via toolChoice.tool; omit to
         allow the model to choose any provided tool via toolChoice.any.
         """
+        from services.llm_service import freellmapi_adapter as _freellm
+        if _freellm.is_active():
+            return _freellm.converse_with_tool(
+                self.task, messages, tool_spec, system, tool_choice_name,
+                self.max_tokens, self.temperature,
+            )
         proxy = _proxy_base_url()
         if proxy:
             resp = requests.post(
