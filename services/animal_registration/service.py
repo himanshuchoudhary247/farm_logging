@@ -34,28 +34,30 @@ once, at the final confirm-before-submit step.
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import threading
 from base64 import b64encode
 from pathlib import Path
 from typing import Any, Optional
 
-from filelock import FileLock
-
+from services.common.draft_supervisor import (
+    DraftSupervisor,
+    SUPPORTED_LANGUAGES,
+    _UNSET,
+    _lang,
+)
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
-from storage import animals_for_farmer, append_animal, atomic_write_json, get_data_dir
+from storage import animals_for_farmer, append_animal
 
 _log = logging.getLogger("animal_registration")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
-SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
-_UNSET = object()
+# SUPPORTED_LANGUAGES / _UNSET / _lang re-exported from services.common.draft_supervisor
+# so existing external imports (`from services.animal_registration.service
+# import SUPPORTED_LANGUAGES`, etc.) keep working unchanged.
 
 # Required, in collection order. status defaults to "active" and is
 # deliberately never asked for a brand-new animal unless the farmer states
@@ -319,10 +321,6 @@ _TEXT = {
 }
 
 
-def _lang(language: str) -> str:
-    return (language or "en-IN").split("-")[0].lower()
-
-
 def _match_breed(breed_text: str, species: str) -> Optional[str]:
     """Deterministic validation, not an LLM call -- the model already
     extracted the farmer's free-text breed guess (_ANIMAL_REGISTRATION_TOOL_SPEC's
@@ -340,24 +338,9 @@ def _match_breed(breed_text: str, species: str) -> Optional[str]:
     return None
 
 
-class AnimalRegistrationSupervisor:
-    def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or get_data_dir()
-        self.intake_dir = self.data_dir / "animal_registration_intakes"
-        # Same concurrency-safety design as appointment_supervisor's own
-        # RLock fix this session (a real lost-update race found in code
-        # review) -- applied here from day one, not as a follow-up fix.
-        self._session_locks: dict[str, threading.RLock] = {}
-        self._session_locks_guard = threading.Lock()
-
-    def _session_lock(self, farmer_id: str, session_id: str) -> threading.RLock:
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        with self._session_locks_guard:
-            return self._session_locks.setdefault(digest, threading.RLock())
-
-    def _path(self, farmer_id: str, session_id: str) -> Path:
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        return self.intake_dir / f"{digest}.json"
+class AnimalRegistrationSupervisor(DraftSupervisor):
+    INTAKE_SUBDIR = "animal_registration_intakes"
+    MESSAGES = _TEXT
 
     def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
@@ -369,22 +352,6 @@ class AnimalRegistrationSupervisor:
             "transcript_history": [],
             "submitted": False,
         }
-
-    def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
-        path = self._path(farmer_id, session_id)
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return self._fresh(session_id, farmer_id, language)
-
-    def _save(self, draft: dict[str, Any]) -> None:
-        path = self._path(draft["farmer_id"], draft["session_id"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(str(path) + ".lock"):
-            atomic_write_json(path, draft)
-
-    def _message(self, language: str, key: str, **values: str) -> str:
-        catalog = _TEXT.get(_lang(language), _TEXT["en"])
-        return catalog[key].format(**values)
 
     def _missing_required(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
