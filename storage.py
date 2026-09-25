@@ -39,11 +39,74 @@ def _path(name: str) -> Path:
     return get_data_dir() / name
 
 
+# Schema migrations for the JSON data files (Architecture review, Point 3).
+#
+# Without this, adding a field to a record type (e.g. weight on animals) or
+# changing what a field means has no single place to upgrade the records
+# already on disk. Every data file is read through _load_json_list(), so the
+# hook lives there and every reader gets upgraded data automatically.
+#
+# Design: the file format stays a plain JSON list (no wrapper object), so no
+# reader, test, or the query_agent cache has to change. Records are upgraded
+# in memory on read; the upgraded form is persisted the next time that file is
+# written (every write path reads through here first). A read never rewrites
+# the file.
+#
+# To add a migration later:
+#   1. Bump CURRENT_SCHEMA_VERSION (test_migration_registry_versions_are_valid
+#      enforces this -- any registered version must be <= CURRENT_SCHEMA_VERSION,
+#      so a new migration commit must bump the constant in the same PR).
+#   2. Register (new_version, fn) under the file name in _MIGRATIONS.
+#   3. fn takes one record dict and returns it upgraded. See below on
+#      idempotency -- the runner tracks a per-record _schema_version marker
+#      so a non-idempotent migration cannot silently double-apply.
+# Example:
+#   _MIGRATIONS["animals.json"] = [(2, lambda r: {**r, "weight": r.get("weight")})]
+CURRENT_SCHEMA_VERSION = 1
+_SCHEMA_VERSION_KEY = "_schema_version"
+
+_MIGRATIONS: dict[str, list[tuple[int, Callable[[dict[str, Any]], dict[str, Any]]]]] = {}
+
+
+def _migrate_rows(file_name: str, rows: Any) -> Any:
+    """Apply the registered migrations for file_name to every dict record,
+    oldest version first. Returns rows untouched (same object) when nothing
+    is registered, so today's behaviour is exactly unchanged. Copies each
+    record before migrating, so the caller's data is never mutated.
+
+    Each record carries a `_schema_version` field once migrated (records
+    predating this hook are treated as version 1); a migration for version
+    N only runs on records whose current version is < N, and stamps the
+    record with N afterwards. Reviewer-flagged bug: the old runner ran
+    every registered migration on every read regardless of prior state,
+    so a non-idempotent migration (e.g. `weight_g / 1000`) silently
+    double-applied on every subsequent read, shrinking the value each
+    time. The version marker makes idempotency structural rather than
+    something every migration author has to remember."""
+    steps = _MIGRATIONS.get(file_name)
+    if not steps or not isinstance(rows, list):
+        return rows
+    ordered = sorted(steps, key=lambda step: step[0])
+    migrated = []
+    for row in rows:
+        if isinstance(row, dict):
+            row = dict(row)
+            current_version = row.get(_SCHEMA_VERSION_KEY, 1)
+            for version, migrate_row in ordered:
+                if version <= current_version:
+                    continue
+                row = migrate_row(row)
+                row[_SCHEMA_VERSION_KEY] = version
+        migrated.append(row)
+    return migrated
+
+
 def _load_json_list(path: Path) -> list[Any]:
     if not path.exists():
         return []
     with path.open(encoding="utf-8") as f:
-        return json.load(f)
+        rows = json.load(f)
+    return _migrate_rows(path.name, rows)
 
 
 def atomic_write_json(path: Path, obj: Any) -> None:

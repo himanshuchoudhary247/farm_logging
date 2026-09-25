@@ -16,7 +16,14 @@ import pytest
 pytest.importorskip("google.adk")
 
 from services.query_agent import db as query_db
-from services.query_agent.adk_agent import _make_run_sql_query_tool, build_query_agent
+from services.query_agent.adk_agent import (
+    _answer_is_native_script,
+    _localize_columns,
+    _localize_numbers,
+    _make_run_sql_query_tool,
+    build_query_agent,
+    detect_language,
+)
 
 
 def test_run_sql_query_tool_is_scoped_to_its_farmer():
@@ -44,3 +51,44 @@ def test_build_query_agent_wires_model_and_tool():
     assert agent.name == "query_agent"
     assert len(agent.tools) == 1
     assert "bedrock/" in agent.model.model
+
+
+def test_detect_language_from_script():
+    assert detect_language("मेरे पास कितने जानवर हैं") == "hi"
+    assert detect_language("எனக்கு எத்தனை மாடுகள் உள்ளன") == "ta"
+    assert detect_language("నా దగ్గర ఎన్ని జంతువులు ఉన్నాయి") == "te"
+    assert detect_language("ನನ್ನ ಬಳಿ ಎಷ್ಟು ಪ್ರಾಣಿಗಳಿವೆ") == "kn"
+    assert detect_language("how many animals do I have") == "en"
+    assert detect_language("12") == "en"
+
+
+def test_localize_numbers_converts_digits_recursively():
+    assert _localize_numbers("You have 53 animals", "hi") == "You have ५३ animals"
+    assert _localize_numbers(53, "hi") == "५३"
+    assert _localize_numbers(53, "en") == 53, "English must be a no-op, not stringified"
+    assert _localize_numbers({"count": 12, "label": "goats"}, "ta") == {"count": "௧௨", "label": "goats"}
+    assert _localize_numbers([1, 2, 3], "te") == ["౧", "౨", "౩"]
+    assert _localize_numbers(True, "hi") is True, "a bool must never be treated as a number to convert"
+
+
+def test_localize_columns_translates_known_fields_leaves_unknown_alone():
+    result = _localize_columns(["species", "breed", "COUNT(*)"], "kn")
+    assert result == ["ಪ್ರಭೇದ", "ತಳಿ", "COUNT(*)"], "an aggregate/alias column isn't in the catalog, left as-is rather than guessed"
+    assert _localize_columns(["species"], "en") == ["species"], "English must be a no-op"
+    assert _localize_columns(None, "hi") is None
+
+
+def test_answer_is_native_script_gates_localization():
+    """Real bug (code review): a Hindi query with an English fallback
+    answer got its digits translated, producing 'You have १२ animals' --
+    mixed-script gibberish. The gate must return False for that case so
+    localization is skipped entirely."""
+    assert _answer_is_native_script("आपके पास १२ जानवर हैं", "hi") is True
+    assert _answer_is_native_script("You have 12 animals", "hi") is False, (
+        "answer with zero Devanagari must not be treated as Hindi"
+    )
+    assert _answer_is_native_script("You have 12 animals", "en") is False, (
+        "English is a no-op regardless of content"
+    )
+    assert _answer_is_native_script("", "hi") is False
+    assert _answer_is_native_script("hello", "ta") is False

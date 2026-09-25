@@ -1,0 +1,93 @@
+name: Extraction Eval (manual)
+
+# Extraction review - Root cause, Part 3: a way to run the live extraction
+# evals (scripts/eval_registration.py, scripts/eval_appointment_extraction.py)
+# without a developer's laptop. Unit tests mock the LLM, so these evals are the
+# only check that prompt / tool-spec changes still extract correctly.
+#
+# Manual only (workflow_dispatch) on purpose: every run makes real Bedrock
+# calls, which cost money. Running it automatically on PRs that touch prompts,
+# or on a weekly schedule, is a team decision and is not enabled here.
+#
+# Needs repository secrets (Settings > Secrets and variables > Actions), either:
+#   AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (+ optional AWS_REGION), or
+#   LLM_PROXY_BASE_URL + DEV_PROXY_API_KEY (the dev Bedrock proxy).
+# Without them the preflight step fails with a clear message and nothing runs.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model shortcut or Bedrock model id (see scripts/eval_extraction.py). 'current' = config/llm.yaml"
+        required: false
+        default: "current"
+      runs:
+        description: "Runs per case (a case passes on a strict majority)"
+        required: false
+        default: "3"
+      lang:
+        description: "Optional language filter, e.g. hi,ta,ml (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extraction-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+      LLM_PROXY_BASE_URL: ${{ secrets.LLM_PROXY_BASE_URL }}
+      DEV_PROXY_API_KEY: ${{ secrets.DEV_PROXY_API_KEY }}
+      # Inputs go through env, never straight into a run script, so a crafted
+      # input value cannot inject shell commands.
+      EVAL_MODEL: ${{ inputs.model }}
+      EVAL_RUNS: ${{ inputs.runs }}
+      EVAL_LANG: ${{ inputs.lang }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Preflight - credentials present
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] && [ -z "$LLM_PROXY_BASE_URL" ]; then
+            echo "::error::No Bedrock access configured. Add AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or LLM_PROXY_BASE_URL/DEV_PROXY_API_KEY as repository secrets."
+            exit 1
+          fi
+          echo "Bedrock access configured -- OK"
+
+      - name: Validate case files (no model calls)
+        run: |
+          python scripts/eval_registration.py --dry-run
+          python scripts/eval_appointment_extraction.py --dry-run
+
+      - name: Run live evals
+        run: |
+          status=0
+          python scripts/eval_registration.py --model "$EVAL_MODEL" --runs "$EVAL_RUNS" --lang "$EVAL_LANG" || status=1
+          python scripts/eval_appointment_extraction.py --model "$EVAL_MODEL" --runs "$EVAL_RUNS" --lang "$EVAL_LANG" || status=1
+          exit $status
+
+      - name: Upload per-case results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extraction-eval-results
+          path: |
+            data/eval/registration/
+            data/eval/appointment/
+          if-no-files-found: ignore

@@ -34,28 +34,30 @@ once, at the final confirm-before-submit step.
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import threading
 from base64 import b64encode
 from pathlib import Path
 from typing import Any, Optional
 
-from filelock import FileLock
-
+from services.common.draft_supervisor import (
+    DraftSupervisor,
+    SUPPORTED_LANGUAGES,
+    _UNSET,
+    _lang,
+)
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
-from storage import animals_for_farmer, append_animal, atomic_write_json, get_data_dir
+from storage import animals_for_farmer, append_animal
 
 _log = logging.getLogger("animal_registration")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
-SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
-_UNSET = object()
+# SUPPORTED_LANGUAGES / _UNSET / _lang re-exported from services.common.draft_supervisor
+# so existing external imports (`from services.animal_registration.service
+# import SUPPORTED_LANGUAGES`, etc.) keep working unchanged.
 
 # Required, in collection order. status defaults to "active" and is
 # deliberately never asked for a brand-new animal unless the farmer states
@@ -114,7 +116,25 @@ _ANIMAL_REGISTRATION_TOOL_SPEC = {
                     "type": "string",
                     "description": "The farmer's own chosen ID/tag/name for this animal, exactly as they said it. Never invent one.",
                 },
-                "species": {"type": "string", "enum": ["goat", "sheep"]},
+                # Native-script words copied from the shared _EXTRACTION_TOOL_SPEC
+                # in bedrock_adapter.py. All earlier testing was English-only, so a
+                # Hindi/Tamil/Telugu/Kannada species word had no anchor here.
+                "species": {
+                    "type": "string",
+                    "enum": ["goat", "sheep"],
+                    "description": (
+                        "Only set this when the farmer's words name the animal type. Native-"
+                        "script vocabulary, so a bare single word in any of these languages "
+                        "still maps correctly: "
+                        "goat: बकरी (hi), మేక (te), ஆடு (ta), ಆಡು (kn), ആട് (ml). "
+                        "sheep: भेड़ (hi), గొర్రె (te), செம்மறியாடு (ta), ಕುರಿ (kn), "
+                        "ചെമ്മരിയാട് (ml). "
+                        "Careful: the Tamil and Malayalam words for sheep END with the word "
+                        "for goat (செம்மறியாடு contains ஆடு, ചെമ്മരിയാട് contains ആട്). The "
+                        "full word means sheep, not goat. Do NOT guess a species when no "
+                        "animal word is present at all."
+                    ),
+                },
                 "breed": {
                     "type": "string",
                     "description": "The breed name as the farmer said it, even if it's not an exact match to a standard breed name -- never guess a breed the farmer didn't say.",
@@ -151,16 +171,42 @@ _ANIMAL_REGISTRATION_TOOL_SPEC = {
                 "confirmation_signal": {
                     "type": "string",
                     "enum": ["yes", "no", "cancel", "none"],
-                    "description": "Classify the farmer's turn by actual meaning: 'yes' affirms/confirms, 'no' rejects/corrects, 'cancel' abandons the registration, 'none' if this turn is neither (e.g. just stating a field value).",
+                    "description": (
+                        "Classify the farmer's turn by actual meaning: 'yes' affirms/confirms, "
+                        "'no' rejects/corrects, 'cancel' abandons the registration, 'none' if "
+                        "this turn is neither (e.g. just stating a field value). "
+                        "Classify by meaning, NOT by keyword matching (same rule as the shared "
+                        "_EXTRACTION_TOOL_SPEC): 'there's no problem, go ahead' means 'yes' even "
+                        "though it contains the word 'no'; 'enough already, just save it' is not "
+                        "'no' just because a word contains those letters; 'that's wrong, change "
+                        "it' means 'no' even with no literal word for it. A farmer asking an "
+                        "unrelated QUESTION is not a rejection, use 'none' for that."
+                    ),
                 },
             },
         }
     },
 }
 
+# Worked examples (few-shot), same approach as the shared _TOOL_SYSTEM_PROMPT in
+# bedrock_adapter.py. The breed-loop bugs happened because this prompt was
+# prose-only and the model quietly didn't follow it; each example below maps
+# to a bug found live or to a known risk (native-language words, yes/no by meaning).
 _REGISTRATION_SYSTEM = """You are helping register a new animal for a farmer, one field at a time.
 
-You will be told which field is currently being asked about (if any) and what has already been captured. Extract whatever the farmer's message actually states -- their reply may answer the pending field, correct an earlier field, or state several fields at once. Never invent a value for a field the farmer didn't mention. Never repeat back a value the farmer stated in an EARLIER turn as if it were new."""
+You will be told which field is currently being asked about (if any) and what has already been captured. Extract whatever the farmer's message actually states -- their reply may answer the pending field, correct an earlier field, or state several fields at once. Never invent a value for a field the farmer didn't mention. Never repeat back a value the farmer stated in an EARLIER turn as if it were new.
+
+Examples (what goes into the record_animal_registration call):
+1) PHASE: collecting, just asked for 'unique_animal_id' | Farmer: "12" -> {unique_animal_id: '12'} -- a bare number answers the pending field, never initial_weight_kg.
+2) Nothing captured yet | Farmer: "ID 1122, goat, male" -> {unique_animal_id: '1122', species: 'goat', sex: 'male'} -- every field stated in one turn is extracted.
+3) PHASE: collecting, just asked for 'species' | Farmer: "बकरी है" -> {species: 'goat'}
+4) PHASE: collecting, just asked for 'species' | Farmer: "செம்மறியாடு" -> {species: 'sheep'} -- the full word is sheep, even though it ends with ஆடு (goat).
+5) PHASE: collecting, just asked for 'breed' | Farmer: "पता नहीं" -> {field_unknown: true} -- an explicit don't-know; never invent a breed.
+6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
+7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
+8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
+9) PHASE: confirming | Farmer: "there's no problem, go ahead" -> {confirmation_signal: 'yes'} -- classify by meaning, not by the word 'no'.
+10) Any phase | Farmer: "rehne do, cancel karo" -> {confirmation_signal: 'cancel'}"""
 
 
 _LABELS = {
@@ -275,10 +321,6 @@ _TEXT = {
 }
 
 
-def _lang(language: str) -> str:
-    return (language or "en-IN").split("-")[0].lower()
-
-
 def _match_breed(breed_text: str, species: str) -> Optional[str]:
     """Deterministic validation, not an LLM call -- the model already
     extracted the farmer's free-text breed guess (_ANIMAL_REGISTRATION_TOOL_SPEC's
@@ -296,24 +338,9 @@ def _match_breed(breed_text: str, species: str) -> Optional[str]:
     return None
 
 
-class AnimalRegistrationSupervisor:
-    def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or get_data_dir()
-        self.intake_dir = self.data_dir / "animal_registration_intakes"
-        # Same concurrency-safety design as appointment_supervisor's own
-        # RLock fix this session (a real lost-update race found in code
-        # review) -- applied here from day one, not as a follow-up fix.
-        self._session_locks: dict[str, threading.RLock] = {}
-        self._session_locks_guard = threading.Lock()
-
-    def _session_lock(self, farmer_id: str, session_id: str) -> threading.RLock:
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        with self._session_locks_guard:
-            return self._session_locks.setdefault(digest, threading.RLock())
-
-    def _path(self, farmer_id: str, session_id: str) -> Path:
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        return self.intake_dir / f"{digest}.json"
+class AnimalRegistrationSupervisor(DraftSupervisor):
+    INTAKE_SUBDIR = "animal_registration_intakes"
+    MESSAGES = _TEXT
 
     def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
@@ -325,22 +352,6 @@ class AnimalRegistrationSupervisor:
             "transcript_history": [],
             "submitted": False,
         }
-
-    def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
-        path = self._path(farmer_id, session_id)
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return self._fresh(session_id, farmer_id, language)
-
-    def _save(self, draft: dict[str, Any]) -> None:
-        path = self._path(draft["farmer_id"], draft["session_id"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(str(path) + ".lock"):
-            atomic_write_json(path, draft)
-
-    def _message(self, language: str, key: str, **values: str) -> str:
-        catalog = _TEXT.get(_lang(language), _TEXT["en"])
-        return catalog[key].format(**values)
 
     def _missing_required(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
@@ -428,6 +439,16 @@ class AnimalRegistrationSupervisor:
                     f"official_tag_number, acquisition_date, acquisition_source), or nothing at all if "
                     f"it doesn't clearly fit any of those -- never re-guess it as a new ID."
                 )
+        elif draft["state"] == "CONFIRMING":
+            # The confirmation_signal guidance only works if the model knows a
+            # yes/no question was actually asked. The shared path gets this from
+            # pending_questions; this module never said it, so a reply like
+            # "no problem, go ahead" had nothing to anchor it to the confirm step.
+            pending_hint = (
+                "\nPHASE: confirming. The farmer was just shown the full summary of this "
+                "new animal and asked whether to save it. Set confirmation_signal by the "
+                "actual meaning of their reply (see that field's description)."
+            )
         context = (
             f"Currently captured so far (do not repeat these back as new): "
             f"{self._summary(draft) if draft['draft'] else 'nothing yet'}."

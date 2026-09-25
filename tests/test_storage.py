@@ -180,3 +180,106 @@ def test_purge_stale_files_removes_only_old_ones(storage_mod, tmp_path: Path) ->
 def test_purge_stale_files_missing_directory_is_a_noop(storage_mod, tmp_path: Path) -> None:
     removed = storage_mod.purge_stale_files(tmp_path / "does_not_exist", max_age_days=30)
     assert removed == 0
+
+
+def test_load_without_migrations_returns_rows_unchanged(storage_mod, tmp_path: Path) -> None:
+    """Architecture review Point 3: with no migrations registered (today),
+    loading must behave exactly as before."""
+    rows = [{"id": "an-1", "farmer_id": "f-1", "tag_or_name": "T1"}]
+    storage_mod.atomic_write_json(tmp_path / "animals.json", rows)
+    assert storage_mod._load_json_list(tmp_path / "animals.json") == rows
+
+
+def test_registered_migration_applies_on_load_without_rewriting_file(storage_mod, tmp_path: Path, monkeypatch) -> None:
+    original = [{"id": "an-1"}, {"id": "an-2", "weight": 30}]
+    storage_mod.atomic_write_json(tmp_path / "animals.json", original)
+
+    def add_weight(row):
+        row.setdefault("weight", None)
+        return row
+
+    monkeypatch.setattr(storage_mod, "_MIGRATIONS", {"animals.json": [(2, add_weight)]})
+    rows = storage_mod._load_json_list(tmp_path / "animals.json")
+    assert rows == [
+        {"id": "an-1", "weight": None, "_schema_version": 2},
+        {"id": "an-2", "weight": 30, "_schema_version": 2},
+    ]
+    on_disk = json.loads((tmp_path / "animals.json").read_text(encoding="utf-8"))
+    assert on_disk == original, "a read must never rewrite the file"
+
+
+def test_migrations_run_in_version_order_and_only_for_their_file(storage_mod, tmp_path: Path, monkeypatch) -> None:
+    storage_mod.atomic_write_json(tmp_path / "animals.json", [{"id": "an-1"}])
+    storage_mod.atomic_write_json(tmp_path / "health_logs.json", [{"id": "h-1"}])
+
+    def v2_add_weight(row):
+        row.setdefault("weight", 10)
+        return row
+
+    def v3_weight_to_kg(row):
+        row.setdefault("weight_kg", row["weight"])
+        return row
+
+    # Registered out of order on purpose: v3 depends on v2 having run first.
+    monkeypatch.setattr(storage_mod, "_MIGRATIONS", {"animals.json": [(3, v3_weight_to_kg), (2, v2_add_weight)]})
+    assert storage_mod._load_json_list(tmp_path / "animals.json") == [
+        {"id": "an-1", "weight": 10, "weight_kg": 10, "_schema_version": 3}
+    ]
+    assert storage_mod._load_json_list(tmp_path / "health_logs.json") == [{"id": "h-1"}]
+
+
+def test_non_idempotent_migration_does_not_double_apply(storage_mod, tmp_path: Path, monkeypatch) -> None:
+    """Real bug (code review of PR #20): the old runner re-ran every
+    migration on every read, so a non-idempotent migration like
+    `weight = weight_g / 1000` silently shrunk the value each time. With
+    a per-record _schema_version marker, a migration for version N only
+    runs on records whose current version is < N."""
+    storage_mod.atomic_write_json(tmp_path / "animals.json", [{"id": "an-1", "weight_g": 5000}])
+
+    def v2_grams_to_kg(row):
+        # Deliberately NOT idempotent (real class of migration: unit conversion).
+        row["weight_kg"] = row["weight_g"] / 1000
+        del row["weight_g"]
+        return row
+
+    monkeypatch.setattr(storage_mod, "_MIGRATIONS", {"animals.json": [(2, v2_grams_to_kg)]})
+
+    first = storage_mod._load_json_list(tmp_path / "animals.json")
+    assert first == [{"id": "an-1", "weight_kg": 5.0, "_schema_version": 2}]
+
+    # Now round-trip the migrated form through a write, then re-read: the
+    # migration must NOT run again on the already-versioned record.
+    storage_mod.atomic_write_json(tmp_path / "animals.json", first)
+    second = storage_mod._load_json_list(tmp_path / "animals.json")
+    assert second == first, "an already-versioned record must not be re-migrated"
+
+
+def test_migrated_rows_are_persisted_on_next_write(storage_mod, tmp_path: Path, monkeypatch) -> None:
+    storage_mod.atomic_write_json(tmp_path / "consultations.json", [{"id": "c-old", "farmer_id": "f-1"}])
+
+    def add_channel(row):
+        row.setdefault("channel", "chat")
+        return row
+
+    monkeypatch.setattr(storage_mod, "_MIGRATIONS", {"consultations.json": [(2, add_channel)]})
+    storage_mod.append_consultation("f-1", None, [{"role": "user", "content": "hi"}], "summary")
+
+    on_disk = json.loads((tmp_path / "consultations.json").read_text(encoding="utf-8"))
+    assert on_disk[0]["id"] == "c-old"
+    assert on_disk[0]["channel"] == "chat", "the old record must be saved in the upgraded form"
+
+
+def test_migration_registry_versions_are_valid(storage_mod) -> None:
+    """Guards future edits: every registered step must target a version in
+    2..CURRENT_SCHEMA_VERSION, with no duplicate versions per file. This
+    is deliberate coupling -- registering a new migration and bumping
+    CURRENT_SCHEMA_VERSION belong in the same commit; if you see this
+    assertion fail while adding a migration, bump the constant."""
+    for file_name, steps in storage_mod._MIGRATIONS.items():
+        versions = [version for version, _ in steps]
+        assert len(versions) == len(set(versions)), f"{file_name}: duplicate migration versions"
+        for version in versions:
+            assert 2 <= version <= storage_mod.CURRENT_SCHEMA_VERSION, (
+                f"{file_name}: bad version {version} -- must be 2..{storage_mod.CURRENT_SCHEMA_VERSION}. "
+                f"Bump CURRENT_SCHEMA_VERSION in storage.py when adding a migration."
+            )
