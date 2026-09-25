@@ -76,9 +76,16 @@ def _to_native_digits(text: str, lang: str) -> str:
 def _localize_numbers(value: Any, lang: str) -> Any:
     """Recurse through a query result (string / int / float / dict / list)
     converting every digit to the target language's native numerals. A
-    no-op for English. Applied to the model's text/speech answer AND the
-    raw SQL result rows, so a table of numbers is localized the same way
-    the spoken summary is."""
+    no-op for English.
+
+    Intended for display-only strings (text/speech answer, and cells in a
+    parallel data.display copy used by the UI). MUST NOT be applied to
+    the machine-readable data payload -- doing so silently corrupted
+    tag/ID/date strings (e.g. 'G-1122' -> 'G-११२२', '2025-09-25' ->
+    '२०२५-०९-२५') and changed numeric row cells to strings, breaking DB
+    round-trip and the API's numeric type contract for any downstream
+    consumer that sorts/sums/compares. Found in review of PR #15's
+    original always-translate behavior."""
     if lang == "en":
         return value
     if isinstance(value, str):
@@ -92,6 +99,22 @@ def _localize_numbers(value: Any, lang: str) -> Any:
     if isinstance(value, list):
         return [_localize_numbers(v, lang) for v in value]
     return value
+
+
+def _answer_is_native_script(answer: str, lang: str) -> bool:
+    """Confirm the model's answer is actually in the same script as the
+    query language before running digit conversion. Real bug found in
+    review: a Hindi query whose model reply came back English (fallback,
+    off-topic, model quirk) still got its digits translated -- producing
+    'You have १२ animals', mixed-script gibberish. If the answer contains
+    no character from the language's own script range, skip localization
+    entirely rather than force a mismatch."""
+    if lang == "en" or not answer:
+        return False
+    for detected_lang, (lo, hi) in _SCRIPT_RANGES:
+        if detected_lang == lang:
+            return any(lo <= ord(ch) <= hi for ch in answer)
+    return False
 
 
 # Static translation catalog for the fixed, known column names a SELECT
@@ -269,24 +292,40 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
 
     # Deterministic post-processing: the model replies in the right
     # language but is inconsistent about native-digit numerals within it
-    # (verified live) -- fix that in code rather than trusting the model,
-    # same split used throughout this codebase. English is a no-op.
+    # (verified live) -- fix in code, not the model. Only run if the
+    # answer really IS in that script; a Hindi query with an English
+    # fallback answer previously came back as "You have १२ animals"
+    # (mixed script) before this guard.
     lang = detect_language(query)
-    text_answer = _localize_numbers(text_answer, lang)
-    speech_text = _localize_numbers(speech_text, lang)
+    if _answer_is_native_script(text_answer, lang):
+        text_answer = _localize_numbers(text_answer, lang)
+    if _answer_is_native_script(speech_text, lang):
+        speech_text = _localize_numbers(speech_text, lang)
 
     if last_successful_result is None:
         return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
 
+    # Raw data payload stays machine-readable (English column identifiers,
+    # native int/float scalars, tag/ID/date strings unchanged) -- reviewers
+    # found the previous always-translate behavior corrupted IDs and dates
+    # so they no longer round-tripped to the DB. Localized copies for UI
+    # display live in data["display"], keyed the same way, so the frontend
+    # can pick one or the other without ambiguity.
+    raw_data = {
+        "columns": last_successful_result.get("columns"),
+        "rows": last_successful_result.get("rows"),
+        "row_count": last_successful_result.get("row_count"),
+        "truncated": last_successful_result.get("truncated", False),
+    }
+    if lang != "en":
+        raw_data["display"] = {
+            "columns": _localize_columns(raw_data["columns"], lang),
+            "rows": _localize_numbers(raw_data["rows"], lang),
+        }
     return {
         "answer": text_answer,
         "sql": last_successful_result.get("sql"),
-        "data": {
-            "columns": _localize_columns(last_successful_result.get("columns"), lang),
-            "rows": _localize_numbers(last_successful_result.get("rows"), lang),
-            "row_count": last_successful_result.get("row_count"),
-            "truncated": last_successful_result.get("truncated", False),
-        },
+        "data": raw_data,
         "speech_text": speech_text,
     }
 

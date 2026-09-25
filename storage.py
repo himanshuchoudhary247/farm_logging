@@ -53,14 +53,17 @@ def _path(name: str) -> Path:
 # the file.
 #
 # To add a migration later:
-#   1. Bump CURRENT_SCHEMA_VERSION.
+#   1. Bump CURRENT_SCHEMA_VERSION (test_migration_registry_versions_are_valid
+#      enforces this -- any registered version must be <= CURRENT_SCHEMA_VERSION,
+#      so a new migration commit must bump the constant in the same PR).
 #   2. Register (new_version, fn) under the file name in _MIGRATIONS.
-#   3. fn takes one record dict and returns it upgraded. It MUST be safe to run
-#      on a record that is already upgraded (e.g. use setdefault), because
-#      records carry no per-record version marker.
+#   3. fn takes one record dict and returns it upgraded. See below on
+#      idempotency -- the runner tracks a per-record _schema_version marker
+#      so a non-idempotent migration cannot silently double-apply.
 # Example:
 #   _MIGRATIONS["animals.json"] = [(2, lambda r: {**r, "weight": r.get("weight")})]
 CURRENT_SCHEMA_VERSION = 1
+_SCHEMA_VERSION_KEY = "_schema_version"
 
 _MIGRATIONS: dict[str, list[tuple[int, Callable[[dict[str, Any]], dict[str, Any]]]]] = {}
 
@@ -69,7 +72,17 @@ def _migrate_rows(file_name: str, rows: Any) -> Any:
     """Apply the registered migrations for file_name to every dict record,
     oldest version first. Returns rows untouched (same object) when nothing
     is registered, so today's behaviour is exactly unchanged. Copies each
-    record before migrating, so the caller's data is never mutated."""
+    record before migrating, so the caller's data is never mutated.
+
+    Each record carries a `_schema_version` field once migrated (records
+    predating this hook are treated as version 1); a migration for version
+    N only runs on records whose current version is < N, and stamps the
+    record with N afterwards. Reviewer-flagged bug: the old runner ran
+    every registered migration on every read regardless of prior state,
+    so a non-idempotent migration (e.g. `weight_g / 1000`) silently
+    double-applied on every subsequent read, shrinking the value each
+    time. The version marker makes idempotency structural rather than
+    something every migration author has to remember."""
     steps = _MIGRATIONS.get(file_name)
     if not steps or not isinstance(rows, list):
         return rows
@@ -78,8 +91,12 @@ def _migrate_rows(file_name: str, rows: Any) -> Any:
     for row in rows:
         if isinstance(row, dict):
             row = dict(row)
-            for _version, migrate_row in ordered:
+            current_version = row.get(_SCHEMA_VERSION_KEY, 1)
+            for version, migrate_row in ordered:
+                if version <= current_version:
+                    continue
                 row = migrate_row(row)
+                row[_SCHEMA_VERSION_KEY] = version
         migrated.append(row)
     return migrated
 

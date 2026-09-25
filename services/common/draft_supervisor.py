@@ -133,5 +133,11 @@ class DraftSupervisor:
             atomic_write_json(path, draft)
 
     def _message(self, language: str, key: str, **values: str) -> str:
-        catalog = self.MESSAGES.get(_lang(language), self.MESSAGES["en"])
+        # Fallback lookup uses .get() with an empty-dict default rather than
+        # MESSAGES["en"] directly -- a subclass that ships only Hindi/etc
+        # catalogs would previously KeyError inside the request handler
+        # rather than surfacing a clearer missing-key message. The final
+        # `catalog[key]` still raises a KeyError, but with a message that
+        # names the specific catalog key rather than the fallback language.
+        catalog = self.MESSAGES.get(_lang(language)) or self.MESSAGES.get("en", {})
         return catalog[key].format(**values)
