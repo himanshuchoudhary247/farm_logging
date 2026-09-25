@@ -160,7 +160,7 @@ def _make_record_route_tool(captured: dict[str, str]):
         """Record which area the farmer's message belongs to.
 
         Args:
-            intent: one of "appointment", "weather", "query".
+            intent: one of "appointment", "add_animal", "weather", "query".
 
         Returns:
             Confirmation that the routing decision was recorded.

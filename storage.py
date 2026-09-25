@@ -39,11 +39,57 @@ def _path(name: str) -> Path:
     return get_data_dir() / name
 
 
+# Schema migrations for the JSON data files (Architecture review, Point 3).
+#
+# Without this, adding a field to a record type (e.g. weight on animals) or
+# changing what a field means has no single place to upgrade the records
+# already on disk. Every data file is read through _load_json_list(), so the
+# hook lives there and every reader gets upgraded data automatically.
+#
+# Design: the file format stays a plain JSON list (no wrapper object), so no
+# reader, test, or the query_agent cache has to change. Records are upgraded
+# in memory on read; the upgraded form is persisted the next time that file is
+# written (every write path reads through here first). A read never rewrites
+# the file.
+#
+# To add a migration later:
+#   1. Bump CURRENT_SCHEMA_VERSION.
+#   2. Register (new_version, fn) under the file name in _MIGRATIONS.
+#   3. fn takes one record dict and returns it upgraded. It MUST be safe to run
+#      on a record that is already upgraded (e.g. use setdefault), because
+#      records carry no per-record version marker.
+# Example:
+#   _MIGRATIONS["animals.json"] = [(2, lambda r: {**r, "weight": r.get("weight")})]
+CURRENT_SCHEMA_VERSION = 1
+
+_MIGRATIONS: dict[str, list[tuple[int, Callable[[dict[str, Any]], dict[str, Any]]]]] = {}
+
+
+def _migrate_rows(file_name: str, rows: Any) -> Any:
+    """Apply the registered migrations for file_name to every dict record,
+    oldest version first. Returns rows untouched (same object) when nothing
+    is registered, so today's behaviour is exactly unchanged. Copies each
+    record before migrating, so the caller's data is never mutated."""
+    steps = _MIGRATIONS.get(file_name)
+    if not steps or not isinstance(rows, list):
+        return rows
+    ordered = sorted(steps, key=lambda step: step[0])
+    migrated = []
+    for row in rows:
+        if isinstance(row, dict):
+            row = dict(row)
+            for _version, migrate_row in ordered:
+                row = migrate_row(row)
+        migrated.append(row)
+    return migrated
+
+
 def _load_json_list(path: Path) -> list[Any]:
     if not path.exists():
         return []
     with path.open(encoding="utf-8") as f:
-        return json.load(f)
+        rows = json.load(f)
+    return _migrate_rows(path.name, rows)
 
 
 def atomic_write_json(path: Path, obj: Any) -> None:
