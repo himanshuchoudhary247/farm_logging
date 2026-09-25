@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import re
-import threading
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from filelock import FileLock
-
+from services.common.draft_supervisor import (
+    DraftSupervisor,
+    SUPPORTED_LANGUAGES,
+    _UNSET,
+    _lang,
+)
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
@@ -22,9 +23,7 @@ from storage import (
     append_ai_health_log,
     append_appointment,
     append_health_log,
-    atomic_write_json,
     animals_for_farmer,
-    get_data_dir,
 )
 
 
@@ -33,8 +32,9 @@ if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
-SUPPORTED_LANGUAGES = {"en-IN": "English", "hi-IN": "Hindi", "ta-IN": "Tamil", "te-IN": "Telugu", "kn-IN": "Kannada"}
-_UNSET = object()  # distinguishes "caller didn't pass prompt" (default to full text) from an explicit prompt=None (genuinely no separate question this turn)
+# SUPPORTED_LANGUAGES / _UNSET / _lang re-exported from services.common.draft_supervisor
+# so existing external imports (`from services.appointment_supervisor.service
+# import SUPPORTED_LANGUAGES`, etc.) keep working unchanged.
 REQUIRED_FIELDS = ("animal_identifier", "issue", "date", "time")
 
 _TEXT = {
@@ -139,10 +139,6 @@ _VALUES = {
     "te": {"not eating": "తినడం లేదు", "lethargy": "నీరసం", "fever": "జ్వరం", "swelling": "వాపు", "limping": "కుంటుతూ నడవడం", "wound": "గాయం", "not drinking": "నీరు తాగడం లేదు"},
     "kn": {"not eating": "ತಿನ್ನುತ್ತಿಲ್ಲ", "lethargy": "ಸುಸ್ತು", "fever": "ಜ್ವರ", "swelling": "ಊತ", "limping": "ಕುಂಟುವುದು", "wound": "ಗಾಯ", "not drinking": "ನೀರು ಕುಡಿಯುತ್ತಿಲ್ಲ"},
 }
-
-
-def _lang(language: str) -> str:
-    return (language or "en-IN").split("-")[0].lower()
 
 
 def _now() -> str:
@@ -345,43 +341,9 @@ def _animal_options(language: str, animals: list) -> dict:
     }
 
 
-class AppointmentSupervisor:
-    def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or get_data_dir()
-        self.intake_dir = self.data_dir / "appointment_intakes"
-        # Bug found in a robustness audit: turn()/confirm()/submit()/attach()
-        # each read the draft (unlocked), did real work -- including, in
-        # turn(), the extraction LLM call -- then wrote it back under a lock
-        # held only around the write itself. Two concurrent requests for the
-        # same session_id could both read the same starting draft and each
-        # write back their own version, one silently clobbering the other's
-        # fields (no corruption, just dropped entities/transcript). Fixed by
-        # holding a per-session RLock across the entire call, not just the
-        # write. RLock (not Lock) because turn() calls self.confirm()/
-        # self.submit() internally on the same thread -- a plain Lock would
-        # deadlock on that re-entry.
-        self._session_locks: dict[str, threading.RLock] = {}
-        self._session_locks_guard = threading.Lock()
-
-    def _session_lock(self, farmer_id: str, session_id: str) -> threading.RLock:
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        with self._session_locks_guard:
-            return self._session_locks.setdefault(digest, threading.RLock())
-
-    def _path(self, farmer_id: str, session_id: str) -> Path:
-        # Real bug, found in a robustness audit: the old scheme
-        # (''.join(ch for ch in session_id if ch.isalnum() or ch in '-_'))
-        # was farmer-unscoped and collision-prone -- "", "!!!", and any
-        # emoji-only session_id all strip to "" (every such session shares
-        # ONE global draft file, across ALL farmers), and distinct ids like
-        # "ab-c"/"a@b/c" both collide to "abc". Worse, nothing checked
-        # draft["farmer_id"] against the caller's farmer_id, so farmer A
-        # could read farmer B's in-progress booking by guessing/reusing a
-        # session id. Hash farmer_id+session_id together instead, same
-        # pattern services/voice_agent/session_store.py already uses
-        # correctly for the parallel per-turn entity cache.
-        digest = hashlib.sha1(f"{farmer_id}:{session_id}".encode("utf-8")).hexdigest()
-        return self.intake_dir / f"{digest}.json"
+class AppointmentSupervisor(DraftSupervisor):
+    INTAKE_SUBDIR = "appointment_intakes"
+    MESSAGES = _TEXT
 
     def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
@@ -398,18 +360,8 @@ class AppointmentSupervisor:
             "updated_at": _now(),
         }
 
-    def _load(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
-        path = self._path(farmer_id, session_id)
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return self._fresh(session_id, farmer_id, language)
-
-    def _save(self, draft: dict[str, Any]) -> None:
-        path = self._path(draft["farmer_id"], draft["session_id"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(str(path) + ".lock"):
-            draft["updated_at"] = _now()
-            atomic_write_json(path, draft)
+    def _before_save(self, draft: dict[str, Any]) -> None:
+        draft["updated_at"] = _now()
 
     def _copy_entities(self, draft: dict[str, Any], entities: dict[str, Any]) -> None:
         target = draft["draft"]
@@ -522,10 +474,6 @@ class AppointmentSupervisor:
         if values.get("miscellaneous_notes") and (only_fields is None or "miscellaneous_notes" in only_fields):
             parts.append(f"{labels['notes']}: {values['miscellaneous_notes']}")
         return "; ".join(parts) or "no appointment details yet"
-
-    def _message(self, language: str, key: str, **values: str) -> str:
-        catalog = _TEXT.get(_lang(language), _TEXT["en"])
-        return catalog[key].format(**values)
 
     def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET, speech: Any = _UNSET) -> dict[str, Any]:
         language = draft["language"]
