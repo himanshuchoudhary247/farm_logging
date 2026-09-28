@@ -134,6 +134,65 @@ def test_classified_query_routes_to_query_agent(monkeypatch):
     assert seen["session_id"] == "classify-query"
 
 
+def test_allowed_intents_blocks_classified_intent_returns_stub(monkeypatch):
+    """The channel-gate generalization added for the WhatsApp module:
+    when allowed_intents is set and the classified intent isn't in it,
+    route_turn_adk must return the {agent: None} stub instead of
+    dispatching the agent (which would advance its draft state)."""
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("add_animal"))
+    called = {"agent": False}
+    monkeypatch.setattr(
+        adk_router._animal_registration_supervisor, "turn",
+        lambda *a, **k: (called.__setitem__("agent", True) or {"response_text": "hi"}),
+    )
+    result = adk_router.route_turn_adk(
+        "f-1", "s-1", "register a new goat", allowed_intents={"query", "appointment"},
+    )
+    assert called["agent"] is False, "gate must NOT dispatch a disallowed intent"
+    assert result["agent"] is None
+    assert result["intent"] == "add_animal"
+
+
+def test_allowed_intents_blocks_sticky_route(monkeypatch, tmp_path):
+    """Sticky routing runs BEFORE the classifier and would bypass the
+    gate entirely if not integrated -- an active booking draft on the
+    app plus a WhatsApp message with allowed_intents=[query] should NOT
+    advance the appointment draft. Regression coverage for the exact
+    gate-bypass hole the plan calls out."""
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: True)
+    called = {"agent": False}
+    monkeypatch.setattr(
+        adk_router._appointment_supervisor, "turn",
+        lambda *a, **k: (called.__setitem__("agent", True) or {"response_text": "would advance"}),
+    )
+    result = adk_router.route_turn_adk(
+        "f-1", "s-1", "any text", allowed_intents={"query"},
+    )
+    assert called["agent"] is False, "sticky route must NOT advance a disallowed intent's draft"
+    assert result["agent"] is None
+    assert result["intent"] == "appointment"
+
+
+def test_allowed_intents_none_preserves_existing_behavior(monkeypatch):
+    """Existing callers (the app, voice) pass no allowed_intents; the
+    router must behave exactly as before."""
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("query"))
+    monkeypatch.setattr(
+        adk_router, "process_query_adk",
+        # 3-arg signature matches process_query_adk(text, farmer_id, session_id=...)
+        # after PR #28 added the session_id kwarg; a 2-arg lambda would TypeError.
+        lambda query, farmer_id, session_id=None: {"answer": "12", "sql": "SELECT ...", "data": {}},
+    )
+    monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    result = adk_router.route_turn_adk("f-1", "s-1", "how many")  # no allowed_intents
+    assert result["agent"] == "query_agent"
+    assert result["intent"] == "query"
+
+
 def test_record_route_tool_rejects_invalid_intent_defaults_to_query():
     """Deterministic backstop: if the model somehow calls record_route with
     something outside the 3 valid categories, never let that propagate as
