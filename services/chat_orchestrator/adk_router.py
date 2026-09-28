@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from base64 import b64encode
-from typing import Any
+from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
@@ -218,25 +218,53 @@ def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None
     return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
 
 
+def _blocked_envelope(intent: "str | None", farmer_id: str, session_id: str, text: str, language: str) -> dict[str, Any]:
+    """Stub response for the allowed_intents gate: agent=None signals the
+    caller ("this intent isn't allowed on this channel") without dispatching
+    the actual agent (which would advance its draft state as a side effect).
+    Matches the standard envelope shape so callers do not need special
+    branches to handle it."""
+    _log.info(
+        "adk_router blocked intent=%s farmer=%s session=%s text=%r (allowed_intents gate)",
+        intent, farmer_id, session_id, text[:200],
+    )
+    return {"agent": None, "intent": intent, "result": None, "reply_text": ""}
+
+
 def route_turn_adk(
     farmer_id: str,
     session_id: str,
     text: str,
     language: str = "en-IN",
     include_audio: bool = True,
+    allowed_intents: "Optional[set[str]]" = None,
 ) -> dict[str, Any]:
     """Drop-in replacement for router.py's route_turn(), same envelope
     shape ({"agent", "intent", "result", "reply_text", ...}) -- routing
     decision now comes from an ADK classifier agent instead of reusing
     process_text_input's own intent field, and the weather/query branches
     are answered by their own ADK agents instead of a direct
-    get_pincode_data/process_query call."""
+    get_pincode_data/process_query call.
+
+    allowed_intents (optional): when set, the router refuses to dispatch
+    any intent (classified OR sticky) not in the set, returning the
+    blocked stub instead. This is what lets a transport layer (e.g. the
+    WhatsApp channel) constrain which agents a channel can reach without
+    the caller having to run the classifier itself. When None (existing
+    callers -- the app, voice), behavior is exactly unchanged."""
+    def _allowed(intent_name: str) -> bool:
+        return allowed_intents is None or intent_name in allowed_intents
+
     if _has_active_booking_draft(farmer_id, session_id):
+        if not _allowed("appointment"):
+            return _blocked_envelope("appointment", farmer_id, session_id, text, language)
         result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
     if _has_active_registration_draft(farmer_id, session_id):
+        if not _allowed("add_animal"):
+            return _blocked_envelope("add_animal", farmer_id, session_id, text, language)
         result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         reply = _reply_text("animal_registration", result)
         return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
@@ -248,10 +276,15 @@ def route_turn_adk(
         # classification rather than locking the farmer into weather
         # indefinitely if they've actually moved on to something else.
         update_session(weather_key, {"awaiting_location": False})
+        if not _allowed("weather"):
+            return _blocked_envelope("weather", farmer_id, session_id, text, language)
         return _run_weather(farmer_id, session_id, text, "weather", include_audio, language, allow_rearm=False)
 
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
+
+    if not _allowed(intent):
+        return _blocked_envelope(intent, farmer_id, session_id, text, language)
 
     # Dispatch table lookup replaces the 4-way if-elif chain. Fallback to
     # `query` for anything unrecognized -- matches _make_record_route_tool's

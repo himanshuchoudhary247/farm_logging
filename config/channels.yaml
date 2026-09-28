@@ -1,0 +1,62 @@
+# Per-channel feature configuration.
+#
+# A "channel" is a transport (WhatsApp, potentially SMS/Telegram later).
+# Each channel picks a SUBSET of the agentic system's capabilities
+# (allowed_intents), so the same backend can expose different feature
+# surfaces per channel. The dispatch itself always goes through
+# services/chat_orchestrator/adk_router.py::route_turn_adk -- the channel
+# just constrains which intents that dispatcher is allowed to run.
+#
+# Every knob has an env-var override; env wins if set. See .env.example
+# for the full list of WHATSAPP_* variables. Ships inert -- enabled: false
+# by default, so nothing changes unless a deployer opts in.
+
+channels:
+  whatsapp:
+    # Master switch. false = the whole module is off, /whatsapp/webhook
+    # returns 503, no provider is constructed. Default false so existing
+    # deployments and local dev are unaffected until this is explicitly
+    # turned on.
+    enabled: false
+
+    # The subset of route_turn_adk's intents this channel is allowed to
+    # dispatch. Any intent NOT in this list produces the localized
+    # "not supported on this channel" reply INSTEAD of running the agent.
+    # Full set today: {query, appointment, weather, add_animal}.
+    # Reduce it to (say) [query, appointment] to expose only Q&A + vet
+    # booking on WhatsApp while keeping animal registration and weather
+    # in the app only. This is the load-bearing decision the module exists
+    # to deliver.
+    allowed_intents: [query, appointment, weather, add_animal]
+
+    # Used only when the inbound message is script-neutral (bare number,
+    # emoji, punctuation-only). Messages containing Devanagari / Tamil /
+    # Telugu / Kannada characters auto-detect their own language via
+    # services.query_agent.adk_agent.detect_language.
+    default_language: en-IN
+
+    # WhatsApp is text-first for most farmers. Set true to also synthesize
+    # and send a voice-note reply (adds Polly latency + cost).
+    include_audio: false
+
+    # WhatsApp's hard message-size cap is 4096 chars; leave headroom for
+    # the trim suffix we append when a reply exceeds this.
+    max_reply_chars: 4000
+
+    # Provider adapter. "mock" is safe for tests/dev-send; "meta" is the
+    # real Meta Cloud API path; "twilio" is a skeleton (verify_signature +
+    # send_text implemented, media stubbed -- fill in when Twilio is
+    # actually used).
+    provider: mock
+
+    rate_limit:
+      per_phone_per_min: 6
+      per_phone_per_hour: 100
+
+    enrollment:
+      # When true: an unknown-phone message triggers a prompt asking the
+      # farmer for their registered phone or username, so we can bind
+      # their WhatsApp number to an existing farmer account.
+      # When false: unknown-phone messages get a generic "we don't
+      # recognize this number" reply and are dropped.
+      enabled: true

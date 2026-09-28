@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from utils.env_check import validate_env
 
@@ -1052,3 +1052,100 @@ def create_weather_notification(farmer_id: str, req: WeatherAlertRequest) -> Wea
     except Exception:
         _log.exception("create_weather_notification failed farmer=%s location=%s", farmer_id, req.location_or_pin)
         raise HTTPException(status_code=500, detail="Could not create the weather notification right now. Please try again.")
+
+
+# --- WhatsApp channel ---------------------------------------------------
+#
+# Two endpoints. Both are always mounted (returning 503 when the module is
+# disabled) so a deployment that flips the WHATSAPP_ENABLED env can start
+# accepting traffic without a code deploy or route re-registration.
+# Auth: NOT via require_api_key (that gate is for our own server-to-server
+# callers). WhatsApp providers authenticate themselves via signature
+# headers (Meta HMAC-SHA256, Twilio HMAC-SHA1) verified inside the
+# provider's verify_signature -- see services/whatsapp_channel/providers/.
+
+
+def _get_whatsapp_provider_or_503():
+    """Instantiate the configured provider or 503 if the WhatsApp module
+    is off / misconfigured. Called by both webhook endpoints below."""
+    try:
+        from services.whatsapp_channel import get_provider, ChannelDisabled
+    except Exception as exc:  # module-level import error should never happen; log if it does
+        _log.exception("whatsapp channel module import failed: %s", exc)
+        raise HTTPException(status_code=503, detail="WhatsApp channel not available")
+    try:
+        return get_provider()
+    except ChannelDisabled:
+        raise HTTPException(status_code=503, detail="WhatsApp channel is disabled on this deployment")
+    except ValueError as exc:
+        # Missing required env (e.g. WHATSAPP_META_PHONE_ID) -- surface as 503 so
+        # Meta stops retrying instead of assuming we're going to accept later.
+        _log.warning("whatsapp provider construction failed: %s", exc)
+        raise HTTPException(status_code=503, detail=f"WhatsApp channel misconfigured: {exc}")
+
+
+@app.get("/whatsapp/webhook")
+def whatsapp_webhook_verify(
+    hub_mode: str = Query(default="", alias="hub.mode"),
+    hub_challenge: str = Query(default="", alias="hub.challenge"),
+    hub_verify_token: str = Query(default="", alias="hub.verify_token"),
+) -> Response:
+    """Meta's one-time webhook verification handshake. Called by Meta ONCE
+    when you subscribe a webhook URL in the app dashboard. We compare
+    hub.verify_token against WHATSAPP_META_VERIFY_TOKEN (a string YOU
+    picked and configured in both places) and echo hub.challenge on match.
+    Any mismatch -> 403, so a wrong token can't accidentally register our
+    endpoint against someone else's Meta app."""
+    from services.whatsapp_channel.config import load_config
+    cfg = load_config()
+    if not cfg.enabled:
+        raise HTTPException(status_code=503, detail="WhatsApp channel is disabled on this deployment")
+    if hub_mode != "subscribe":
+        raise HTTPException(status_code=400, detail="Expected hub.mode=subscribe")
+    if not cfg.meta_verify_token or hub_verify_token != cfg.meta_verify_token:
+        raise HTTPException(status_code=403, detail="verify_token mismatch")
+    return Response(content=hub_challenge, media_type="text/plain")
+
+
+@app.post("/whatsapp/webhook")
+async def whatsapp_webhook(request: Request) -> dict[str, Any]:
+    """Inbound WhatsApp message handler. Verifies the provider signature
+    over the RAW request body, parses, dedupes + dispatches each message
+    through services.whatsapp_channel.router.handle_inbound. Always
+    returns 200 once a valid signature is confirmed, even if downstream
+    processing raises -- otherwise Meta retries webhook deliveries
+    aggressively and burns our LLM budget on repeats. The router itself
+    swallows exceptions and logs them."""
+    provider = _get_whatsapp_provider_or_503()
+    body_bytes = await request.body()
+
+    # Twilio POSTs form-encoded; Meta POSTs JSON. Parse both.
+    content_type = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+    if content_type in ("application/x-www-form-urlencoded", "multipart/form-data"):
+        form = await request.form()
+        parsed_body: dict[str, Any] = {k: form[k] for k in form.keys()}
+        # Twilio's signature scheme needs both the full public URL and the
+        # form params -- stash them in headers so verify_signature can
+        # read them without altering the abstract interface.
+        sig_headers = dict(request.headers)
+        sig_headers["X-Twilio-Full-Url"] = str(request.url)
+        sig_headers["_twilio_form_params"] = parsed_body
+    else:
+        try:
+            parsed_body = await request.json()
+        except Exception:
+            parsed_body = {}
+        sig_headers = dict(request.headers)
+
+    if not provider.verify_signature(body_bytes, sig_headers):
+        _log.warning("whatsapp webhook signature verification failed (content-type=%s)", content_type)
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    from services.whatsapp_channel.router import handle_inbound
+    messages = provider.parse_inbound(parsed_body) or []
+    for msg in messages:
+        try:
+            handle_inbound(provider, msg)
+        except Exception as exc:  # router already logs, but belt-and-suspenders
+            _log.exception("whatsapp handle_inbound raised for id=%s: %s", msg.id, exc)
+    return {"status": "ok", "processed": len(messages)}

@@ -18,6 +18,13 @@ class Farmer(BaseModel):
     phone: str = ""
     role: Literal["farmer", "admin"] = "farmer"
     weather_location: str = ""
+    # Optional override for the WhatsApp channel. Set only when the farmer
+    # messages us from a phone that ISN'T their registered `phone` above
+    # (spouse's phone, work number, etc). storage.get_farmer_by_whatsapp_phone
+    # prefers this over `phone` when both match, so the enrollment flow can
+    # bind an alternate WhatsApp number to a farmer without changing their
+    # primary contact number.
+    whatsapp_phone: Optional[str] = None
 
 
 class Animal(BaseModel):
