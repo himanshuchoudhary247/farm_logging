@@ -22,13 +22,13 @@ from typing import Any
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from google.adk.agents.run_config import RunConfig
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
+from services.llm_service.adk_model import build_adk_model
 
 # Matches SUPPORTED_LANGUAGES elsewhere (appointment_supervisor,
 # animal_registration) -- kept to the same 5, not adding a 6th
@@ -226,7 +226,7 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
             "'how many'/'list'/'show me'/'when was'/data-lookup question "
             "about the farmer's own animals or records."
         ),
-        model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=model_spec["temperature"]),
+        model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION_TEMPLATE.format(schema=schema),
         tools=[_make_run_sql_query_tool(farmer_id)],
         **make_adk_callbacks("query_agent"),
