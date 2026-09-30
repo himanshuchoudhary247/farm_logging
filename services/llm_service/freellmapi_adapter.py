@@ -130,6 +130,12 @@ def complete(task: str, messages: List[Dict[str, Any]], system: Optional[str],
         message = choices[0].get("message") or {}
         text = message.get("content") or ""
     usage = body.get("usage") or {}
+    # OpenAI-compat providers that support prompt caching (OpenAI, DeepInfra,
+    # some routers) report cache hits under usage.prompt_tokens_details.
+    # cached_tokens. Groq doesn't expose this today -- field simply absent,
+    # cache_hit stays None. No provider-side markers needed on the request
+    # (OpenAI auto-caches long stable prefixes).
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
     from services.common.adk_telemetry import log_llm_call
     log_llm_call(
         agent_name="freellmapi_adapter",
@@ -139,6 +145,7 @@ def complete(task: str, messages: List[Dict[str, Any]], system: Optional[str],
         latency_ms=(time.time() - t0) * 1000,
         in_tok=usage.get("prompt_tokens"),
         out_tok=usage.get("completion_tokens"),
+        cache_hit=bool(cached) if cached is not None else None,
     )
     return text
 
@@ -203,6 +210,7 @@ def converse_with_tool(task: str, messages: List[Dict[str, Any]],
                 tool_input = raw_args
 
     usage = body.get("usage") or {}
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
     from services.common.adk_telemetry import log_llm_call
     log_llm_call(
         agent_name="freellmapi_adapter",
@@ -212,6 +220,7 @@ def converse_with_tool(task: str, messages: List[Dict[str, Any]],
         latency_ms=(time.time() - t0) * 1000,
         in_tok=usage.get("prompt_tokens"),
         out_tok=usage.get("completion_tokens"),
+        cache_hit=bool(cached) if cached is not None else None,
         stop_reason=stop_reason,
         tool_name=tool_name,
     )
