@@ -216,6 +216,7 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
     model_spec = model_for_task(TaskTier.GENERATION)
     schema = generate_schema_for_prompt()
 
+    from services.common.adk_telemetry import make_adk_callbacks
     return LlmAgent(
         name="query_agent",
         description=(
@@ -228,6 +229,7 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
         model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION_TEMPLATE.format(schema=schema),
         tools=[_make_run_sql_query_tool(farmer_id)],
+        **make_adk_callbacks("query_agent"),
     )
 
 

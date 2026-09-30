@@ -130,10 +130,15 @@ def complete(task: str, messages: List[Dict[str, Any]], system: Optional[str],
         message = choices[0].get("message") or {}
         text = message.get("content") or ""
     usage = body.get("usage") or {}
-    _log.info(
-        "LATENCY freellmapi task=%s model=%s ms=%.0f in_tok=%s out_tok=%s",
-        task, payload["model"], (time.time() - t0) * 1000,
-        usage.get("prompt_tokens"), usage.get("completion_tokens"),
+    from services.common.adk_telemetry import log_llm_call
+    log_llm_call(
+        agent_name="freellmapi_adapter",
+        provider="freellmapi",
+        model=payload["model"],
+        task=task,
+        latency_ms=(time.time() - t0) * 1000,
+        in_tok=usage.get("prompt_tokens"),
+        out_tok=usage.get("completion_tokens"),
     )
     return text
 
@@ -198,11 +203,17 @@ def converse_with_tool(task: str, messages: List[Dict[str, Any]],
                 tool_input = raw_args
 
     usage = body.get("usage") or {}
-    _log.info(
-        "LATENCY freellmapi task=%s model=%s ms=%.0f in_tok=%s out_tok=%s stop=%s tool=%s",
-        task, payload["model"], (time.time() - t0) * 1000,
-        usage.get("prompt_tokens"), usage.get("completion_tokens"),
-        stop_reason, tool_name,
+    from services.common.adk_telemetry import log_llm_call
+    log_llm_call(
+        agent_name="freellmapi_adapter",
+        provider="freellmapi",
+        model=payload["model"],
+        task=task,
+        latency_ms=(time.time() - t0) * 1000,
+        in_tok=usage.get("prompt_tokens"),
+        out_tok=usage.get("completion_tokens"),
+        stop_reason=stop_reason,
+        tool_name=tool_name,
     )
     return {
         "tool_name": tool_name,

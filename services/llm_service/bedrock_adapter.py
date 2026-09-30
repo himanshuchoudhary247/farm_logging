@@ -226,10 +226,15 @@ class BedrockTextAdapter:
         content = resp.get("output", {}).get("message", {}).get("content", [])
         result = content[0].get("text", "") if content and isinstance(content, list) else ""
         usage = resp.get("usage") or {}
-        _log.info(
-            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s",
-            self.task, self.model_id, (time.time() - t0) * 1000,
-            usage.get("inputTokens"), usage.get("outputTokens"),
+        from services.common.adk_telemetry import log_llm_call
+        log_llm_call(
+            agent_name="bedrock_adapter",
+            provider="bedrock",
+            model=self.model_id,
+            task=self.task,
+            latency_ms=(time.time() - t0) * 1000,
+            in_tok=usage.get("inputTokens"),
+            out_tok=usage.get("outputTokens"),
         )
         return result
 
@@ -286,11 +291,17 @@ class BedrockTextAdapter:
         content = resp.get("output", {}).get("message", {}).get("content", []) or []
         tool_use = next((c["toolUse"] for c in content if "toolUse" in c), None)
         usage = resp.get("usage") or {}
-        _log.info(
-            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s stop=%s tool=%s",
-            self.task, self.model_id, (time.time() - t0) * 1000,
-            usage.get("inputTokens"), usage.get("outputTokens"),
-            resp.get("stopReason"), tool_use["name"] if tool_use else None,
+        from services.common.adk_telemetry import log_llm_call
+        log_llm_call(
+            agent_name="bedrock_adapter",
+            provider="bedrock",
+            model=self.model_id,
+            task=self.task,
+            latency_ms=(time.time() - t0) * 1000,
+            in_tok=usage.get("inputTokens"),
+            out_tok=usage.get("outputTokens"),
+            stop_reason=resp.get("stopReason"),
+            tool_name=tool_use["name"] if tool_use else None,
         )
         # Also return any text the model emitted alongside the tool call
         # (some models put the follow-up question there).
