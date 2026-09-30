@@ -19,7 +19,7 @@ import asyncio
 import uuid
 from typing import Any
 
-from google.adk import Agent
+from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from google.adk.agents.run_config import RunConfig
 from google.adk.models.lite_llm import LiteLlm
@@ -209,14 +209,14 @@ def _make_run_sql_query_tool(farmer_id: str):
     return run_sql_query
 
 
-def build_query_agent(farmer_id: str) -> Agent:
+def build_query_agent(farmer_id: str) -> LlmAgent:
     """One Agent per farmer_id -- farmer_id is baked into the tool closure
     above, not passed through the model, so no prompt can ever redirect a
     query at a different farmer's data."""
     model_spec = model_for_task(TaskTier.GENERATION)
     schema = generate_schema_for_prompt()
 
-    return Agent(
+    return LlmAgent(
         name="query_agent",
         description=(
             "Answers a farmer's questions about their own livestock data -- "

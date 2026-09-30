@@ -24,7 +24,7 @@ import logging
 from base64 import b64encode
 from typing import Any
 
-from google.adk import Agent
+from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -171,9 +171,9 @@ def _make_record_route_tool(captured: dict[str, str]):
     return record_route
 
 
-def _build_classifier_agent(captured: dict[str, str]) -> Agent:
+def _build_classifier_agent(captured: dict[str, str]) -> LlmAgent:
     model_spec = model_for_task(TaskTier.EXTRACTION)
-    return Agent(
+    return LlmAgent(
         name="router_classifier",
         model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=0),
         instruction=_ROUTE_INSTRUCTION,

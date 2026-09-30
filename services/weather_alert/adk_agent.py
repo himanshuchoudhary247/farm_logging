@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from google.adk import Agent
+from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -73,9 +73,9 @@ def _make_get_weather_context_tool(farmer_id: str):
     return get_weather_context
 
 
-def build_weather_agent(farmer_id: str) -> Agent:
+def build_weather_agent(farmer_id: str) -> LlmAgent:
     model_spec = model_for_task(TaskTier.GENERATION)
-    return Agent(
+    return LlmAgent(
         name="weather_agent",
         description=(
             "Answers a farmer's weather, seasonal-advisory, and feed-market "
