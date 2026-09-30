@@ -173,11 +173,13 @@ def _make_record_route_tool(captured: dict[str, str]):
 
 def _build_classifier_agent(captured: dict[str, str]) -> LlmAgent:
     model_spec = model_for_task(TaskTier.EXTRACTION)
+    from services.common.adk_telemetry import make_adk_callbacks
     return LlmAgent(
         name="router_classifier",
         model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=0),
         instruction=_ROUTE_INSTRUCTION,
         tools=[_make_record_route_tool(captured)],
+        **make_adk_callbacks("router_classifier"),
     )
 
 

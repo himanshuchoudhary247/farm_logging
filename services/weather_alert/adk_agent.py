@@ -75,6 +75,7 @@ def _make_get_weather_context_tool(farmer_id: str):
 
 def build_weather_agent(farmer_id: str) -> LlmAgent:
     model_spec = model_for_task(TaskTier.GENERATION)
+    from services.common.adk_telemetry import make_adk_callbacks
     return LlmAgent(
         name="weather_agent",
         description=(
@@ -86,6 +87,7 @@ def build_weather_agent(farmer_id: str) -> LlmAgent:
         model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION,
         tools=[_make_get_weather_context_tool(farmer_id)],
+        **make_adk_callbacks("weather_agent"),
     )
 
 
