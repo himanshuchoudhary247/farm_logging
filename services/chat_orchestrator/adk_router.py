@@ -31,6 +31,7 @@ from google.genai import types
 
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
+from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
@@ -140,19 +141,11 @@ def _has_active_registration_draft(farmer_id: str, session_id: str) -> bool:
         return False
 
 
-_ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
-
-Categories:
-- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging a health event for an animal ALREADY on the farm (a treatment given, a vaccination done, a symptom noticed, a checkup completed).
-- "add_animal": registering a brand-new animal that isn't on the farm's records yet -- the farmer wants to ADD it as a new entry (a new goat/sheep they bought, were given, or that was born). This is about the animal's identity itself (ID, species, breed, sex), not a health event.
-- "weather": weather, rain, temperature, heat/cold stress, whether to move animals indoors, or feed-price/market questions tied to weather/season.
-- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" or "add_animal" (whichever fits) -- a farmer telling you what happened wants it recorded, not silently discarded.
-
-"appointment" vs "add_animal": both can write data, but about different things -- "my goat has a fever" or "book a vet visit" is "appointment" (an EXISTING animal's health). "I got a new goat, register it" or "add a new sheep to my farm" is "add_animal" (the animal's own identity record, brand new).
-
-When genuinely ambiguous with no hint of a new event to record, prefer "query" -- it is the general-purpose fallback."""
-
-_VALID_INTENTS = ("appointment", "add_animal", "weather", "query")
+# Both derived from the shared catalog (services/chat_orchestrator/intents.py).
+# _ROUTE_INSTRUCTION is byte-identical to the pre-refactor hand-written
+# string (see test_intents_catalog.py::test_route_instruction_byte_identical).
+_ROUTE_INSTRUCTION = build_route_instruction()
+_VALID_INTENTS = VALID_INTENTS
 
 
 def _make_record_route_tool(captured: dict[str, str]):
@@ -260,19 +253,47 @@ def route_turn_adk(
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
 
-    if intent == "appointment":
-        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("appointment_supervisor", result)
-        return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+    # Dispatch table lookup replaces the 4-way if-elif chain. Fallback to
+    # `query` for anything unrecognized -- matches _make_record_route_tool's
+    # own "unknown -> query" guard, so one behavior in one place instead of
+    # two places drifting.
+    handler = _DISPATCH_TABLE.get(intent) or _DISPATCH_TABLE["query"]
+    return handler(farmer_id, session_id, text, language, include_audio, intent)
 
-    if intent == "add_animal":
-        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("animal_registration", result)
-        return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
-    if intent == "weather":
-        return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
+# Per-intent dispatch handlers. Each takes the same fully-resolved
+# arguments as the sticky-routing block at the top of route_turn_adk and
+# returns the standard envelope shape. Sticky-routed dispatches at the
+# top pass intent=None; classified dispatches pass the classifier's
+# chosen intent so telemetry/envelope include it. Kept as small named
+# functions so the dispatch table below is a plain literal a reader can
+# eyeball at a glance.
 
+def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent):
+    result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    reply = _reply_text("appointment_supervisor", result)
+    return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+def _dispatch_animal_registration(farmer_id, session_id, text, language, include_audio, intent):
+    result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    reply = _reply_text("animal_registration", result)
+    return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+def _dispatch_weather(farmer_id, session_id, text, language, include_audio, intent):
+    return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
+
+
+def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent):
     result = process_query_adk(text, farmer_id)
     reply = result.get("answer") or ""
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
+
+
+_DISPATCH_TABLE = {
+    "appointment": _dispatch_appointment,
+    "add_animal": _dispatch_animal_registration,
+    "weather": _dispatch_weather,
+    "query": _dispatch_query,
+}
