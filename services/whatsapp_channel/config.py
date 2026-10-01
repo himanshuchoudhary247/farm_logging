@@ -60,6 +60,14 @@ class WhatsAppChannelConfig:
     twilio_account_sid: Optional[str] = None
     twilio_auth_token: Optional[str] = None
     twilio_whatsapp_from: Optional[str] = None
+    # Enrollment OTP (finding 1 of the PR #24 review). Empty otp_provider
+    # means no OTP sender is configured, and enrollment is then refused
+    # (fail closed) instead of linking a WhatsApp number without proof
+    # that the sender owns the farmer's registered phone.
+    otp_provider: str = ""
+    msg91_auth_key: Optional[str] = None
+    msg91_otp_template_id: Optional[str] = None
+    msg91_otp_var: str = "var1"
 
 
 _cache: Optional[WhatsAppChannelConfig] = None
@@ -177,6 +185,14 @@ def load_config() -> WhatsAppChannelConfig:
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID") or None,
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN") or None,
         twilio_whatsapp_from=os.getenv("TWILIO_WHATSAPP_FROM") or None,
+        otp_provider=(
+            os.getenv("WHATSAPP_OTP_PROVIDER")
+            or enrollment.get("otp_provider")
+            or ""
+        ).strip().lower(),
+        msg91_auth_key=os.getenv("MSG91_AUTH_KEY") or None,
+        msg91_otp_template_id=os.getenv("WHATSAPP_MSG91_OTP_TEMPLATE_ID") or None,
+        msg91_otp_var=os.getenv("WHATSAPP_MSG91_OTP_VAR") or "var1",
     )
     return _cache
 
