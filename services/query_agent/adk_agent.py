@@ -16,13 +16,15 @@ LLM-driven tool call with).
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from typing import Any
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from google.adk.agents.run_config import RunConfig
-from google.adk.runners import InMemoryRunner
+from google.adk.runners import InMemoryRunner, Runner
+from google.adk.sessions import BaseSessionService, InMemorySessionService
 from google.genai import types
 
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
@@ -229,6 +231,9 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
         model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION_TEMPLATE.format(schema=schema),
         tools=[_make_run_sql_query_tool(farmer_id)],
+        # Saves the final answer into the session state, so the next turn
+        # (and later, other agents) can read what was last answered.
+        output_key="last_query_answer",
         **make_adk_callbacks("query_agent"),
     )
 
@@ -263,11 +268,54 @@ def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
 _MAX_LLM_CALLS = 8
 
 
-async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
+_APP_NAME = "farmer_chat_query_agent"
+
+# One session store for the whole process. Previously a fresh InMemoryRunner
+# (and so a fresh, empty session) was built on every turn, so the agent had
+# no memory of the chat and follow-ups like "and sheep?" had no context.
+_IN_MEMORY_SESSIONS = InMemorySessionService()
+
+# Upper bound on events kept in one ADK session. Past this the session is
+# restarted, so a long chat does not keep growing every LLM call's prompt.
+_MAX_SESSION_EVENTS = 40
+
+
+def _session_service() -> BaseSessionService:
+    """In-memory by default. Setting ADK_SESSION_DB_URL (a SQLAlchemy URL)
+    keeps sessions across server restarts. A new DatabaseSessionService is
+    built per call because each process_query_adk call runs in its own
+    asyncio.run event loop and a DB engine must not be shared across event
+    loops; the data itself lives in the database, so nothing is lost."""
+    db_url = os.getenv("ADK_SESSION_DB_URL", "").strip()
+    if db_url:
+        from google.adk.sessions import DatabaseSessionService
+        return DatabaseSessionService(db_url=db_url)
+    return _IN_MEMORY_SESSIONS
+
+
+async def _get_or_create_session(service: BaseSessionService, user_id: str, session_id: str | None):
+    """Reuses the chat's own session when the caller passes its session_id,
+    so the agent sees the earlier turns of that chat. Sessions are keyed by
+    user_id (farmer-<id>) as well, so one farmer can never read another
+    farmer's session even with the same session_id. With no session_id the
+    old behaviour is kept: a fresh one-off session."""
+    if not session_id:
+        return await service.create_session(app_name=_APP_NAME, user_id=user_id)
+
+    session = await service.get_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+    if session is not None and len(session.events) <= _MAX_SESSION_EVENTS:
+        return session
+    if session is not None:
+        await service.delete_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+    return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+
+
+async def _run_query_async(query: str, farmer_id: str, session_id: str | None = None) -> dict[str, Any]:
     agent = build_query_agent(farmer_id)
-    runner = InMemoryRunner(agent=agent, app_name="farmer_chat_query_agent")
+    service = _session_service()
+    runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
-    session = await runner.session_service.create_session(app_name="farmer_chat_query_agent", user_id=user_id)
+    session = await _get_or_create_session(service, user_id, session_id)
     message = types.Content(role="user", parts=[types.Part(text=query)])
 
     answer_text: str | None = None
@@ -332,10 +380,14 @@ async def _run_query_async(query: str, farmer_id: str) -> dict[str, Any]:
     }
 
 
-def process_query_adk(query: str, farmer_id: str) -> dict[str, Any]:
+def process_query_adk(query: str, farmer_id: str, session_id: str | None = None) -> dict[str, Any]:
     """Drop-in replacement for agent.py's process_query(), same return shape
     ({"answer", "sql", "data"}), routed through an ADK Agent instead of the
     hand-rolled generate-SQL/execute/format/retry loop. Sync wrapper because
     every caller in this codebase (chat_orchestrator, appointment_supervisor's
-    off-topic probe) is itself sync."""
-    return asyncio.run(_run_query_async(query, farmer_id))
+    off-topic probe) is itself sync.
+
+    session_id (optional): the chat's session id. When given, the same ADK
+    session is reused across turns so the agent remembers the conversation.
+    When omitted, behaviour is unchanged (one-off session)."""
+    return asyncio.run(_run_query_async(query, farmer_id, session_id))

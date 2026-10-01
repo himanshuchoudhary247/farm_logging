@@ -119,15 +119,19 @@ def test_classified_query_routes_to_query_agent(monkeypatch):
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("query"))
-    monkeypatch.setattr(
-        adk_router, "process_query_adk",
-        lambda query, farmer_id: {"answer": "you have 53 animals", "sql": "SELECT COUNT(*)...", "data": {}},
-    )
+    seen: dict = {}
+
+    def _fake_query(query, farmer_id, session_id=None):
+        seen["session_id"] = session_id
+        return {"answer": "you have 53 animals", "sql": "SELECT COUNT(*)...", "data": {}}
+
+    monkeypatch.setattr(adk_router, "process_query_adk", _fake_query)
     monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
     result = adk_router.route_turn_adk("f-001", "classify-query", "how many animals do I have")
     assert result["agent"] == "query_agent"
     assert result["intent"] == "query"
     assert result["reply_text"] == "you have 53 animals"
+    assert seen["session_id"] == "classify-query"
 
 
 def test_record_route_tool_rejects_invalid_intent_defaults_to_query():

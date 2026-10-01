@@ -286,7 +286,11 @@ def _dispatch_weather(farmer_id, session_id, text, language, include_audio, inte
 
 
 def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent):
-    result = process_query_adk(text, farmer_id)
+    # session_id forwarded so query_agent can reuse the chat's ADK session
+    # and remember earlier turns (PR #28 integration into the post-#30
+    # dispatch-table shape; this exact collision was flagged in the code
+    # review and would silently disappear under a naive git merge).
+    result = process_query_adk(text, farmer_id, session_id=session_id)
     reply = result.get("answer") or ""
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
 
