@@ -25,7 +25,6 @@ from base64 import b64encode
 from typing import Any
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
@@ -37,6 +36,7 @@ from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
+from services.llm_service.adk_model import build_adk_model
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
@@ -169,7 +169,7 @@ def _build_classifier_agent(captured: dict[str, str]) -> LlmAgent:
     from services.common.adk_telemetry import make_adk_callbacks
     return LlmAgent(
         name="router_classifier",
-        model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=0),
+        model=build_adk_model(TaskTier.EXTRACTION, model_spec["id"], temperature=0),
         instruction=_ROUTE_INSTRUCTION,
         tools=[_make_record_route_tool(captured)],
         **make_adk_callbacks("router_classifier"),

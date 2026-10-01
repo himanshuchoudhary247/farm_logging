@@ -20,13 +20,13 @@ import asyncio
 from typing import Any
 
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.pincode_store import get_pincode_data
 from storage import get_farmer_by_id
+from services.llm_service.adk_model import build_adk_model
 
 _INSTRUCTION = """You are a livestock weather and farm-advisory assistant.
 
@@ -84,7 +84,7 @@ def build_weather_agent(farmer_id: str) -> LlmAgent:
             "stress risk, whether to move animals indoors, feed price trends. "
             "Use this for any weather- or season-related question."
         ),
-        model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=model_spec["temperature"]),
+        model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION,
         tools=[_make_get_weather_context_tool(farmer_id)],
         **make_adk_callbacks("weather_agent"),
