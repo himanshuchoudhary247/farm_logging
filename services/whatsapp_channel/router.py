@@ -221,6 +221,19 @@ def handle_inbound(provider: WhatsAppProvider, msg: InboundMessage) -> None:
         _log.warning("whatsapp send_text failed for farmer=%s: %s", farmer.id, exc)
 
 
+def handle_inbound_batch(provider: WhatsAppProvider, messages: "list[InboundMessage]") -> None:
+    """Process every parsed message from one webhook delivery. Runs as a
+    FastAPI background task, after the webhook has already returned 200.
+    One message failing never stops the rest: handle_inbound already logs
+    its own errors, and this is the same belt-and-suspenders loop that used
+    to live inline in the webhook handler."""
+    for msg in messages:
+        try:
+            handle_inbound(provider, msg)
+        except Exception as exc:  # router already logs, but belt-and-suspenders
+            _log.exception("whatsapp handle_inbound raised for id=%s: %s", msg.id, exc)
+
+
 def reset_state_for_tests() -> None:
     """Test hook: forget the module-level rate limiter and dedupe so
     each test starts fresh. Never call from production code paths."""

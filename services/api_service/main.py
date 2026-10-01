@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from utils.env_check import validate_env
 
@@ -1108,14 +1108,16 @@ def whatsapp_webhook_verify(
 
 
 @app.post("/whatsapp/webhook")
-async def whatsapp_webhook(request: Request) -> dict[str, Any]:
+async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Inbound WhatsApp message handler. Verifies the provider signature
     over the RAW request body, parses, dedupes + dispatches each message
-    through services.whatsapp_channel.router.handle_inbound. Always
-    returns 200 once a valid signature is confirmed, even if downstream
-    processing raises -- otherwise Meta retries webhook deliveries
-    aggressively and burns our LLM budget on repeats. The router itself
-    swallows exceptions and logs them."""
+    through services.whatsapp_channel.router.handle_inbound_batch (which
+    calls handle_inbound for each one). Always returns 200 once a valid
+    signature is confirmed, even if downstream processing raises --
+    otherwise Meta retries webhook deliveries aggressively and burns our
+    LLM budget on repeats. The router itself swallows exceptions and logs
+    them. Processing runs as a background task after the 200 is sent (see
+    the comment at the end of this function)."""
     from services.whatsapp_channel.public_url import twilio_public_url
     provider = _get_whatsapp_provider_or_503()
     body_bytes = await request.body()
@@ -1142,11 +1144,13 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
         _log.warning("whatsapp webhook signature verification failed (content-type=%s)", content_type)
         raise HTTPException(status_code=403, detail="Invalid signature")
 
-    from services.whatsapp_channel.router import handle_inbound
+    from services.whatsapp_channel.router import handle_inbound_batch
     messages = provider.parse_inbound(parsed_body) or []
-    for msg in messages:
-        try:
-            handle_inbound(provider, msg)
-        except Exception as exc:  # router already logs, but belt-and-suspenders
-            _log.exception("whatsapp handle_inbound raised for id=%s: %s", msg.id, exc)
+    # Reply to Meta/Twilio right away and process in the background. A turn
+    # can take 10-30s (cold LLM call) while Meta times webhooks out at ~10s
+    # and retries, and running it inline held this async handler (and the
+    # event loop) for the whole turn. A sync background task runs in
+    # Starlette's threadpool after the response is sent, so the event loop
+    # stays free. "processed" = messages accepted for processing.
+    background_tasks.add_task(handle_inbound_batch, provider, messages)
     return {"status": "ok", "processed": len(messages)}
