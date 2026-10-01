@@ -9,6 +9,10 @@ resolution and its "fall back to English on unknown language" behavior.
 Enrollment prompt DELIBERATELY asks for "registered phone number or
 username", never "farmer ID": farmers don't know their internal
 f-001 UUIDs, so asking for one would be a dead end.
+
+enroll_code_sent is deliberately the SAME reply whether or not the claim
+matched an account, so it cannot be used to discover which phone numbers
+or usernames are registered.
 """
 from __future__ import annotations
 
@@ -39,6 +43,20 @@ _TEXT = {
         "enrollment_failed": (
             "I couldn't find a FarmHerd account matching that. Please reply with "
             "your registered phone number (like +91XXXXXXXXXX) or your username."
+        ),
+        "enroll_code_sent": (
+            "To link this WhatsApp to your FarmHerd account, reply with your registered "
+            "phone number or username. If it matches an account, we will send a 6-digit "
+            "code by SMS to the registered phone -- please reply here with that code."
+        ),
+        "otp_wrong": "That code is not correct. Please check the SMS and try again.",
+        "otp_locked": (
+            "Too many wrong codes. Please send your registered phone number or username "
+            "again to get a new code."
+        ),
+        "otp_expired": (
+            "That code has expired. Please send your registered phone number or username "
+            "again to get a new code."
         ),
         "rate_limited": (
             "You are sending messages a bit fast. Please wait a moment and try again."
@@ -73,6 +91,20 @@ _TEXT = {
             "मुझे कोई मिलान वाला FarmHerd खाता नहीं मिला। कृपया अपना पंजीकृत फोन नंबर "
             "(जैसे +91XXXXXXXXXX) या यूज़रनेम भेजें।"
         ),
+        "enroll_code_sent": (
+            "इस WhatsApp को अपने FarmHerd खाते से जोड़ने के लिए अपना पंजीकृत फोन नंबर या यूज़रनेम "
+            "भेजें। अगर यह किसी खाते से मेल खाता है, तो हम पंजीकृत फोन पर SMS से 6 अंकों का कोड "
+            "भेजेंगे -- कृपया वह कोड यहाँ भेजें।"
+        ),
+        "otp_wrong": "यह कोड सही नहीं है। कृपया SMS देखकर फिर से भेजें।",
+        "otp_locked": (
+            "बहुत बार गलत कोड भेजा गया। नया कोड पाने के लिए अपना पंजीकृत फोन नंबर या यूज़रनेम "
+            "फिर से भेजें।"
+        ),
+        "otp_expired": (
+            "यह कोड समाप्त हो गया है। नया कोड पाने के लिए अपना पंजीकृत फोन नंबर या यूज़रनेम "
+            "फिर से भेजें।"
+        ),
         "rate_limited": "आप बहुत तेज़ी से संदेश भेज रहे हैं। कृपया थोड़ी देर बाद फिर से कोशिश करें।",
         "reply_trimmed_suffix": "\n\n... (उत्तर छोटा किया गया है; पूरा उत्तर देखने के लिए ऐप खोलें)",
         "intent_labels": {
@@ -101,6 +133,21 @@ _TEXT = {
         "enrollment_failed": (
             "பொருந்தும் FarmHerd கணக்கு எதுவும் கிடைக்கவில்லை. உங்கள் பதிவு செய்யப்பட்ட "
             "தொலைபேசி எண் (+91XXXXXXXXXX போன்று) அல்லது பயனர்பெயரை அனுப்பவும்."
+        ),
+        "enroll_code_sent": (
+            "இந்த WhatsApp-ஐ உங்கள் FarmHerd கணக்குடன் இணைக்க, உங்கள் பதிவு செய்யப்பட்ட "
+            "தொலைபேசி எண் அல்லது பயனர்பெயரை அனுப்பவும். அது ஒரு கணக்குடன் பொருந்தினால், பதிவு "
+            "செய்யப்பட்ட தொலைபேசிக்கு SMS மூலம் 6 இலக்க குறியீடு அனுப்பப்படும் -- அந்தக் "
+            "குறியீட்டை இங்கே அனுப்பவும்."
+        ),
+        "otp_wrong": "இந்தக் குறியீடு சரியில்லை. SMS-ஐப் பார்த்து மீண்டும் முயற்சிக்கவும்.",
+        "otp_locked": (
+            "பல முறை தவறான குறியீடு. புதிய குறியீட்டைப் பெற உங்கள் பதிவு செய்யப்பட்ட "
+            "தொலைபேசி எண் அல்லது பயனர்பெயரை மீண்டும் அனுப்பவும்."
+        ),
+        "otp_expired": (
+            "இந்தக் குறியீட்டின் காலம் முடிந்துவிட்டது. புதிய குறியீட்டைப் பெற உங்கள் பதிவு "
+            "செய்யப்பட்ட தொலைபேசி எண் அல்லது பயனர்பெயரை மீண்டும் அனுப்பவும்."
         ),
         "rate_limited": "நீங்கள் மிக வேகமாக செய்திகளை அனுப்புகிறீர்கள். சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும்.",
         "reply_trimmed_suffix": "\n\n... (பதில் சுருக்கப்பட்டது; முழு பதிலைக் காண செயலியைத் திறக்கவும்)",
@@ -131,6 +178,20 @@ _TEXT = {
             "సరిపోలే FarmHerd ఖాతా కనుగొనబడలేదు. దయచేసి మీ నమోదిత ఫోన్ నంబర్ "
             "(+91XXXXXXXXXX వంటిది) లేదా యూజర్‌నేమ్ పంపండి."
         ),
+        "enroll_code_sent": (
+            "ఈ WhatsAppను మీ FarmHerd ఖాతాతో లింక్ చేయడానికి, మీ నమోదిత ఫోన్ నంబర్ లేదా "
+            "యూజర్‌నేమ్ పంపండి. అది ఏదైనా ఖాతాతో సరిపోలితే, నమోదిత ఫోన్‌కు SMS ద్వారా 6 అంకెల "
+            "కోడ్ పంపుతాము -- దయచేసి ఆ కోడ్‌ను ఇక్కడ పంపండి."
+        ),
+        "otp_wrong": "ఈ కోడ్ సరైనది కాదు. దయచేసి SMS చూసి మళ్లీ ప్రయత్నించండి.",
+        "otp_locked": (
+            "చాలా సార్లు తప్పు కోడ్. కొత్త కోడ్ కోసం మీ నమోదిత ఫోన్ నంబర్ లేదా యూజర్‌నేమ్ "
+            "మళ్లీ పంపండి."
+        ),
+        "otp_expired": (
+            "ఈ కోడ్ గడువు ముగిసింది. కొత్త కోడ్ కోసం మీ నమోదిత ఫోన్ నంబర్ లేదా యూజర్‌నేమ్ "
+            "మళ్లీ పంపండి."
+        ),
         "rate_limited": "మీరు చాలా వేగంగా సందేశాలు పంపుతున్నారు. కొంచెం వేచి మళ్ళీ ప్రయత్నించండి.",
         "reply_trimmed_suffix": "\n\n... (సమాధానం కుదించబడింది; పూర్తి సమాధానం కోసం యాప్ తెరవండి)",
         "intent_labels": {
@@ -159,6 +220,20 @@ _TEXT = {
         "enrollment_failed": (
             "ಹೊಂದಾಣಿಕೆಯಾಗುವ FarmHerd ಖಾತೆ ಸಿಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ನೋಂದಾಯಿತ ಫೋನ್ ಸಂಖ್ಯೆ "
             "(+91XXXXXXXXXX ರೀತಿ) ಅಥವಾ ಬಳಕೆದಾರಹೆಸರನ್ನು ಕಳುಹಿಸಿ."
+        ),
+        "enroll_code_sent": (
+            "ಈ WhatsApp ಅನ್ನು ನಿಮ್ಮ FarmHerd ಖಾತೆಗೆ ಲಿಂಕ್ ಮಾಡಲು, ನಿಮ್ಮ ನೋಂದಾಯಿತ ಫೋನ್ ಸಂಖ್ಯೆ "
+            "ಅಥವಾ ಬಳಕೆದಾರಹೆಸರನ್ನು ಕಳುಹಿಸಿ. ಅದು ಯಾವುದಾದರೂ ಖಾತೆಗೆ ಹೊಂದಿಕೆಯಾದರೆ, ನೋಂದಾಯಿತ "
+            "ಫೋನ್‌ಗೆ SMS ಮೂಲಕ 6 ಅಂಕಿಯ ಕೋಡ್ ಕಳುಹಿಸುತ್ತೇವೆ -- ದಯವಿಟ್ಟು ಆ ಕೋಡ್ ಅನ್ನು ಇಲ್ಲಿ ಕಳುಹಿಸಿ."
+        ),
+        "otp_wrong": "ಈ ಕೋಡ್ ಸರಿಯಿಲ್ಲ. ದಯವಿಟ್ಟು SMS ನೋಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+        "otp_locked": (
+            "ಹಲವು ಬಾರಿ ತಪ್ಪು ಕೋಡ್. ಹೊಸ ಕೋಡ್‌ಗಾಗಿ ನಿಮ್ಮ ನೋಂದಾಯಿತ ಫೋನ್ ಸಂಖ್ಯೆ ಅಥವಾ "
+            "ಬಳಕೆದಾರಹೆಸರನ್ನು ಮತ್ತೆ ಕಳುಹಿಸಿ."
+        ),
+        "otp_expired": (
+            "ಈ ಕೋಡ್‌ನ ಅವಧಿ ಮುಗಿದಿದೆ. ಹೊಸ ಕೋಡ್‌ಗಾಗಿ ನಿಮ್ಮ ನೋಂದಾಯಿತ ಫೋನ್ ಸಂಖ್ಯೆ ಅಥವಾ "
+            "ಬಳಕೆದಾರಹೆಸರನ್ನು ಮತ್ತೆ ಕಳುಹಿಸಿ."
         ),
         "rate_limited": "ನೀವು ತುಂಬಾ ವೇಗವಾಗಿ ಸಂದೇಶಗಳನ್ನು ಕಳುಹಿಸುತ್ತಿದ್ದೀರಿ. ಸ್ವಲ್ಪ ಕಾಯಿರಿ.",
         "reply_trimmed_suffix": "\n\n... (ಉತ್ತರ ಸಂಕ್ಷಿಪ್ತಗೊಳಿಸಲಾಗಿದೆ; ಪೂರ್ಣ ಉತ್ತರಕ್ಕಾಗಿ ಆಪ್ ತೆರೆಯಿರಿ)",

@@ -57,6 +57,20 @@ def _msg(text: str, from_phone: str = "+919876543210", id_: str = "m-1"):
     return InboundMessage(from_phone=from_phone, text=text, id=id_)
 
 
+def _enable_otp(env, monkeypatch):
+    """Turn on the mock OTP sender (dev/tests only) and return it, so a
+    test can read the code that was 'SMSed' to the farmer."""
+    monkeypatch.setenv("WHATSAPP_OTP_PROVIDER", "mock")
+    env["cfg_mod"].reset_cache_for_tests()
+    env["router_mod"].reset_state_for_tests()
+    return env["router_mod"]._get_otp_sender(env["cfg_mod"].load_config())
+
+
+def _whatsapp_phone_of(env, farmer_id: str):
+    importlib.reload(env["storage"])
+    return env["storage"].get_farmer_by_id(farmer_id).whatsapp_phone
+
+
 # ---- Registered-farmer resolution ----------------------------------------
 
 
@@ -114,40 +128,96 @@ def test_blocked_intent_returns_localized_message_no_agent_run(env, monkeypatch)
 
 def test_unknown_farmer_first_msg_sees_enrollment_prompt(env, monkeypatch):
     """No matching farmer + enrollment enabled -> localized prompt, no
-    downstream call."""
+    downstream call, and no SMS (nothing matched)."""
+    sender = _enable_otp(env, monkeypatch)
     called = {"route": 0}
     monkeypatch.setattr(env["router_mod"], "route_turn_adk", lambda *a, **k: (called.__setitem__("route", called["route"] + 1) or {}))
     env["router_mod"].handle_inbound(env["provider"], _msg("hi"))
     assert called["route"] == 0
     assert len(env["provider"].sent_texts) == 1
     assert "recognize" in env["provider"].sent_texts[0][1] or "reply" in env["provider"].sent_texts[0][1]
+    assert sender.sent == []
 
 
-def test_unknown_farmer_reply_with_registered_phone_binds_whatsapp_phone(env, monkeypatch):
-    """Second message from an unknown phone that contains the farmer's
-    registered phone -> we resolve and set whatsapp_phone. Third
-    message from the same sender should now resolve normally."""
+def test_claim_sends_code_to_registered_phone_but_does_not_link_yet(env, monkeypatch):
+    """Finding 1: typing a registered phone must NOT link the WhatsApp
+    number on its own -- a code goes to the farmer's registered phone."""
+    sender = _enable_otp(env, monkeypatch)
     _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
-    monkeypatch.setattr(env["router_mod"], "route_turn_adk", lambda *a, **k: {
-        "agent": "query_agent", "intent": "query", "reply_text": "ok", "result": {}
-    })
+    env["router_mod"].handle_inbound(env["provider"], _msg("+91 11111 11111", id_="a"))
+    assert len(sender.sent) == 1
+    assert sender.sent[0][0] == "+911111111111", "code must go to the REGISTERED phone, not the WhatsApp sender"
+    assert not _whatsapp_phone_of(env, "f-1"), "must not link before the code is verified"
 
-    # msg 1 -- unknown, prompt is sent
-    env["router_mod"].handle_inbound(env["provider"], _msg("hello", id_="a"))
-    # msg 2 -- reply contains the registered phone, we bind and confirm
-    env["router_mod"].handle_inbound(env["provider"], _msg("+91 11111 11111", id_="b"))
-    # msg 3 -- future messages now resolve normally
-    env["router_mod"].handle_inbound(env["provider"], _msg("count animals", id_="c"))
 
-    sent_bodies = [b for _, b in env["provider"].sent_texts]
-    assert any("Thanks" in b or "जुड़ गया" in b or "ಲಿಂಕ್" in b for b in sent_bodies), (
-        f"expected an enrollment_success message; got {sent_bodies}"
-    )
-    # Reload to verify the farmer now has whatsapp_phone set.
-    import importlib
-    importlib.reload(env["storage"])
-    reloaded = env["storage"].get_farmer_by_id("f-1")
-    assert reloaded.whatsapp_phone == "+919876543210", "whatsapp_phone should be set to the sender's number"
+def test_correct_code_links_and_answers_the_pending_question(env, monkeypatch):
+    """Finding 1 + 4: the right code links the WhatsApp number, and the
+    question sent along with the claim is answered right after."""
+    sender = _enable_otp(env, monkeypatch)
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    calls = []
+    def fake_route(farmer_id, session_id, text, language, include_audio, allowed_intents=None):
+        calls.append({"farmer_id": farmer_id, "text": text})
+        return {"agent": "query_agent", "intent": "query", "reply_text": "you have 12 goats", "result": {}}
+    monkeypatch.setattr(env["router_mod"], "route_turn_adk", fake_route)
+
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111 how many goats", id_="a"))
+    code = sender.sent[-1][1]
+    env["router_mod"].handle_inbound(env["provider"], _msg(code, id_="b"))
+
+    assert _whatsapp_phone_of(env, "f-1") == "+919876543210"
+    bodies = [b for _, b in env["provider"].sent_texts]
+    assert any("Thanks" in b for b in bodies), f"expected enrollment_success; got {bodies}"
+    assert calls == [{"farmer_id": "f-1", "text": "how many goats"}]
+    assert env["provider"].sent_texts[-1] == ("+919876543210", "you have 12 goats")
+
+
+def test_wrong_codes_lock_the_enrollment(env, monkeypatch):
+    sender = _enable_otp(env, monkeypatch)
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111", id_="a"))
+    code = sender.sent[-1][1]
+    wrong = "000000" if code != "000000" else "111111"
+    for i in range(3):
+        env["router_mod"].handle_inbound(env["provider"], _msg(wrong, id_=f"w-{i}"))
+    assert "Too many" in env["provider"].sent_texts[-1][1]
+    # The real code no longer works after the lock.
+    env["router_mod"].handle_inbound(env["provider"], _msg(code, id_="late"))
+    assert not _whatsapp_phone_of(env, "f-1")
+
+
+def test_matched_and_unmatched_claims_get_the_same_reply(env, monkeypatch):
+    """No account probing: the WhatsApp reply must not reveal whether a
+    phone/username is registered."""
+    sender = _enable_otp(env, monkeypatch)
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    env["router_mod"].handle_inbound(env["provider"], _msg("nobody-registered", id_="a"))
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111", id_="b"))
+    first, second = [b for _, b in env["provider"].sent_texts]
+    assert first == second
+    assert len(sender.sent) == 1, "only the matching claim triggers an SMS"
+
+
+def test_no_otp_provider_refuses_enrollment(env, monkeypatch):
+    """Fail closed: enrollment enabled but no OTP sender configured ->
+    nothing is linked and the generic reject is sent."""
+    monkeypatch.delenv("WHATSAPP_OTP_PROVIDER", raising=False)
+    env["cfg_mod"].reset_cache_for_tests()
+    env["router_mod"].reset_state_for_tests()
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111", id_="a"))
+    assert not _whatsapp_phone_of(env, "f-1")
+    assert "contact" in env["provider"].sent_texts[-1][1].lower()
+
+
+def test_otp_sms_to_one_farmer_is_rate_limited(env, monkeypatch):
+    """Claims for the same farmer from different WhatsApp numbers must not
+    flood the farmer's phone with codes."""
+    sender = _enable_otp(env, monkeypatch)
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111", from_phone="+912222222222", id_="a"))
+    env["router_mod"].handle_inbound(env["provider"], _msg("+911111111111", from_phone="+913333333333", id_="b"))
+    assert len(sender.sent) == 1
 
 
 def test_unknown_farmer_enrollment_disabled_sends_generic_reject(env, monkeypatch):
@@ -223,3 +293,4 @@ def test_session_id_is_namespaced_and_deterministic(env, monkeypatch):
     env["router_mod"].handle_inbound(env["provider"], _msg("hi again", id_="b"))
     assert captured[0] == captured[1], "same phone -> same session_id (sticky routing works)"
     assert captured[0].startswith("whatsapp-"), "explicit namespace so it can't collide with app UUIDs"
+    
