@@ -1116,6 +1116,7 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
     processing raises -- otherwise Meta retries webhook deliveries
     aggressively and burns our LLM budget on repeats. The router itself
     swallows exceptions and logs them."""
+    from services.whatsapp_channel.public_url import twilio_public_url
     provider = _get_whatsapp_provider_or_503()
     body_bytes = await request.body()
 
@@ -1128,7 +1129,7 @@ async def whatsapp_webhook(request: Request) -> dict[str, Any]:
         # form params -- stash them in headers so verify_signature can
         # read them without altering the abstract interface.
         sig_headers = dict(request.headers)
-        sig_headers["X-Twilio-Full-Url"] = str(request.url)
+        sig_headers["X-Twilio-Full-Url"] = twilio_public_url(request)
         sig_headers["_twilio_form_params"] = parsed_body
     else:
         try:
