@@ -57,6 +57,7 @@ from services.cache_refresh import (
     PinProfile,
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
+from services.advisory.llm_advisory import generate_llm_advisory, summarize_livestock
 from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
@@ -377,6 +378,9 @@ class WeatherPreferenceRequest(BaseModel):
 class PersonalizedAdvisoryRequest(BaseModel):
     pin: Optional[str] = None
     force_refresh: bool = False
+    # Language for the LLM-written "advisory" (en, hi, ta, te, kn, ml).
+    # Optional, so existing callers keep working unchanged.
+    language: str = "en"
 
 
 class AppointmentVoiceTextRequest(BaseModel):
@@ -910,11 +914,21 @@ def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> d
 
     farmer_profile = build_farmer_profile(farmer, pin, animals, logs, appointments, farms)
     personalized = generate_personalized_recommendation(farmer_profile, general)
+    # LLM-written advice for this farm, built on the rule-based actions
+    # above. None if the LLM call fails -- clients then show "personalized".
+    advisory = generate_llm_advisory(
+        farmer_profile,
+        summarize_livestock(animals),
+        general,
+        personalized.get("actions") or [],
+        language=req.language,
+    )
 
     return {
         "pin": pin,
         "general_alert": general,
         "personalized": personalized,
+        "advisory": advisory,
     }
 
 
