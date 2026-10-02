@@ -57,3 +57,32 @@ def test_session_over_the_event_cap_is_restarted(monkeypatch):
 def test_in_memory_service_is_shared_when_no_db_url(monkeypatch):
     monkeypatch.delenv("ADK_SESSION_DB_URL", raising=False)
     assert adk_agent._session_service() is adk_agent._session_service()
+
+
+def test_db_mode_uses_nullpool():
+    """Finding 8 of the PR #28 review: no connection pool per call."""
+    from sqlalchemy.pool import NullPool
+    assert adk_agent._db_engine_kwargs("postgresql+asyncpg://user:pw@host/db") == {"poolclass": NullPool}
+    assert adk_agent._db_engine_kwargs("sqlite+aiosqlite:///./data/adk_sessions.db") == {"poolclass": NullPool}
+
+
+def test_in_memory_sqlite_keeps_adk_default_pool():
+    assert adk_agent._db_engine_kwargs("sqlite+aiosqlite:///:memory:") == {}
+
+
+def test_bad_url_is_left_for_adk_to_report():
+    assert adk_agent._db_engine_kwargs("not a url") == {}
+
+
+def test_db_session_is_found_by_the_next_call(monkeypatch, tmp_path):
+    """Real SQLite file: a session created in one call is found by the
+    next call's brand-new service, i.e. memory lives in the database."""
+    db_url = f"sqlite+aiosqlite:///{(tmp_path / 'adk_sessions.db').as_posix()}"
+    monkeypatch.setenv("ADK_SESSION_DB_URL", db_url)
+    first = adk_agent._session_service()
+    _run(adk_agent._get_or_create_session(first, "farmer-f-001", "chat-1"))
+    second = adk_agent._session_service()
+    assert second is not first
+    session = _run(second.get_session(app_name=APP, user_id="farmer-f-001", session_id="chat-1"))
+    assert session is not None
+

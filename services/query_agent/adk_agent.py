@@ -280,16 +280,43 @@ _IN_MEMORY_SESSIONS = InMemorySessionService()
 _MAX_SESSION_EVENTS = 40
 
 
+def _db_engine_kwargs(db_url: str) -> dict:
+    """Engine settings for DatabaseSessionService. NullPool for real
+    databases (see _session_service). An in-memory SQLite URL gets nothing
+    extra: ADK gives it a StaticPool itself, and NullPool there would hand
+    every connection a new, empty database. An unparseable URL also gets
+    nothing extra, so ADK raises its own error with the password redacted."""
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.pool import NullPool
+
+    try:
+        url = make_url(db_url)
+    except Exception:
+        return {}
+    if url.get_backend_name() == "sqlite" and url.database in (None, "", ":memory:"):
+        return {}
+    return {"poolclass": NullPool}
+
+
 def _session_service() -> BaseSessionService:
     """In-memory by default. Setting ADK_SESSION_DB_URL (a SQLAlchemy URL)
     keeps sessions across server restarts. A new DatabaseSessionService is
     built per call because each process_query_adk call runs in its own
     asyncio.run event loop and a DB engine must not be shared across event
-    loops; the data itself lives in the database, so nothing is lost."""
+    loops; the data itself lives in the database, so nothing is lost.
+
+    NullPool (finding 8 of the PR #28 review): a pooled engine per call
+    meant a new connection pool on every turn, which on Postgres can use up
+    the database's connections. With NullPool each call opens a connection
+    and closes it as soon as it is released, so nothing piles up. Cost is
+    about 10ms of connect time per turn on Postgres and none on SQLite,
+    small next to 1-5s of LLM work. Revisit with one shared event loop (or
+    one per worker thread) only when /chat/turn latency is the bottleneck
+    AND sessions are on Postgres AND traffic is above ~5 requests/second."""
     db_url = os.getenv("ADK_SESSION_DB_URL", "").strip()
     if db_url:
         from google.adk.sessions import DatabaseSessionService
-        return DatabaseSessionService(db_url=db_url)
+        return DatabaseSessionService(db_url=db_url, **_db_engine_kwargs(db_url))
     return _IN_MEMORY_SESSIONS
 
 
