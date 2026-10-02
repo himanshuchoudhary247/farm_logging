@@ -17,7 +17,8 @@ that pincode data is farmer-scoped, but the pattern is kept consistent).
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+import logging
+from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
@@ -25,7 +26,9 @@ from google.genai import types
 
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.pincode_store import get_pincode_data
-from storage import get_farmer_by_id
+from storage import animals_for_farmer, get_farmer_by_id, health_logs_for_farmer
+from services.advisory.llm_advisory import summarize_livestock
+from services.advisory.personalized import recent_issues
 from services.llm_service.adk_model import build_adk_model
 
 _INSTRUCTION = """You are a livestock weather and farm-advisory assistant.
@@ -35,6 +38,7 @@ Rules:
 - If the farmer's message names a PIN code or place, pass it as the location argument. Otherwise pass an empty string -- the tool will use the farmer's saved default location.
 - If the tool returns {"error": "no_location", ...}, tell the farmer you need a PIN code or place name to check the weather -- do not guess a location.
 - Keep your answer short, 1-3 sentences.
+- If the tool result includes "your_farm", make the advice specific to this farmer's own animals (species, young animals, recent health issues). Never name medicines or doses; if an animal is sick, tell them to consult a vet. Without "your_farm", give general advice.
 - Base your answer only on the data the tool returns. Never invent numbers, prices, or facts not present in the data.
 - If the data doesn't contain what the farmer asked, say so simply, then give the closest relevant fact from the data instead of repeating an unrelated summary.
 - Never mention JSON, fields, tools, or any technical/database terms in your answer -- speak like a farm advisor.
@@ -43,6 +47,24 @@ Rules:
 Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can include the specific numbers/advisories the farmer asked for. The spoken version must be even shorter -- the single most important fact and action, nothing else.
 
 After your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly one-sentence version (e.g. "Yes, heavy rain expected today -- move animals to shelter." rather than a sentence packed with mm/kph figures). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line."""
+
+
+def _farm_context(farmer_id: str) -> Optional[dict[str, Any]]:
+    """This farmer's own animals (short summary) and recent health issues,
+    so the weather answer can be specific to their farm. farmer_id is bound
+    at construction, never taken from the model, same as the location
+    lookup. Best effort: a storage error just means a general answer."""
+    try:
+        livestock = summarize_livestock(animals_for_farmer(farmer_id))
+        issues = recent_issues(health_logs_for_farmer(farmer_id))
+    except Exception as exc:
+        logging.getLogger("weather_alert.adk_agent").warning(
+            "farm context unavailable farmer=%s: %s", farmer_id, exc,
+        )
+        return None
+    if not livestock and not issues:
+        return None
+    return {"livestock": livestock, "recent_health_issues": issues}
 
 
 def _make_get_weather_context_tool(farmer_id: str):
@@ -66,9 +88,13 @@ def _make_get_weather_context_tool(farmer_id: str):
         if not loc:
             return {"error": "no_location", "message": "Need a PIN code or place name to check the weather."}
         try:
-            return get_pincode_data(loc)
+            data = get_pincode_data(loc)
         except Exception as exc:
             return {"error": str(exc)}
+        farm = _farm_context(farmer_id)
+        # A new dict: the pincode data is cached and shared by all farmers,
+        # so this farmer's details must never be written into it.
+        return {**data, "your_farm": farm} if farm else data
 
     return get_weather_context
 
