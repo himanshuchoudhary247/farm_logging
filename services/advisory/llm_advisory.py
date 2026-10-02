@@ -56,7 +56,7 @@ _PROMPT = """Write weather advice for this farmer's own farm.
 Farmer: {name}
 Animals on the farm:
 {livestock}
-Recent health issues: {issues}
+Recent health issues recorded on this farm (which animal had them is not recorded): {issues}
 
 Weather and market data for their area:
 {weather}
@@ -67,6 +67,9 @@ Advice already decided by our rules (keep the meaning of each point, in simpler 
 Rules:
 - Use only the facts above. Never invent animals, numbers, dates or prices.
 - Make the advice specific to the animals they actually have (species, young animals, issues).
+- These health issues are for the farm as a whole: never say that all animals, or any specific species, have them.
+- Mention feed only as a price to plan buying. Never tell them which animal to feed what.
+- Talk only about animals, weather and feed prices. Don't mention crops.
 - Never name medicines or doses. If an animal is sick or an issue is serious, tell them to consult a vet.
 - If the weather is normal and there are no issues, say so briefly.
 - Write in {language}. Simple words, no markdown.
