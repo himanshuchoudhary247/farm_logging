@@ -73,6 +73,8 @@ Rules:
 - Never name medicines or doses. If an animal is sick or an issue is serious, tell them to consult a vet.
 - If the weather is normal and there are no issues, say so briefly.
 - Write in {language}. Simple words, no markdown.
+- Use only {language} words (numbers and ₹ are fine). No words from other languages.
+- Keep the exact meaning of each health issue when translating (for example, loose stool means diarrhoea, not constipation).
 - At most {max_actions} actions, one short sentence each.
 
 Reply with only this JSON:
