@@ -7,6 +7,9 @@ BedrockTextAdapter.complete() and .converse_with_tool() route to
 path in the app is untouched -- adapters keep their existing signatures
 and callers change nothing.
 
+The ADK agents (router classifier, query agent, weather agent) reach the
+same endpoint through services/llm_service/adk_model.py.
+
 Intended as a personal-dev escape hatch while the AWS Bedrock account
 outage persists: point a locally-running freellmapi router (or any other
 OpenAI-compatible endpoint -- llama.cpp, LM Studio, Ollama, etc.) at
@@ -29,6 +32,7 @@ Translation shape:
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -65,12 +69,56 @@ def _model_for(task: str) -> str:
     return os.getenv(f"FREELLM_MODEL_{tier}") or os.getenv("FREELLM_MODEL") or "auto"
 
 
+@functools.lru_cache(maxsize=1)
+def _extra_body_impl(raw: str) -> Dict[str, Any]:
+    """Parse implementation keyed by env-var raw value so lru_cache picks
+    up env changes between calls without a manual invalidation hook, but
+    repeated calls with the same env value hit the cache. Keeps the hot
+    path cheap (no JSON parse per request)."""
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"FREELLM_EXTRA_BODY is not valid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ValueError("FREELLM_EXTRA_BODY must be a JSON object")
+    return value
+
+
+def _extra_body() -> Dict[str, Any]:
+    """Optional provider-specific request fields from FREELLM_EXTRA_BODY
+    (a JSON object), merged into every request body. Empty by default.
+
+    Example for Groq's gpt-oss reasoning models: {"include_reasoning": false}.
+    Without it, the reasoning text returned on a tool-call turn is replayed
+    as `reasoning_content` on the next turn of the ADK tool loop, and Groq
+    rejects that field with a 400.
+
+    Cached by raw env value so each request doesn't re-JSON-parse the
+    same string (review finding -- adk_model.openai_compat_config, complete,
+    and converse_with_tool all call this, so it was parsed 3x per turn)."""
+    return _extra_body_impl(os.getenv("FREELLM_EXTRA_BODY", "").strip())
+
+
 def _headers() -> Dict[str, str]:
     headers = {"Content-Type": "application/json"}
     key = _api_key()
     if key:
         headers["Authorization"] = f"Bearer {key}"
     return headers
+
+
+def openai_compat_config(task: str) -> Dict[str, Any]:
+    """Public view of the fallback endpoint settings, for callers that talk
+    to the OpenAI-compatible endpoint through their own client instead of
+    this module's requests calls (the ADK agents go through LiteLLM)."""
+    return {
+        "base_url": _base_url(),
+        "api_key": _api_key(),
+        "model": _model_for(task),
+        "extra_body": _extra_body(),
+    }
 
 
 def _to_openai_messages(messages: List[Dict[str, Any]], system: Optional[str]) -> List[Dict[str, str]]:
@@ -115,6 +163,7 @@ def complete(task: str, messages: List[Dict[str, Any]], system: Optional[str],
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    payload.update(_extra_body())
     t0 = time.time()
     resp = requests.post(
         f"{_base_url()}/chat/completions",
@@ -130,10 +179,22 @@ def complete(task: str, messages: List[Dict[str, Any]], system: Optional[str],
         message = choices[0].get("message") or {}
         text = message.get("content") or ""
     usage = body.get("usage") or {}
-    _log.info(
-        "LATENCY freellmapi task=%s model=%s ms=%.0f in_tok=%s out_tok=%s",
-        task, payload["model"], (time.time() - t0) * 1000,
-        usage.get("prompt_tokens"), usage.get("completion_tokens"),
+    # OpenAI-compat providers that support prompt caching (OpenAI, DeepInfra,
+    # some routers) report cache hits under usage.prompt_tokens_details.
+    # cached_tokens. Groq doesn't expose this today -- field simply absent,
+    # cache_hit stays None. No provider-side markers needed on the request
+    # (OpenAI auto-caches long stable prefixes).
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    from services.common.adk_telemetry import log_llm_call
+    log_llm_call(
+        agent_name="freellmapi_adapter",
+        provider="freellmapi",
+        model=payload["model"],
+        task=task,
+        latency_ms=(time.time() - t0) * 1000,
+        in_tok=usage.get("prompt_tokens"),
+        out_tok=usage.get("completion_tokens"),
+        cache_hit=bool(cached) if cached is not None else None,
     )
     return text
 
@@ -159,6 +220,7 @@ def converse_with_tool(task: str, messages: List[Dict[str, Any]],
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    payload.update(_extra_body())
     t0 = time.time()
     resp = requests.post(
         f"{_base_url()}/chat/completions",
@@ -197,12 +259,30 @@ def converse_with_tool(task: str, messages: List[Dict[str, Any]],
             elif isinstance(raw_args, dict):
                 tool_input = raw_args
 
+    if tool_name is None and stop_reason == "length":
+        # A reasoning model can spend the whole max_tokens budget thinking
+        # and never reach the tool call; the caller then silently falls
+        # back to its generic prompt, so make the cause visible in the log.
+        _log.warning(
+            "freellmapi hit max_tokens before any tool call (task=%s model=%s); "
+            "reasoning models may need FREELLM_EXTRA_BODY with a lower reasoning_effort",
+            task, payload["model"],
+        )
+
     usage = body.get("usage") or {}
-    _log.info(
-        "LATENCY freellmapi task=%s model=%s ms=%.0f in_tok=%s out_tok=%s stop=%s tool=%s",
-        task, payload["model"], (time.time() - t0) * 1000,
-        usage.get("prompt_tokens"), usage.get("completion_tokens"),
-        stop_reason, tool_name,
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    from services.common.adk_telemetry import log_llm_call
+    log_llm_call(
+        agent_name="freellmapi_adapter",
+        provider="freellmapi",
+        model=payload["model"],
+        task=task,
+        latency_ms=(time.time() - t0) * 1000,
+        in_tok=usage.get("prompt_tokens"),
+        out_tok=usage.get("completion_tokens"),
+        cache_hit=bool(cached) if cached is not None else None,
+        stop_reason=stop_reason,
+        tool_name=tool_name,
     )
     return {
         "tool_name": tool_name,

@@ -150,6 +150,45 @@ def _proxy_headers() -> Dict[str, str]:
     return {"X-Dev-Proxy-Key": key} if key else {}
 
 
+# Prompt caching: Bedrock's Converse API accepts a `cachePoint` block after
+# any content block, telling the service to cache everything up to that
+# point. Second call with the same prefix reports `cacheReadInputTokens` in
+# the usage response instead of billing those tokens again -- 60-90% input
+# cost cut on static system prompts (our _INSTRUCTION_TEMPLATE,
+# _ROUTE_INSTRUCTION, _REGISTRATION_SYSTEM, _TOOL_SYSTEM_PROMPT are all
+# long and identical per-call).
+#
+# Only supported on certain models -- sending cachePoint to an unsupported
+# model returns a ValidationException. This whitelist is the set Bedrock
+# lists as cache-capable as of 2026-09; expand with a config env if
+# operators want to force-enable for a model not on the list. Anything not
+# whitelisted skips the marker entirely -- silent no-op cost-wise.
+#
+# Env override: BEDROCK_PROMPT_CACHE=0 disables caching entirely (useful
+# for A/B testing or debugging cache-related response drift).
+_CACHE_CAPABLE_PREFIXES = (
+    "anthropic.claude-3-5-",     # 3.5 Sonnet, 3.5 Haiku
+    "anthropic.claude-3-7-",     # 3.7 Sonnet
+    "anthropic.claude-sonnet-4", # Sonnet 4/5 series
+    "anthropic.claude-opus-4",
+    "anthropic.claude-opus-5",
+    "anthropic.claude-haiku-4",
+    "us.anthropic.claude-3-5-",  # cross-region inference profiles
+    "us.anthropic.claude-3-7-",
+    "us.anthropic.claude-sonnet-4",
+    "us.anthropic.claude-haiku-4",
+    "amazon.nova-",
+)
+
+
+def _supports_prompt_cache(model_id: str) -> bool:
+    """True iff the model ID matches Bedrock's known cache-capable list.
+    Env BEDROCK_PROMPT_CACHE=0 disables globally regardless of model."""
+    if os.getenv("BEDROCK_PROMPT_CACHE", "1").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return any(model_id.startswith(p) for p in _CACHE_CAPABLE_PREFIXES)
+
+
 class BedrockTextAdapter:
     """Bedrock Converse client with per-task model resolution.
 
@@ -219,17 +258,27 @@ class BedrockTextAdapter:
             },
         }
         if system:
-            req["system"] = [{"text": system}]
+            sys_block = [{"text": system}]
+            if _supports_prompt_cache(self.model_id):
+                sys_block.append({"cachePoint": {"type": "default"}})
+            req["system"] = sys_block
 
         t0 = time.time()
         resp = self.client.converse(**req)
         content = resp.get("output", {}).get("message", {}).get("content", [])
         result = content[0].get("text", "") if content and isinstance(content, list) else ""
         usage = resp.get("usage") or {}
-        _log.info(
-            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s",
-            self.task, self.model_id, (time.time() - t0) * 1000,
-            usage.get("inputTokens"), usage.get("outputTokens"),
+        cache_read = usage.get("cacheReadInputTokens")
+        from services.common.adk_telemetry import log_llm_call
+        log_llm_call(
+            agent_name="bedrock_adapter",
+            provider="bedrock",
+            model=self.model_id,
+            task=self.task,
+            latency_ms=(time.time() - t0) * 1000,
+            in_tok=usage.get("inputTokens"),
+            out_tok=usage.get("outputTokens"),
+            cache_hit=bool(cache_read) if cache_read is not None else None,
         )
         return result
 
@@ -279,18 +328,29 @@ class BedrockTextAdapter:
             },
         }
         if system:
-            req["system"] = [{"text": system}]
+            sys_block = [{"text": system}]
+            if _supports_prompt_cache(self.model_id):
+                sys_block.append({"cachePoint": {"type": "default"}})
+            req["system"] = sys_block
 
         t0 = time.time()
         resp = self.client.converse(**req)
         content = resp.get("output", {}).get("message", {}).get("content", []) or []
         tool_use = next((c["toolUse"] for c in content if "toolUse" in c), None)
         usage = resp.get("usage") or {}
-        _log.info(
-            "LATENCY bedrock task=%s model=%s ms=%.0f in_tok=%s out_tok=%s stop=%s tool=%s",
-            self.task, self.model_id, (time.time() - t0) * 1000,
-            usage.get("inputTokens"), usage.get("outputTokens"),
-            resp.get("stopReason"), tool_use["name"] if tool_use else None,
+        cache_read = usage.get("cacheReadInputTokens")
+        from services.common.adk_telemetry import log_llm_call
+        log_llm_call(
+            agent_name="bedrock_adapter",
+            provider="bedrock",
+            model=self.model_id,
+            task=self.task,
+            latency_ms=(time.time() - t0) * 1000,
+            in_tok=usage.get("inputTokens"),
+            out_tok=usage.get("outputTokens"),
+            stop_reason=resp.get("stopReason"),
+            tool_name=tool_use["name"] if tool_use else None,
+            cache_hit=bool(cache_read) if cache_read is not None else None,
         )
         # Also return any text the model emitted alongside the tool call
         # (some models put the follow-up question there).

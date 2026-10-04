@@ -210,6 +210,68 @@ def update_farmer_weather_location(farmer_id: str, weather_location: str) -> Far
     return _with_file_lock(path, work)
 
 
+def _canonicalize_phone(raw: Optional[str]) -> str:
+    """Normalize a phone number for whatsapp-lookup equality. Handles the
+    variants providers actually deliver: `whatsapp:+91-98765 43210`,
+    `tel:+919876543210`, `+91 98765 43210`, `919876543210`, `9876543210`.
+    Result: leading `+` if the original had one (or a country-code prefix),
+    otherwise plain digits. Empty/None -> ''."""
+    if not raw:
+        return ""
+    s = str(raw).strip().lower()
+    for prefix in ("whatsapp:", "tel:", "sms:"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+    keep_plus = s.startswith("+")
+    digits = "".join(ch for ch in s if ch.isdigit())
+    return f"+{digits}" if keep_plus and digits else digits
+
+
+def get_farmer_by_whatsapp_phone(phone: str) -> Optional[Farmer]:
+    """Look up a farmer whose WhatsApp number matches `phone`. Precedence:
+    (1) Farmer.whatsapp_phone (explicit override for the WhatsApp channel),
+    (2) Farmer.phone (the common case -- farmer is already registered with
+    the same number they use on WhatsApp, and no explicit override was set).
+    Returns None if nothing matches, so the caller can trigger enrollment."""
+    target = _canonicalize_phone(phone)
+    if not target:
+        return None
+    farmers = load_farmers()
+    for f in farmers:
+        if _canonicalize_phone(f.whatsapp_phone) == target:
+            return f
+    for f in farmers:
+        if _canonicalize_phone(f.phone) == target:
+            return f
+    return None
+
+
+def update_farmer_whatsapp_phone(farmer_id: str, whatsapp_phone: str) -> Farmer:
+    """Set the WhatsApp override on a farmer -- called by the WhatsApp
+    channel enrollment handler after a farmer confirms their identity via
+    their registered phone or username. Mirrors update_farmer_weather_location."""
+    path = _path("farmers.json")
+
+    def work() -> Farmer:
+        rows = _load_json_list(path)
+        idx = -1
+        for i, row in enumerate(rows):
+            if row.get("id") == farmer_id:
+                idx = i
+                break
+        if idx < 0:
+            raise ValueError("Farmer not found")
+
+        updated = dict(rows[idx])
+        updated["whatsapp_phone"] = (whatsapp_phone or "").strip() or None
+        rows[idx] = updated
+        atomic_write_json(path, rows)
+        _invalidate_query_cache(farmer_id)
+        return Farmer.model_validate(updated)
+
+    return _with_file_lock(path, work)
+
+
 def load_animals() -> list[Animal]:
     return [Animal.model_validate(x) for x in _load_json_list(_path("animals.json"))]
 

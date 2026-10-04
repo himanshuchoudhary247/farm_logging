@@ -22,20 +22,21 @@ from __future__ import annotations
 import asyncio
 import logging
 from base64 import b64encode
-from typing import Any
+from typing import Any, Optional
 
-from google.adk import Agent
-from google.adk.models.lite_llm import LiteLlm
+from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
+from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
+from services.llm_service.adk_model import build_adk_model
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
@@ -140,19 +141,11 @@ def _has_active_registration_draft(farmer_id: str, session_id: str) -> bool:
         return False
 
 
-_ROUTE_INSTRUCTION = """Classify what area of a livestock farm-management app a farmer's message belongs to, then call record_route exactly once with your decision. Never answer the farmer directly yourself -- only classify.
-
-Categories:
-- "appointment": booking a vet appointment, reporting a sick/injured animal, requesting a farm visit or treatment, OR reporting/logging a health event for an animal ALREADY on the farm (a treatment given, a vaccination done, a symptom noticed, a checkup completed).
-- "add_animal": registering a brand-new animal that isn't on the farm's records yet -- the farmer wants to ADD it as a new entry (a new goat/sheep they bought, were given, or that was born). This is about the animal's identity itself (ID, species, breed, sex), not a health event.
-- "weather": weather, rain, temperature, heat/cold stress, whether to move animals indoors, or feed-price/market questions tied to weather/season.
-- "query": LOOKING UP the farmer's own EXISTING animals or records -- counts, lists, history, "how many", "when was", past vaccination records, past health logs, past appointments, general greetings, or anything unclear. This category is READ-ONLY -- it can only look up data that's already saved, never record something new. If a message could be read as either reporting a new event or asking about past ones, and it describes something that just happened, prefer "appointment" or "add_animal" (whichever fits) -- a farmer telling you what happened wants it recorded, not silently discarded.
-
-"appointment" vs "add_animal": both can write data, but about different things -- "my goat has a fever" or "book a vet visit" is "appointment" (an EXISTING animal's health). "I got a new goat, register it" or "add a new sheep to my farm" is "add_animal" (the animal's own identity record, brand new).
-
-When genuinely ambiguous with no hint of a new event to record, prefer "query" -- it is the general-purpose fallback."""
-
-_VALID_INTENTS = ("appointment", "add_animal", "weather", "query")
+# Both derived from the shared catalog (services/chat_orchestrator/intents.py).
+# _ROUTE_INSTRUCTION is byte-identical to the pre-refactor hand-written
+# string (see test_intents_catalog.py::test_route_instruction_byte_identical).
+_ROUTE_INSTRUCTION = build_route_instruction()
+_VALID_INTENTS = VALID_INTENTS
 
 
 def _make_record_route_tool(captured: dict[str, str]):
@@ -171,13 +164,15 @@ def _make_record_route_tool(captured: dict[str, str]):
     return record_route
 
 
-def _build_classifier_agent(captured: dict[str, str]) -> Agent:
+def _build_classifier_agent(captured: dict[str, str]) -> LlmAgent:
     model_spec = model_for_task(TaskTier.EXTRACTION)
-    return Agent(
+    from services.common.adk_telemetry import make_adk_callbacks
+    return LlmAgent(
         name="router_classifier",
-        model=LiteLlm(model=f"bedrock/{model_spec['id']}", temperature=0),
+        model=build_adk_model(TaskTier.EXTRACTION, model_spec["id"], temperature=0),
         instruction=_ROUTE_INSTRUCTION,
         tools=[_make_record_route_tool(captured)],
+        **make_adk_callbacks("router_classifier"),
     )
 
 
@@ -223,25 +218,53 @@ def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None
     return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
 
 
+def _blocked_envelope(intent: "str | None", farmer_id: str, session_id: str, text: str, language: str) -> dict[str, Any]:
+    """Stub response for the allowed_intents gate: agent=None signals the
+    caller ("this intent isn't allowed on this channel") without dispatching
+    the actual agent (which would advance its draft state as a side effect).
+    Matches the standard envelope shape so callers do not need special
+    branches to handle it."""
+    _log.info(
+        "adk_router blocked intent=%s farmer=%s session=%s text=%r (allowed_intents gate)",
+        intent, farmer_id, session_id, text[:200],
+    )
+    return {"agent": None, "intent": intent, "result": None, "reply_text": ""}
+
+
 def route_turn_adk(
     farmer_id: str,
     session_id: str,
     text: str,
     language: str = "en-IN",
     include_audio: bool = True,
+    allowed_intents: "Optional[set[str]]" = None,
 ) -> dict[str, Any]:
     """Drop-in replacement for router.py's route_turn(), same envelope
     shape ({"agent", "intent", "result", "reply_text", ...}) -- routing
     decision now comes from an ADK classifier agent instead of reusing
     process_text_input's own intent field, and the weather/query branches
     are answered by their own ADK agents instead of a direct
-    get_pincode_data/process_query call."""
+    get_pincode_data/process_query call.
+
+    allowed_intents (optional): when set, the router refuses to dispatch
+    any intent (classified OR sticky) not in the set, returning the
+    blocked stub instead. This is what lets a transport layer (e.g. the
+    WhatsApp channel) constrain which agents a channel can reach without
+    the caller having to run the classifier itself. When None (existing
+    callers -- the app, voice), behavior is exactly unchanged."""
+    def _allowed(intent_name: str) -> bool:
+        return allowed_intents is None or intent_name in allowed_intents
+
     if _has_active_booking_draft(farmer_id, session_id):
+        if not _allowed("appointment"):
+            return _blocked_envelope("appointment", farmer_id, session_id, text, language)
         result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         reply = _reply_text("appointment_supervisor", result)
         return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
     if _has_active_registration_draft(farmer_id, session_id):
+        if not _allowed("add_animal"):
+            return _blocked_envelope("add_animal", farmer_id, session_id, text, language)
         result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
         reply = _reply_text("animal_registration", result)
         return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
@@ -253,24 +276,61 @@ def route_turn_adk(
         # classification rather than locking the farmer into weather
         # indefinitely if they've actually moved on to something else.
         update_session(weather_key, {"awaiting_location": False})
+        if not _allowed("weather"):
+            return _blocked_envelope("weather", farmer_id, session_id, text, language)
         return _run_weather(farmer_id, session_id, text, "weather", include_audio, language, allow_rearm=False)
 
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
 
-    if intent == "appointment":
-        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("appointment_supervisor", result)
-        return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+    if not _allowed(intent):
+        return _blocked_envelope(intent, farmer_id, session_id, text, language)
 
-    if intent == "add_animal":
-        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("animal_registration", result)
-        return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+    # Dispatch table lookup replaces the 4-way if-elif chain. Fallback to
+    # `query` for anything unrecognized -- matches _make_record_route_tool's
+    # own "unknown -> query" guard, so one behavior in one place instead of
+    # two places drifting.
+    handler = _DISPATCH_TABLE.get(intent) or _DISPATCH_TABLE["query"]
+    return handler(farmer_id, session_id, text, language, include_audio, intent)
 
-    if intent == "weather":
-        return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
 
-    result = process_query_adk(text, farmer_id)
+# Per-intent dispatch handlers. Each takes the same fully-resolved
+# arguments as the sticky-routing block at the top of route_turn_adk and
+# returns the standard envelope shape. Sticky-routed dispatches at the
+# top pass intent=None; classified dispatches pass the classifier's
+# chosen intent so telemetry/envelope include it. Kept as small named
+# functions so the dispatch table below is a plain literal a reader can
+# eyeball at a glance.
+
+def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent):
+    result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    reply = _reply_text("appointment_supervisor", result)
+    return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+def _dispatch_animal_registration(farmer_id, session_id, text, language, include_audio, intent):
+    result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    reply = _reply_text("animal_registration", result)
+    return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+def _dispatch_weather(farmer_id, session_id, text, language, include_audio, intent):
+    return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
+
+
+def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent):
+    # session_id forwarded so query_agent can reuse the chat's ADK session
+    # and remember earlier turns (PR #28 integration into the post-#30
+    # dispatch-table shape; this exact collision was flagged in the code
+    # review and would silently disappear under a naive git merge).
+    result = process_query_adk(text, farmer_id, session_id=session_id)
     reply = result.get("answer") or ""
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
+
+
+_DISPATCH_TABLE = {
+    "appointment": _dispatch_appointment,
+    "add_animal": _dispatch_animal_registration,
+    "weather": _dispatch_weather,
+    "query": _dispatch_query,
+}
