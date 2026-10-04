@@ -1090,7 +1090,7 @@ class AppointmentSupervisor(DraftSupervisor):
             farmer_id=farmer_id,
             date=str(values.get("date")),
             time=str(values.get("time")),
-            notes=str(values.get("miscellaneous_notes") or values.get("notes") or ""),
+            notes=flokiq_sync.build_appointment_notes(values),
             health_log_id=(flokiq_health_log or {}).get("log_id"),
         )
 
