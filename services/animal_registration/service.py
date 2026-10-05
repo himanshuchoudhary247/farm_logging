@@ -202,6 +202,7 @@ Examples (what goes into the record_animal_registration call):
 3) PHASE: collecting, just asked for 'species' | Farmer: "बकरी है" -> {species: 'goat'}
 4) PHASE: collecting, just asked for 'species' | Farmer: "செம்மறியாடு" -> {species: 'sheep'} -- the full word is sheep, even though it ends with ஆடு (goat).
 5) PHASE: collecting, just asked for 'breed' | Farmer: "पता नहीं" -> {field_unknown: true} -- an explicit don't-know; never invent a breed.
+5a) PHASE: collecting, just asked for 'breed' | Farmer: "माहीत नाही" -> {field_unknown: true} -- Marathi explicit don't-know.
 6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
 7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
 8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
@@ -223,6 +224,13 @@ _LABELS = {
         "initial_weight_kg": "वजन (किग्रा)", "current_location": "वर्तमान स्थान",
         "official_tag_type": "टैग प्रकार", "official_tag_number": "टैग नंबर",
         "acquisition_date": "प्राप्ति तिथि", "acquisition_source": "प्राप्ति स्रोत",
+    },
+    "mr": {
+        "unique_animal_id": "जनावराचा आयडी", "species": "प्रजाती", "breed": "जात", "sex": "लिंग",
+        "status": "स्थिती", "birth_date": "जन्मतारीख", "sire_id": "पित्याचा आयडी", "dam_id": "मातेचा आयडी",
+        "initial_weight_kg": "वजन (किलो)", "current_location": "सध्याचे ठिकाण",
+        "official_tag_type": "टॅग प्रकार", "official_tag_number": "टॅग क्रमांक",
+        "acquisition_date": "मिळाल्याची तारीख", "acquisition_source": "कुठून मिळाले",
     },
     "ta": {
         "unique_animal_id": "விலங்கு ஐடி", "species": "இனம்", "breed": "இனவகை", "sex": "பாலினம்",
@@ -275,6 +283,20 @@ _TEXT = {
         "no": "आप क्या सुधारना चाहते हैं?",
         "cancelled": "पंजीकरण रद्द कर दिया गया, कुछ भी सेव नहीं हुआ।",
         "submitted": "{identifier} सफलतापूर्वक पंजीकृत हो गया है।",
+    },
+    "mr": {
+        "welcome": "नवीन जनावराची नोंदणी करूया. कृपया जनावराचा आयडी, प्रजाती (शेळी किंवा मेंढी), जात आणि लिंग सांगा.",
+        "ask_field": "कृपया {field} सांगा.",
+        "ask_breed": "कृपया जात सांगा. माहीत नसेल तर 'माहीत नाही' म्हणा.",
+        "ask_optional": "आवश्यक माहिती सेव्ह झाली आहे. तुम्हाला काही अतिरिक्त माहिती जोडायची आहे का (जन्मतारीख, वजन, ठिकाण, आई-वडिलांचा आयडी, टॅग माहिती)? काय जोडायचे ते सांगा, किंवा आत्ता सबमिट करण्यासाठी 'नाही' म्हणा.",
+        "got_it": "समजले: {delta}.",
+        "ask_more": "आणखी काही जोडायचे आहे का, की सबमिट करण्यासाठी 'नाही' म्हणाल?",
+        "breed_species_mismatch": "'{breed}' ही {species} ची योग्य जात नाही. कृपया जात पुन्हा सांगा, किंवा माहीत नसेल तर 'माहीत नाही' म्हणा.",
+        "duplicate_id": "'{identifier}' आयडी असलेले जनावर आधीच नोंदणीकृत आहे. कृपया दुसरा आयडी सांगा.",
+        "correct": "या नवीन जनावराची संपूर्ण माहिती: {summary}. मी हे सेव्ह करू का?",
+        "no": "तुम्हाला काय दुरुस्त करायचे आहे?",
+        "cancelled": "नोंदणी रद्द केली, काहीही सेव्ह झाले नाही.",
+        "submitted": "{identifier} ची नोंदणी यशस्वीरित्या झाली आहे.",
     },
     "ta": {
         "welcome": "ஒரு புதிய விலங்கை பதிவு செய்வோம். விலங்கு ஐடி, இனம் (ஆடு அல்லது செம்மறியாடு), இனவகை மற்றும் பாலினம் தெரிவிக்கவும்.",

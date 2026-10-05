@@ -44,6 +44,7 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
     "ta-IN": "Tamil",
     "te-IN": "Telugu",
     "kn-IN": "Kannada",
+    "mr-IN": "Marathi",
 }
 
 # Sentinel distinguishing "caller didn't pass this optional arg, use the

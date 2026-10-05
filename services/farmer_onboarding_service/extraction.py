@@ -68,6 +68,7 @@ _FIELD_QUESTIONS: dict[str, str] = {
 _LANG_INSTRUCTIONS = {
     "hi": "Ask the next question in Hindi (हिंदी). Use Devanagari script.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use Kannada script.",
+    "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
     "te": "Ask the next question in Telugu (తెలుగు). Use Telugu script.",
     "en": "Ask the next question in English.",
     "mix": "Ask the next question in Hinglish (Hindi + English, Latin script).",
@@ -157,7 +158,8 @@ _SKIP_KEYWORDS = {"skip", "next", "dont know", "don't know",
                   "na", "n/a", "not applicable", "i don't know", "i dont know",
                   "unknown", "not sure", "pass", "कोई नहीं", "पता नहीं",
                   "नहीं पता", "skip karo", "aage badho", "ಬಿಟ್ಟು", "ಗೊತ್ತಿಲ್ಲ",
-                  "తెలియదు", "వద్దు"}
+                  "తెలియదు", "వద్దు", "माहीत नाही", "माहित नाही", "काही नाही",
+                  "पुढे जा", "वगळा"}
 
 
 def _is_skip(text: str) -> bool:
