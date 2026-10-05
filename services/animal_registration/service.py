@@ -594,13 +594,23 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["transcript_history"].append(text)
         entities = self._extract(draft, text)
 
-        if entities.get("confirmation_signal") == "cancel":
+        norm_conf = text.strip().lower().rstrip(".!?।")
+        conf_sig = entities.get("confirmation_signal")
+        if not conf_sig:
+            if any(w in norm_conf for w in ("रद्द करा", "नको", "कॅन्सल")):
+                conf_sig = "cancel"
+            elif any(w in norm_conf for w in ("हो", "बरोबर", "सेव्ह करा", "सबमिट", "ठीक आहे")):
+                conf_sig = "yes"
+            elif any(w in norm_conf for w in ("नाही", "चूक", "बदल करा")):
+                conf_sig = "no"
+
+        if conf_sig == "cancel":
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
-        if draft["state"] == "CONFIRMING" and entities.get("confirmation_signal") in {"yes", "no"}:
+        if draft["state"] == "CONFIRMING" and conf_sig in {"yes", "no"}:
             self._save(draft)
-            return self.confirm(farmer_id, session_id, entities["confirmation_signal"], include_audio=include_audio)
+            return self.confirm(farmer_id, session_id, conf_sig, include_audio=include_audio)
 
         changed, error = self._copy_entities(draft, entities)
 
