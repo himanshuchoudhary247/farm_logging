@@ -206,6 +206,8 @@ Examples (what goes into the record_animal_registration call):
 6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
 7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
 8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
+8a) PHASE: optional fields | Farmer: "नाही" -> {wants_to_skip_optional: true}
+8b) PHASE: optional fields | Farmer: "नाही झाला आता" -> {wants_to_skip_optional: true}
 9) PHASE: confirming | Farmer: "there's no problem, go ahead" -> {confirmation_signal: 'yes'} -- classify by meaning, not by the word 'no'.
 10) Any phase | Farmer: "rehne do, cancel karo" -> {confirmation_signal: 'cancel'}"""
 
@@ -651,7 +653,9 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 message = self._message(draft["language"], "welcome")
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
-        if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no":
+        norm_t = text.strip().lower().rstrip(".!?।")
+        is_marathi_skip = norm_t in {"नाही", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
+        if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
             draft["state"] = "CONFIRMING"
             self._save(draft)
             message = self._message(draft["language"], "correct", summary=self._summary(draft))
