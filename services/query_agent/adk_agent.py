@@ -41,6 +41,7 @@ _NATIVE_DIGITS = {
     "ta": "௦௧௨௩௪௫௬௭௮௯",
     "te": "౦౧౨౩౪౫౬౭౮౯",
     "kn": "೦೧೨೩೪೫೬೭೮೯",
+    "mr": "०१२३४५६७८९",
 }
 
 # Unicode script ranges, checked in order -- first match wins. A query with
@@ -153,6 +154,12 @@ _COLUMN_LABELS = {
         "status": "ಸ್ಥಿತಿ", "birth_date": "ಜನನ ದಿನಾಂಕ", "current_location": "ಸ್ಥಳ",
         "age_years": "ವಯಸ್ಸು (ವರ್ಷಗಳು)", "issue": "ಸಮಸ್ಯೆ", "notes": "ಟಿಪ್ಪಣಿಗಳು",
         "date": "ದಿನಾಂಕ", "time": "ಸಮಯ",
+    },
+    "mr": {
+        "species": "प्रजाती", "breed": "जात", "sex": "लिंग", "tag_or_name": "टॅग/नाव",
+        "status": "स्थिती", "birth_date": "जन्मतारीख", "current_location": "ठिकाण",
+        "age_years": "वय (वर्षे)", "issue": "समस्या", "notes": "टिपा",
+        "date": "तारीख", "time": "वेळ",
     },
 }
 

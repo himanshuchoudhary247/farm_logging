@@ -31,7 +31,7 @@ if not _log.handlers:
 
 _LANGUAGES = {
     "en": "English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu",
-    "kn": "Kannada", "ml": "Malayalam",
+    "kn": "Kannada", "mr": "Marathi", "ml": "Malayalam",
 }
 _MAX_ACTIONS = 5
 _MAX_SUMMARY_CHARS = 600
