@@ -1,9 +1,12 @@
-"""Marathi confirmation fallback matches only the WHOLE reply, never a
-word inside an ordinary answer (PR #36 review: "ताप आहे, औषध नको" used to
-cancel the whole draft)."""
+"""Whole-reply fallback words (services/common/reply_words.py) match only
+the WHOLE reply, never a word inside an ordinary answer (PR #36 review:
+"ताप आहे, औषध नको" used to cancel the whole draft), and the breed
+"don't know" fallback works in every supported language (seen live:
+Telugu "తెలియదు" kept re-asking for the breed)."""
 import pytest
 
-from services.common.draft_supervisor import marathi_confirmation_signal
+from services.common import reply_words
+from services.common.reply_words import confirmation_signal, is_dont_know
 import services.appointment_supervisor.service as appointment_service
 import services.animal_registration.service as registration_service
 
@@ -19,7 +22,7 @@ import services.animal_registration.service as registration_service
     ("बदल करा", "no"),
 ])
 def test_whole_reply_confirmation_words(text, expected):
-    assert marathi_confirmation_signal(text) == expected
+    assert confirmation_signal(text, "mr-IN") == expected
 
 
 @pytest.mark.parametrize("text", [
@@ -30,13 +33,17 @@ def test_whole_reply_confirmation_words(text, expected):
     "",
 ])
 def test_words_inside_an_answer_are_not_a_signal(text):
-    assert marathi_confirmation_signal(text) is None
+    assert confirmation_signal(text, "mr-IN") is None
 
 
-def test_supervisors_no_longer_use_substring_matching():
-    # Both call sites must go through the shared exact-match helper.
+def test_supervisors_use_the_shared_reply_words_fallback():
+    """Both supervisors use the one shared whole-reply fallback in
+    services/common/reply_words.py, with no per-language copies of their own."""
     for module in (appointment_service, registration_service):
-        assert module.marathi_confirmation_signal is marathi_confirmation_signal
+        assert module.reply_words is reply_words
+        assert not hasattr(module, "marathi_confirmation_signal")
+        assert not hasattr(module, "is_marathi_dont_know")
+
 
 def _record_confirm(monkeypatch, cls):
     """Replace confirm() so we can see whether a turn tried to cancel."""
@@ -80,23 +87,65 @@ def test_registration_answer_containing_nako_does_not_cancel(tmp_path, monkeypat
     supervisor.turn("demo-farmer", "s-cancel", "रद्द करा", "mr-IN")
     assert calls and calls[-1] == "cancel"
 
+
 @pytest.mark.parametrize("text", ["माहीत नाही", "माहीत नाही.", "मला माहित नाही", "  माहित   नाही ।"])
 def test_marathi_dont_know_whole_reply(text):
-    assert registration_service.is_marathi_dont_know(text)
+    assert is_dont_know(text, "mr-IN")
 
 
 @pytest.mark.parametrize("text", ["जात माहीत नाही पण वजन 20 किलो", "बीटल", "नाही", ""])
 def test_marathi_dont_know_ignores_other_replies(text):
-    assert not registration_service.is_marathi_dont_know(text)
+    assert not is_dont_know(text, "mr-IN")
 
 
-def test_registration_breed_dont_know_moves_on_even_if_llm_misses_it(tmp_path, monkeypatch):
-    """Seen live: "माहीत नाही." kept re-asking for the breed because only
-    the LLM's field_unknown could skip it."""
+# --- "don't know" in every supported language -------------------------
+
+@pytest.mark.parametrize("language, text", [
+    ("te-IN", "తెలియదు"),
+    ("te-IN", "నాకు తెలియదు."),
+    ("ta-IN", "தெரியாது"),
+    ("ta-IN", "எனக்கு தெரியாது"),
+    ("kn-IN", "ಗೊತ್ತಿಲ್ಲ"),
+    ("hi-IN", "पता नहीं"),
+    ("hi-IN", "मुझे पता नहीं।"),
+    ("en-IN", "Not sure."),
+    ("en-IN", "I don't know"),
+    ("mr-IN", "माहीत नाही"),
+])
+def test_dont_know_in_every_language(language, text):
+    assert is_dont_know(text, language)
+
+
+@pytest.mark.parametrize("language, text", [
+    ("te-IN", "బ్రీడ్ ఉస్మానాబాది, తెలియదు ఏమో"),  # longer answer, left to the LLM
+    ("ta-IN", "சிரோஹி"),                          # a real breed answer
+    ("hi-IN", "पता नहीं, शायद बीटल"),             # don't-know inside a longer answer
+    ("mr-IN", "తెలియదు"),                         # Telugu word, Marathi farmer: no match
+    ("ml-IN", "അറിയില്ല"),                        # unsupported language: no fallback yet
+])
+def test_dont_know_ignores_other_replies_and_languages(language, text):
+    assert not is_dont_know(text, language)
+
+
+@pytest.mark.parametrize("language, first_reply, dont_know", [
+    ("te-IN", "ఐడి TETEST01, మేక, ఆడ", "తెలియదు"),
+    ("ta-IN", "ஐடி TATEST01, வெள்ளாடு, பெண்", "தெரியாது"),
+    ("kn-IN", "ಐಡಿ KNTEST01, ಮೇಕೆ, ಹೆಣ್ಣು", "ಗೊತ್ತಿಲ್ಲ"),
+    ("hi-IN", "आईडी HITEST01, बकरी, मादा", "पता नहीं"),
+    ("en-IN", "ID ENTEST01, goat, female", "not sure"),
+    ("mr-IN", "आयडी MHTEST02, शेळी, मादी", "माहीत नाही."),
+])
+def test_registration_breed_dont_know_moves_on_even_if_llm_misses_it(
+    tmp_path, monkeypatch, language, first_reply, dont_know,
+):
+    """Seen live: "माहीत नाही." (Marathi) and "తెలియదు" (Telugu) kept
+    re-asking for the breed because only the LLM's field_unknown could
+    skip it."""
     monkeypatch.setattr(registration_service, "synthesize_speech", lambda text, target_lang=None: (None, None), raising=False)
+    monkeypatch.setattr(registration_service, "animals_for_farmer", lambda farmer_id: [])
     replies = iter([
-        {"unique_animal_id": "MHTEST02", "species": "goat", "sex": "female"},
-        {},  # LLM misses field_unknown on "माहीत नाही."
+        {"unique_animal_id": "TEST01", "species": "goat", "sex": "female"},
+        {},  # LLM misses field_unknown on the don't-know reply
         {},
     ])
     seen = []
@@ -108,10 +157,10 @@ def test_registration_breed_dont_know_moves_on_even_if_llm_misses_it(tmp_path, m
     monkeypatch.setattr(registration_service.AnimalRegistrationSupervisor, "_extract", fake_extract)
     supervisor = registration_service.AnimalRegistrationSupervisor(tmp_path)
 
-    supervisor.turn("demo-farmer", "s-breed", "आयडी MHTEST02, शेळी, मादी", "mr-IN")
-    supervisor.turn("demo-farmer", "s-breed", "माहीत नाही.", "mr-IN")
-    supervisor.turn("demo-farmer", "s-breed", "नको", "mr-IN")
+    supervisor.turn("demo-farmer", "s-breed", first_reply, language)
+    supervisor.turn("demo-farmer", "s-breed", dont_know, language)
+    supervisor.turn("demo-farmer", "s-breed", "ok", language)
 
-    # Draft as saved after the "माहीत नाही." turn.
+    # Draft as saved after the don't-know turn.
     assert seen[2].get("breed") == registration_service._BREED_UNSPECIFIED
-
+    
