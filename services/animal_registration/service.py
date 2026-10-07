@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common.draft_supervisor import (
+    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -594,15 +595,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["transcript_history"].append(text)
         entities = self._extract(draft, text)
 
-        norm_conf = text.strip().lower().rstrip(".!?।")
-        conf_sig = entities.get("confirmation_signal")
-        if not conf_sig:
-            if any(w in norm_conf for w in ("रद्द करा", "नको", "कॅन्सल")):
-                conf_sig = "cancel"
-            elif any(w in norm_conf for w in ("हो", "बरोबर", "सेव्ह करा", "सबमिट", "ठीक आहे")):
-                conf_sig = "yes"
-            elif any(w in norm_conf for w in ("नाही", "चूक", "बदल करा")):
-                conf_sig = "no"
+        conf_sig = entities.get("confirmation_signal") or marathi_confirmation_signal(text)
 
         if conf_sig == "cancel":
             self._save(draft)
@@ -664,7 +657,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
         norm_t = text.strip().lower().rstrip(".!?।")
-        is_marathi_skip = norm_t in {"नाही", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
+        is_marathi_skip = norm_t in {"नाही", "नको", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
         if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
             draft["state"] = "CONFIRMING"
             self._save(draft)
