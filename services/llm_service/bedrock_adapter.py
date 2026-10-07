@@ -716,6 +716,7 @@ def _next_missing_field(data: dict):
 
 _LANG_INSTRUCTIONS = {
     "hi": "Ask the next question in Hindi (हिंदी). Use the Hindi script (Devanagari).",
+    "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use the Kannada script.",
     "te": "Ask the next question in Telugu (తెలుగు). Use the Telugu script.",
     "en": "Ask the next question in English.",

@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common.draft_supervisor import (
+    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -94,6 +95,26 @@ _VALID_SPECIES = {"goat", "sheep"}
 _VALID_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
 _VALID_TAG_TYPE = {"visual", "rfid", "tattoo"}
 _BREED_UNSPECIFIED = "Not specified (local/mixed breed)"
+
+
+# Whole-reply Marathi "don't know", used only as a fallback when the
+# extraction LLM misses field_unknown (seen live: "माहीत नाही." kept
+# re-asking for the breed). Exact match on the full reply, never a
+# substring, so "जात माहीत नाही पण वजन 20 किलो" is still left to the LLM.
+_MARATHI_DONT_KNOW = frozenset({
+    "माहीत नाही", "माहित नाही",
+    "मला माहीत नाही", "मला माहित नाही",
+    "माहीत नाही मला", "माहित नाही मला",
+    "नक्की माहीत नाही", "नक्की माहित नाही",
+    "जात माहीत नाही", "जात माहित नाही",
+})
+
+
+def is_marathi_dont_know(text: str) -> bool:
+    """True only when the WHOLE reply is a Marathi "don't know" (ignoring
+    case, spaces and a final . ! ? ।)."""
+    norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    return norm in _MARATHI_DONT_KNOW
 
 _ANIMAL_REGISTRATION_TOOL_SPEC = {
     "name": "record_animal_registration",
@@ -202,9 +223,12 @@ Examples (what goes into the record_animal_registration call):
 3) PHASE: collecting, just asked for 'species' | Farmer: "बकरी है" -> {species: 'goat'}
 4) PHASE: collecting, just asked for 'species' | Farmer: "செம்மறியாடு" -> {species: 'sheep'} -- the full word is sheep, even though it ends with ஆடு (goat).
 5) PHASE: collecting, just asked for 'breed' | Farmer: "पता नहीं" -> {field_unknown: true} -- an explicit don't-know; never invent a breed.
+5a) PHASE: collecting, just asked for 'breed' | Farmer: "माहीत नाही" -> {field_unknown: true} -- Marathi explicit don't-know.
 6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
 7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
 8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
+8a) PHASE: optional fields | Farmer: "नाही" -> {wants_to_skip_optional: true}
+8b) PHASE: optional fields | Farmer: "नाही झाला आता" -> {wants_to_skip_optional: true}
 9) PHASE: confirming | Farmer: "there's no problem, go ahead" -> {confirmation_signal: 'yes'} -- classify by meaning, not by the word 'no'.
 10) Any phase | Farmer: "rehne do, cancel karo" -> {confirmation_signal: 'cancel'}"""
 
@@ -223,6 +247,13 @@ _LABELS = {
         "initial_weight_kg": "वजन (किग्रा)", "current_location": "वर्तमान स्थान",
         "official_tag_type": "टैग प्रकार", "official_tag_number": "टैग नंबर",
         "acquisition_date": "प्राप्ति तिथि", "acquisition_source": "प्राप्ति स्रोत",
+    },
+    "mr": {
+        "unique_animal_id": "जनावराचा आयडी", "species": "प्रजाती", "breed": "जात", "sex": "लिंग",
+        "status": "स्थिती", "birth_date": "जन्मतारीख", "sire_id": "पित्याचा आयडी", "dam_id": "मातेचा आयडी",
+        "initial_weight_kg": "वजन (किलो)", "current_location": "सध्याचे ठिकाण",
+        "official_tag_type": "टॅग प्रकार", "official_tag_number": "टॅग क्रमांक",
+        "acquisition_date": "मिळाल्याची तारीख", "acquisition_source": "कुठून मिळाले",
     },
     "ta": {
         "unique_animal_id": "விலங்கு ஐடி", "species": "இனம்", "breed": "இனவகை", "sex": "பாலினம்",
@@ -275,6 +306,20 @@ _TEXT = {
         "no": "आप क्या सुधारना चाहते हैं?",
         "cancelled": "पंजीकरण रद्द कर दिया गया, कुछ भी सेव नहीं हुआ।",
         "submitted": "{identifier} सफलतापूर्वक पंजीकृत हो गया है।",
+    },
+    "mr": {
+        "welcome": "नवीन जनावराची नोंदणी करूया. कृपया जनावराचा आयडी, प्रजाती (शेळी किंवा मेंढी), जात आणि लिंग सांगा.",
+        "ask_field": "कृपया {field} सांगा.",
+        "ask_breed": "कृपया जात सांगा. माहीत नसेल तर 'माहीत नाही' म्हणा.",
+        "ask_optional": "आवश्यक माहिती सेव्ह झाली आहे. तुम्हाला काही अतिरिक्त माहिती जोडायची आहे का (जन्मतारीख, वजन, ठिकाण, आई-वडिलांचा आयडी, टॅग माहिती)? काय जोडायचे ते सांगा, किंवा आत्ता सबमिट करण्यासाठी 'नाही' म्हणा.",
+        "got_it": "समजले: {delta}.",
+        "ask_more": "आणखी काही जोडायचे आहे का, की सबमिट करण्यासाठी 'नाही' म्हणाल?",
+        "breed_species_mismatch": "'{breed}' ही {species} ची योग्य जात नाही. कृपया जात पुन्हा सांगा, किंवा माहीत नसेल तर 'माहीत नाही' म्हणा.",
+        "duplicate_id": "'{identifier}' आयडी असलेले जनावर आधीच नोंदणीकृत आहे. कृपया दुसरा आयडी सांगा.",
+        "correct": "या नवीन जनावराची संपूर्ण माहिती: {summary}. मी हे सेव्ह करू का?",
+        "no": "तुम्हाला काय दुरुस्त करायचे आहे?",
+        "cancelled": "नोंदणी रद्द केली, काहीही सेव्ह झाले नाही.",
+        "submitted": "{identifier} ची नोंदणी यशस्वीरित्या झाली आहे.",
     },
     "ta": {
         "welcome": "ஒரு புதிய விலங்கை பதிவு செய்வோம். விலங்கு ஐடி, இனம் (ஆடு அல்லது செம்மறியாடு), இனவகை மற்றும் பாலினம் தெரிவிக்கவும்.",
@@ -570,13 +615,15 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["transcript_history"].append(text)
         entities = self._extract(draft, text)
 
-        if entities.get("confirmation_signal") == "cancel":
+        conf_sig = entities.get("confirmation_signal") or marathi_confirmation_signal(text)
+
+        if conf_sig == "cancel":
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
-        if draft["state"] == "CONFIRMING" and entities.get("confirmation_signal") in {"yes", "no"}:
+        if draft["state"] == "CONFIRMING" and conf_sig in {"yes", "no"}:
             self._save(draft)
-            return self.confirm(farmer_id, session_id, entities["confirmation_signal"], include_audio=include_audio)
+            return self.confirm(farmer_id, session_id, conf_sig, include_audio=include_audio)
 
         changed, error = self._copy_entities(draft, entities)
 
@@ -607,7 +654,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # instead of looping forever. Found missing live: without this, a
         # farmer who genuinely doesn't know had no path forward at all.
         if (
-            entities.get("field_unknown")
+            (entities.get("field_unknown") or is_marathi_dont_know(text))
             and draft["state"] == "COLLECTING"
             and not draft["draft"].get("breed")
             and self._missing_required(draft)
@@ -629,7 +676,9 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 message = self._message(draft["language"], "welcome")
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
-        if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no":
+        norm_t = text.strip().lower().rstrip(".!?।")
+        is_marathi_skip = norm_t in {"नाही", "नको", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
+        if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
             draft["state"] = "CONFIRMING"
             self._save(draft)
             message = self._message(draft["language"], "correct", summary=self._summary(draft))
