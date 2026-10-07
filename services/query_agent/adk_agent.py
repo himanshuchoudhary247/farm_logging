@@ -36,7 +36,7 @@ from services.llm_service.adk_model import build_adk_model
 # (appointment_supervisor, animal_registration), which now has all 7
 # languages. Malayalam is supported but has no entry here on purpose:
 # Malayalam text today uses Western digits (0-9), not ൦-൯, so its answers
-# keep 0-9 (falls through to "en", where conversion is a no-op).
+# keep 0-9 (_to_native_digits finds no entry and returns the text as is).
 _NATIVE_DIGITS = {
     "hi": "०१२३४५६७८९",
     "ta": "௦௧௨௩௪௫௬௭௮௯",
@@ -53,6 +53,7 @@ _SCRIPT_RANGES = (
     ("ta", (0x0B80, 0x0BFF)),
     ("te", (0x0C00, 0x0C7F)),
     ("kn", (0x0C80, 0x0CFF)),
+    ("ml", (0x0D00, 0x0D7F)),  # Malayalam: no _NATIVE_DIGITS entry, so digits stay 0-9
 )
 
 
