@@ -122,6 +122,10 @@ _VALUE_LABELS: dict[str, dict[str, str]] = {
         "goat": "ಮೇಕೆ", "sheep": "ಕುರಿ", "male": "ಗಂಡು", "female": "ಹೆಣ್ಣು",
         _BREED_UNSPECIFIED: "ಗೊತ್ತಿಲ್ಲ (ಸ್ಥಳೀಯ/ಮಿಶ್ರ ತಳಿ)",
     },
+    "ml": {
+        "goat": "ആട്", "sheep": "ചെമ്മരിയാട്", "male": "ആൺ", "female": "പെൺ",
+        _BREED_UNSPECIFIED: "അറിയില്ല (നാടൻ/സങ്കര ഇനം)",
+    },
 }
 
 
@@ -246,6 +250,7 @@ Examples (what goes into the record_animal_registration call):
 5c) PHASE: collecting, just asked for 'breed' | Farmer: "தெரியாது" -> {field_unknown: true} -- Tamil explicit don't-know.
 5d) PHASE: collecting, just asked for 'breed' | Farmer: "ಗೊತ್ತಿಲ್ಲ" -> {field_unknown: true} -- Kannada explicit don't-know.
 5e) PHASE: collecting, just asked for 'breed' | Farmer: "not sure" -> {field_unknown: true} -- English explicit don't-know.
+5f) PHASE: collecting, just asked for 'breed' | Farmer: "അറിയില്ല" -> {field_unknown: true} -- Malayalam explicit don't-know.
 6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
 7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
 8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
@@ -297,6 +302,13 @@ _LABELS = {
         "initial_weight_kg": "ತೂಕ (ಕೆಜಿ)", "current_location": "ಪ್ರಸ್ತುತ ಸ್ಥಳ",
         "official_tag_type": "ಟ್ಯಾಗ್ ಪ್ರಕಾರ", "official_tag_number": "ಟ್ಯಾಗ್ ಸಂಖ್ಯೆ",
         "acquisition_date": "ಸ್ವಾಧೀನ ದಿನಾಂಕ", "acquisition_source": "ಸ್ವಾಧೀನ ಮೂಲ",
+    },
+    "ml": {
+        "unique_animal_id": "മൃഗത്തിന്റെ ഐഡി", "species": "വർഗ്ഗം", "breed": "ഇനം", "sex": "ലിംഗം",
+        "status": "നില", "birth_date": "ജനനത്തീയതി", "sire_id": "അച്ഛന്റെ ഐഡി", "dam_id": "അമ്മയുടെ ഐഡി",
+        "initial_weight_kg": "ഭാരം (കിലോ)", "current_location": "ഇപ്പോഴത്തെ സ്ഥലം",
+        "official_tag_type": "ടാഗ് തരം", "official_tag_number": "ടാഗ് നമ്പർ",
+        "acquisition_date": "ലഭിച്ച തീയതി", "acquisition_source": "ലഭിച്ച സ്ഥലം",
     },
 }
 
@@ -384,6 +396,20 @@ _TEXT = {
         "no": "ನೀವು ಏನನ್ನು ಸರಿಪಡಿಸಲು ಬಯಸುವಿರಿ?",
         "cancelled": "ನೋಂದಣಿ ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ, ಏನೂ ಉಳಿಸಲಾಗಿಲ್ಲ.",
         "submitted": "{identifier} ಯಶಸ್ವಿಯಾಗಿ ನೋಂದಾಯಿಸಲಾಗಿದೆ.",
+    },
+    "ml": {
+        "welcome": "പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യാം. ദയവായി മൃഗത്തിന്റെ ഐഡി, വർഗ്ഗം (ആട് അല്ലെങ്കിൽ ചെമ്മരിയാട്), ഇനം, ലിംഗം എന്നിവ പറയൂ.",
+        "ask_field": "ദയവായി {field} പറയൂ.",
+        "ask_breed": "ദയവായി ഇനം പറയൂ. അറിയില്ലെങ്കിൽ 'അറിയില്ല' എന്ന് പറയൂ.",
+        "ask_optional": "ആവശ്യമായ വിവരങ്ങൾ സേവ് ചെയ്തു. എന്തെങ്കിലും അധിക വിവരങ്ങൾ (ജനനത്തീയതി, ഭാരം, സ്ഥലം, മാതാപിതാക്കളുടെ ഐഡി, ടാഗ് വിവരം) ചേർക്കണോ? ചേർക്കേണ്ടത് പറയൂ, അല്ലെങ്കിൽ ഇപ്പോൾ സമർപ്പിക്കാൻ 'ഇല്ല' എന്ന് പറയൂ.",
+        "got_it": "മനസ്സിലായി: {delta}.",
+        "ask_more": "ഇനിയും എന്തെങ്കിലും ചേർക്കണോ, അല്ലെങ്കിൽ സമർപ്പിക്കാൻ 'ഇല്ല' എന്ന് പറയൂ?",
+        "breed_species_mismatch": "'{breed}' ശരിയായ ഒരു {species} ഇനമല്ല. ദയവായി ഇനം വീണ്ടും പറയൂ, അല്ലെങ്കിൽ അറിയില്ലെങ്കിൽ 'അറിയില്ല' എന്ന് പറയൂ.",
+        "duplicate_id": "'{identifier}' ഐഡിയുള്ള മൃഗം ഇതിനകം രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്. ദയവായി മറ്റൊരു ഐഡി പറയൂ.",
+        "correct": "ഈ പുതിയ മൃഗത്തിന്റെ പൂർണ്ണ വിവരങ്ങൾ: {summary}. ഇത് സേവ് ചെയ്യട്ടെ?",
+        "no": "എന്താണ് തിരുത്തേണ്ടത്?",
+        "cancelled": "രജിസ്ട്രേഷൻ റദ്ദാക്കി, ഒന്നും സേവ് ചെയ്തിട്ടില്ല.",
+        "submitted": "{identifier} വിജയകരമായി രജിസ്റ്റർ ചെയ്തു.",
     },
 }
 

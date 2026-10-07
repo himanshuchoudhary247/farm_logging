@@ -38,7 +38,7 @@ class _MinimalSupervisor(DraftSupervisor):
 
 
 def test_supported_languages_and_lang_helper():
-    assert set(SUPPORTED_LANGUAGES) == {"en-IN", "hi-IN", "ta-IN", "te-IN", "kn-IN", "mr-IN"}
+    assert set(SUPPORTED_LANGUAGES) == {"en-IN", "hi-IN", "ta-IN", "te-IN", "kn-IN", "mr-IN", "ml-IN"}
     assert _lang("hi-IN") == "hi"
     assert _lang("") == "en", "empty/missing tag falls back to en-IN -> 'en'"
     assert _lang(None) == "en"  # type: ignore[arg-type]

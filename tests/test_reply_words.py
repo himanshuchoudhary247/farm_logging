@@ -111,6 +111,8 @@ def test_marathi_dont_know_ignores_other_replies(text):
     ("en-IN", "Not sure."),
     ("en-IN", "I don't know"),
     ("mr-IN", "माहीत नाही"),
+    ("ml-IN", "അറിയില്ല"),
+    ("ml-IN", "എനിക്ക് അറിയില്ല."),
 ])
 def test_dont_know_in_every_language(language, text):
     assert is_dont_know(text, language)
@@ -121,7 +123,7 @@ def test_dont_know_in_every_language(language, text):
     ("ta-IN", "சிரோஹி"),                          # a real breed answer
     ("hi-IN", "पता नहीं, शायद बीटल"),             # don't-know inside a longer answer
     ("mr-IN", "తెలియదు"),                         # Telugu word, Marathi farmer: no match
-    ("ml-IN", "അറിയില്ല"),                        # unsupported language: no fallback yet
+    ("bn-IN", "জানি না"),                          # unsupported language: no fallback
 ])
 def test_dont_know_ignores_other_replies_and_languages(language, text):
     assert not is_dont_know(text, language)
