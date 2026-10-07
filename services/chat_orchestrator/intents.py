@@ -16,7 +16,7 @@ Fields on IntentSpec:
         classifier LlmAgent reads to decide between categories. Rendered
         into _ROUTE_INSTRUCTION as one bullet per intent.
     labels -- short per-language human-readable label (5 languages,
-        en/hi/ta/te/kn/mr), used by transport-layer messages that need to
+        en/hi/ta/te/kn/mr/ml), used by transport-layer messages that need to
         tell a farmer what's allowed on this channel (WhatsApp's
         blocked_intent message today; SMS/Telegram similar tomorrow).
 
@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from typing import Dict
 
 
-LANGUAGES = ("en", "hi", "ta", "te", "kn", "mr")
+LANGUAGES = ("en", "hi", "ta", "te", "kn", "mr", "ml")
 
 
 @dataclass(frozen=True)
@@ -72,6 +72,7 @@ INTENTS: Dict[str, IntentSpec] = {
             "te": "పశువైద్యుని అపాయింట్‌మెంట్ లేదా ఆరోగ్య సంఘటన నమోదు",
             "kn": "ಪಶು ವೈದ್ಯರ ಅಪಾಯಿಂಟ್‌ಮೆಂಟ್ ಅಥವಾ ಆರೋಗ್ಯ ಘಟನೆ ದಾಖಲಿಸಲು",
             "mr": "पशुवैद्यकीय अपॉइंटमेंट बुक करा किंवा आरोग्याची नोंद करा",
+            "ml": "മൃഗഡോക്ടറുടെ അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യുക അല്ലെങ്കിൽ ആരോഗ്യ വിവരം രേഖപ്പെടുത്തുക",
         },
     ),
     "add_animal": IntentSpec(
@@ -90,6 +91,7 @@ INTENTS: Dict[str, IntentSpec] = {
             "te": "కొత్త జంతువును నమోదు చేయడం",
             "kn": "ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಲು",
             "mr": "नवीन जनावर नोंदवा",
+            "ml": "പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യുക",
         },
     ),
     "weather": IntentSpec(
@@ -106,6 +108,7 @@ INTENTS: Dict[str, IntentSpec] = {
             "te": "వాతావరణం చూడడం",
             "kn": "ಹವಾಮಾನ ನೋಡಲು",
             "mr": "हवामान पहा",
+            "ml": "കാലാവസ്ഥ നോക്കുക",
         },
     ),
     "query": IntentSpec(
@@ -129,6 +132,7 @@ INTENTS: Dict[str, IntentSpec] = {
             "te": "మీ జంతువుల లేదా రికార్డుల గురించి అడగడం",
             "kn": "ನಿಮ್ಮ ಪ್ರಾಣಿಗಳು ಅಥವಾ ದಾಖಲೆಗಳ ಬಗ್ಗೆ ಕೇಳಲು",
             "mr": "तुमच्या जनावरांबद्दल किंवा नोंदींबद्दल विचारा",
+            "ml": "നിങ്ങളുടെ മൃഗങ്ങളെക്കുറിച്ചോ രേഖകളെക്കുറിച്ചോ ചോദിക്കുക",
         },
     ),
 }
