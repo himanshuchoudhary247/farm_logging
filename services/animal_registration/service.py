@@ -116,6 +116,45 @@ def is_marathi_dont_know(text: str) -> bool:
     norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
     return norm in _MARATHI_DONT_KNOW
 
+
+
+# Farmer-facing words for stored English values. The draft and the saved
+# record keep English (main_backend and the app depend on it); only the
+# readback shown/spoken to the farmer is translated. Breed names stay as is.
+_LOCALIZED_FIELDS = ("species", "sex", "breed")
+_VALUE_LABELS: dict[str, dict[str, str]] = {
+    "hi": {
+        "goat": "बकरी", "sheep": "भेड़", "male": "नर", "female": "मादा",
+        _BREED_UNSPECIFIED: "पता नहीं (देसी/मिश्रित नस्ल)",
+    },
+    "mr": {
+        "goat": "शेळी", "sheep": "मेंढी", "male": "नर", "female": "मादी",
+        _BREED_UNSPECIFIED: "माहीत नाही (स्थानिक/संकरित जात)",
+    },
+    "ta": {
+        "goat": "வெள்ளாடு", "sheep": "செம்மறியாடு", "male": "ஆண்", "female": "பெண்",
+        _BREED_UNSPECIFIED: "தெரியாது (உள்ளூர்/கலப்பு இனம்)",
+    },
+    "te": {
+        "goat": "మేక", "sheep": "గొర్రె", "male": "మగ", "female": "ఆడ",
+        _BREED_UNSPECIFIED: "తెలియదు (స్థానిక/సంకర జాతి)",
+    },
+    "kn": {
+        "goat": "ಮೇಕೆ", "sheep": "ಕುರಿ", "male": "ಗಂಡು", "female": "ಹೆಣ್ಣು",
+        _BREED_UNSPECIFIED: "ಗೊತ್ತಿಲ್ಲ (ಸ್ಥಳೀಯ/ಮಿಶ್ರ ತಳಿ)",
+    },
+}
+
+
+def _display_value(value: Any, lang: str) -> Any:
+    """Farmer-language word for a stored English value; anything not in
+    the map (e.g. a breed name) is returned unchanged."""
+    if not isinstance(value, str):
+        return value
+    words = _VALUE_LABELS.get(lang, {})
+    return words.get(value) or words.get(value.lower()) or value
+
+
 _ANIMAL_REGISTRATION_TOOL_SPEC = {
     "name": "record_animal_registration",
     "description": (
@@ -402,7 +441,12 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         values = draft["draft"]
         return [f for f in REQUIRED_FIELDS if not values.get(f)]
 
-    def _summary(self, draft: dict[str, Any], only_fields: Optional[set[str]] = None) -> str:
+    def _summary(
+        self,
+        draft: dict[str, Any],
+        only_fields: Optional[set[str]] = None,
+        localize_values: bool = False,
+    ) -> str:
         """only_fields restricts the readback to a subset -- used nowhere
         in this module today (unlike appointment_supervisor, there is no
         per-turn delta readback here at all; see the module docstring) but
@@ -417,6 +461,8 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 continue
             value = values.get(field)
             if value not in (None, "", []):
+                if localize_values and field in _LOCALIZED_FIELDS:
+                    value = _display_value(value, _lang(draft["language"]))
                 parts.append(f"{labels.get(field, field)}: {value}")
         return "; ".join(parts) or "no details yet"
 
@@ -681,7 +727,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
             draft["state"] = "CONFIRMING"
             self._save(draft)
-            message = self._message(draft["language"], "correct", summary=self._summary(draft))
+            message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
             return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
 
         # Real bug found in review: a farmer who said "no" at the confirm
@@ -696,7 +742,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         if draft["state"] == "CORRECTING":
             draft["state"] = "CONFIRMING"
             self._save(draft)
-            message = self._message(draft["language"], "correct", summary=self._summary(draft))
+            message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
             return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
 
         # Past required fields, not explicitly skipping -- either just
@@ -710,7 +756,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["state"] = "COLLECTING_OPTIONAL"
         self._save(draft)
         if was_already_optional and changed:
-            delta_summary = self._summary(draft, only_fields=set(changed.keys()))
+            delta_summary = self._summary(draft, only_fields=set(changed.keys()), localize_values=True)
             message = f"{self._message(draft['language'], 'got_it', delta=delta_summary)} {self._message(draft['language'], 'ask_more')}"
         else:
             message = self._message(draft["language"], "ask_optional")
