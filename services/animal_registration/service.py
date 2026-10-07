@@ -96,6 +96,26 @@ _VALID_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
 _VALID_TAG_TYPE = {"visual", "rfid", "tattoo"}
 _BREED_UNSPECIFIED = "Not specified (local/mixed breed)"
 
+
+# Whole-reply Marathi "don't know", used only as a fallback when the
+# extraction LLM misses field_unknown (seen live: "माहीत नाही." kept
+# re-asking for the breed). Exact match on the full reply, never a
+# substring, so "जात माहीत नाही पण वजन 20 किलो" is still left to the LLM.
+_MARATHI_DONT_KNOW = frozenset({
+    "माहीत नाही", "माहित नाही",
+    "मला माहीत नाही", "मला माहित नाही",
+    "माहीत नाही मला", "माहित नाही मला",
+    "नक्की माहीत नाही", "नक्की माहित नाही",
+    "जात माहीत नाही", "जात माहित नाही",
+})
+
+
+def is_marathi_dont_know(text: str) -> bool:
+    """True only when the WHOLE reply is a Marathi "don't know" (ignoring
+    case, spaces and a final . ! ? ।)."""
+    norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    return norm in _MARATHI_DONT_KNOW
+
 _ANIMAL_REGISTRATION_TOOL_SPEC = {
     "name": "record_animal_registration",
     "description": (
@@ -634,7 +654,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # instead of looping forever. Found missing live: without this, a
         # farmer who genuinely doesn't know had no path forward at all.
         if (
-            entities.get("field_unknown")
+            (entities.get("field_unknown") or is_marathi_dont_know(text))
             and draft["state"] == "COLLECTING"
             and not draft["draft"].get("breed")
             and self._missing_required(draft)

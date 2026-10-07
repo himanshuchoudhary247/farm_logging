@@ -79,3 +79,39 @@ def test_registration_answer_containing_nako_does_not_cancel(tmp_path, monkeypat
 
     supervisor.turn("demo-farmer", "s-cancel", "रद्द करा", "mr-IN")
     assert calls and calls[-1] == "cancel"
+
+@pytest.mark.parametrize("text", ["माहीत नाही", "माहीत नाही.", "मला माहित नाही", "  माहित   नाही ।"])
+def test_marathi_dont_know_whole_reply(text):
+    assert registration_service.is_marathi_dont_know(text)
+
+
+@pytest.mark.parametrize("text", ["जात माहीत नाही पण वजन 20 किलो", "बीटल", "नाही", ""])
+def test_marathi_dont_know_ignores_other_replies(text):
+    assert not registration_service.is_marathi_dont_know(text)
+
+
+def test_registration_breed_dont_know_moves_on_even_if_llm_misses_it(tmp_path, monkeypatch):
+    """Seen live: "माहीत नाही." kept re-asking for the breed because only
+    the LLM's field_unknown could skip it."""
+    monkeypatch.setattr(registration_service, "synthesize_speech", lambda text, target_lang=None: (None, None), raising=False)
+    replies = iter([
+        {"unique_animal_id": "MHTEST02", "species": "goat", "sex": "female"},
+        {},  # LLM misses field_unknown on "माहीत नाही."
+        {},
+    ])
+    seen = []
+
+    def fake_extract(self, draft, text):
+        seen.append(dict(draft["draft"]))
+        return next(replies)
+
+    monkeypatch.setattr(registration_service.AnimalRegistrationSupervisor, "_extract", fake_extract)
+    supervisor = registration_service.AnimalRegistrationSupervisor(tmp_path)
+
+    supervisor.turn("demo-farmer", "s-breed", "आयडी MHTEST02, शेळी, मादी", "mr-IN")
+    supervisor.turn("demo-farmer", "s-breed", "माहीत नाही.", "mr-IN")
+    supervisor.turn("demo-farmer", "s-breed", "नको", "mr-IN")
+
+    # Draft as saved after the "माहीत नाही." turn.
+    assert seen[2].get("breed") == registration_service._BREED_UNSPECIFIED
+
