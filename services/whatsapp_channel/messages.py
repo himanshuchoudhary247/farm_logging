@@ -1,6 +1,6 @@
-"""6-language message catalog for the WhatsApp channel.
+"""7-language message catalog for the WhatsApp channel.
 
-Same lang-tag convention as the rest of the codebase (en/hi/ta/te/kn/mr),
+Same lang-tag convention as the rest of the codebase (en/hi/ta/te/kn/mr/ml),
 same {placeholder} format-string shape as animal_registration/messages
 and appointment_supervisor's `_TEXT`. `_lang()` from
 services.common.draft_supervisor is reused for the tag -> prefix
@@ -285,6 +285,49 @@ _TEXT = {
             "appointment": "पशुवैद्यकीय अपॉइंटमेंट बुक करा किंवा आरोग्याची नोंद करा",
             "weather": "हवामान पहा",
             "add_animal": "नवीन जनावर नोंदवा",
+        },
+    },
+    "ml": {
+        "blocked_intent": (
+            "ഈ അഭ്യർത്ഥന ഇപ്പോൾ WhatsApp-ൽ ലഭ്യമല്ല. ഇതിനായി FarmHerd ആപ്പ് ഉപയോഗിക്കുക. "
+            "WhatsApp-ൽ നിങ്ങൾക്ക് ചെയ്യാവുന്നത്: {allowed_summary}."
+        ),
+        "unknown_farmer_enroll_prompt": (
+            "നമസ്കാരം! ഈ WhatsApp നമ്പർ തിരിച്ചറിയാനായില്ല. ദയവായി നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത "
+            "ഫോൺ നമ്പർ അല്ലെങ്കിൽ FarmHerd ഉപയോക്തൃനാമം അയയ്ക്കുക."
+        ),
+        "unknown_farmer_no_enroll": (
+            "ഈ WhatsApp നമ്പർ FarmHerd-ൽ രജിസ്റ്റർ ചെയ്തിട്ടില്ല. ദയവായി സപ്പോർട്ടുമായി ബന്ധപ്പെടുക."
+        ),
+        "enrollment_success": (
+            "നന്ദി {name} -- നിങ്ങളുടെ WhatsApp ഇപ്പോൾ FarmHerd അക്കൗണ്ടുമായി ലിങ്ക് ചെയ്തു. "
+            "നിങ്ങളുടെ ചോദ്യം അയയ്ക്കുക."
+        ),
+        "enrollment_failed": (
+            "പൊരുത്തപ്പെടുന്ന FarmHerd അക്കൗണ്ട് കണ്ടെത്തിയില്ല. ദയവായി നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഫോൺ നമ്പർ "
+            "(+91XXXXXXXXXX രൂപത്തിൽ) അല്ലെങ്കിൽ ഉപയോക്തൃനാമം അയയ്ക്കുക."
+        ),
+        "enroll_code_sent": (
+            "ഈ WhatsApp നിങ്ങളുടെ FarmHerd അക്കൗണ്ടുമായി ലിങ്ക് ചെയ്യാൻ, നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഫോൺ നമ്പർ "
+            "അല്ലെങ്കിൽ ഉപയോക്തൃനാമം അയയ്ക്കുക. അത് ഒരു അക്കൗണ്ടുമായി പൊരുത്തപ്പെട്ടാൽ, രജിസ്റ്റർ ചെയ്ത "
+            "ഫോണിലേക്ക് SMS വഴി 6 അക്ക കോഡ് അയയ്ക്കും -- ദയവായി ആ കോഡ് ഇവിടെ അയയ്ക്കുക."
+        ),
+        "otp_wrong": "ഈ കോഡ് തെറ്റാണ്. ദയവായി SMS പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക.",
+        "otp_locked": (
+            "പലതവണ തെറ്റായ കോഡ് നൽകി. പുതിയ കോഡിനായി നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഫോൺ നമ്പർ അല്ലെങ്കിൽ "
+            "ഉപയോക്തൃനാമം വീണ്ടും അയയ്ക്കുക."
+        ),
+        "otp_expired": (
+            "ഈ കോഡിന്റെ കാലാവധി കഴിഞ്ഞു. പുതിയ കോഡിനായി നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഫോൺ നമ്പർ അല്ലെങ്കിൽ "
+            "ഉപയോക്തൃനാമം വീണ്ടും അയയ്ക്കുക."
+        ),
+        "rate_limited": "നിങ്ങൾ വളരെ വേഗത്തിൽ സന്ദേശങ്ങൾ അയയ്ക്കുന്നു. ദയവായി അൽപ്പസമയം കാത്തിരിക്കുക.",
+        "reply_trimmed_suffix": "\n\n... (മറുപടി ചുരുക്കിയിരിക്കുന്നു; പൂർണ്ണ മറുപടിക്കായി ആപ്പ് തുറക്കുക)",
+        "intent_labels": {
+            "query": "നിങ്ങളുടെ മൃഗങ്ങളെക്കുറിച്ചോ രേഖകളെക്കുറിച്ചോ ചോദിക്കുക",
+            "appointment": "മൃഗഡോക്ടറുടെ അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യുക അല്ലെങ്കിൽ ആരോഗ്യ വിവരം രേഖപ്പെടുത്തുക",
+            "weather": "കാലാവസ്ഥ നോക്കുക",
+            "add_animal": "പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യുക",
         },
     },
 }
