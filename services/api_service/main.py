@@ -378,7 +378,7 @@ class WeatherPreferenceRequest(BaseModel):
 class PersonalizedAdvisoryRequest(BaseModel):
     pin: Optional[str] = None
     force_refresh: bool = False
-    # Language for the LLM-written "advisory" (en, hi, ta, te, kn, ml).
+    # Language for the LLM-written "advisory" (en, hi, ta, te, kn, ml, mr).
     # Optional, so existing callers keep working unchanged.
     language: str = "en"
 

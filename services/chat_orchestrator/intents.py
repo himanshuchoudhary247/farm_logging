@@ -16,7 +16,7 @@ Fields on IntentSpec:
         classifier LlmAgent reads to decide between categories. Rendered
         into _ROUTE_INSTRUCTION as one bullet per intent.
     labels -- short per-language human-readable label (5 languages,
-        en/hi/ta/te/kn), used by transport-layer messages that need to
+        en/hi/ta/te/kn/mr), used by transport-layer messages that need to
         tell a farmer what's allowed on this channel (WhatsApp's
         blocked_intent message today; SMS/Telegram similar tomorrow).
 

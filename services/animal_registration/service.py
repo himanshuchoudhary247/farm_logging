@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common.draft_supervisor import (
+    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -94,6 +95,26 @@ _VALID_SPECIES = {"goat", "sheep"}
 _VALID_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
 _VALID_TAG_TYPE = {"visual", "rfid", "tattoo"}
 _BREED_UNSPECIFIED = "Not specified (local/mixed breed)"
+
+
+# Whole-reply Marathi "don't know", used only as a fallback when the
+# extraction LLM misses field_unknown (seen live: "माहीत नाही." kept
+# re-asking for the breed). Exact match on the full reply, never a
+# substring, so "जात माहीत नाही पण वजन 20 किलो" is still left to the LLM.
+_MARATHI_DONT_KNOW = frozenset({
+    "माहीत नाही", "माहित नाही",
+    "मला माहीत नाही", "मला माहित नाही",
+    "माहीत नाही मला", "माहित नाही मला",
+    "नक्की माहीत नाही", "नक्की माहित नाही",
+    "जात माहीत नाही", "जात माहित नाही",
+})
+
+
+def is_marathi_dont_know(text: str) -> bool:
+    """True only when the WHOLE reply is a Marathi "don't know" (ignoring
+    case, spaces and a final . ! ? ।)."""
+    norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    return norm in _MARATHI_DONT_KNOW
 
 _ANIMAL_REGISTRATION_TOOL_SPEC = {
     "name": "record_animal_registration",
@@ -594,15 +615,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["transcript_history"].append(text)
         entities = self._extract(draft, text)
 
-        norm_conf = text.strip().lower().rstrip(".!?।")
-        conf_sig = entities.get("confirmation_signal")
-        if not conf_sig:
-            if any(w in norm_conf for w in ("रद्द करा", "नको", "कॅन्सल")):
-                conf_sig = "cancel"
-            elif any(w in norm_conf for w in ("हो", "बरोबर", "सेव्ह करा", "सबमिट", "ठीक आहे")):
-                conf_sig = "yes"
-            elif any(w in norm_conf for w in ("नाही", "चूक", "बदल करा")):
-                conf_sig = "no"
+        conf_sig = entities.get("confirmation_signal") or marathi_confirmation_signal(text)
 
         if conf_sig == "cancel":
             self._save(draft)
@@ -641,7 +654,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # instead of looping forever. Found missing live: without this, a
         # farmer who genuinely doesn't know had no path forward at all.
         if (
-            entities.get("field_unknown")
+            (entities.get("field_unknown") or is_marathi_dont_know(text))
             and draft["state"] == "COLLECTING"
             and not draft["draft"].get("breed")
             and self._missing_required(draft)
@@ -664,7 +677,7 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
         norm_t = text.strip().lower().rstrip(".!?।")
-        is_marathi_skip = norm_t in {"नाही", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
+        is_marathi_skip = norm_t in {"नाही", "नको", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
         if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
             draft["state"] = "CONFIRMING"
             self._save(draft)

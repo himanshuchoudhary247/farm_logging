@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common.draft_supervisor import (
+    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -613,15 +614,7 @@ class AppointmentSupervisor(DraftSupervisor):
             pending = None
 
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
-        confirmation_signal = result.get("confirmation_signal")
-        if not confirmation_signal:
-            norm_t = text.strip().lower().rstrip(".!?।")
-            if any(w in norm_t for w in ("रद्द करा", "नको", "कॅन्सल")):
-                confirmation_signal = "cancel"
-            elif any(w in norm_t for w in ("हो", "बरोबर", "बुक करा", "सबमिट", "हो बरोबर", "ठीक आहे")):
-                confirmation_signal = "yes"
-            elif any(w in norm_t for w in ("नाही", "चूक", "नाही नको")):
-                confirmation_signal = "no"
+        confirmation_signal = result.get("confirmation_signal") or marathi_confirmation_signal(text)
         turn_entities = result.get("entities") or {}
 
         # Real gap, found via live testing: a genuine off-topic question

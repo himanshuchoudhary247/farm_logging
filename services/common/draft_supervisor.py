@@ -4,7 +4,7 @@ Two now-live supervisors -- AppointmentSupervisor and
 AnimalRegistrationSupervisor -- had hand-duplicated the same machinery:
 the sha1-hashed per-(farmer, session) draft path, the FileLock-guarded
 atomic write, the load-or-fresh helper, the per-session RLock dict,
-the 5-language SUPPORTED_LANGUAGES map, the _lang() language-tag helper,
+the 6-language SUPPORTED_LANGUAGES map, the _lang() language-tag helper,
 the _UNSET sentinel, and the small dispatch that wraps turn/confirm/submit
 under _session_lock(). docs/conversation_patterns.md anticipates a third
 supervisor (health-log) using the same pattern; extracting this base now
@@ -57,6 +57,32 @@ _UNSET: Any = object()
 def _lang(language: str) -> str:
     """Normalize an IETF-like language tag to its lowercase primary subtag."""
     return (language or "en-IN").split("-")[0].lower()
+
+
+# Whole-reply Marathi confirmation words, used only as a fallback when the
+# extraction LLM returns no confirmation_signal. Exact match on the full
+# reply, never a substring: everyday words like "नको" ("don't want") and
+# "नाही" ("no/not") also appear inside ordinary answers, e.g. "ताप आहे, औषध
+# नको" ("has fever, don't want medicine"), and a substring match there
+# silently cancelled the whole draft (found in PR #36 review).
+_MARATHI_CONFIRMATION_WORDS: Dict[str, frozenset] = {
+    # "नको" alone means "don't want" (decline), not "cancel everything":
+    # cancel is honoured in every state, so only explicit words cancel.
+    "cancel": frozenset({"रद्द करा", "कॅन्सल"}),
+    "yes": frozenset({"हो", "बरोबर", "हो बरोबर", "ठीक आहे", "सबमिट", "बुक करा", "सेव्ह करा"}),
+    "no": frozenset({"नाही", "नको", "चूक", "नाही नको", "बदल करा"}),
+}
+
+
+def marathi_confirmation_signal(text: str) -> "str | None":
+    """'cancel' / 'yes' / 'no' only when the WHOLE reply is one of the
+    Marathi confirmation words above (ignoring case, spaces and a final
+    . ! ? ।), otherwise None."""
+    norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    for signal, words in _MARATHI_CONFIRMATION_WORDS.items():
+        if norm in words:
+            return signal
+    return None
 
 
 class DraftSupervisor:
