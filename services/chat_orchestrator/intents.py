@@ -15,7 +15,7 @@ Fields on IntentSpec:
     classifier_description -- long-form English boundary text the
         classifier LlmAgent reads to decide between categories. Rendered
         into _ROUTE_INSTRUCTION as one bullet per intent.
-    labels -- short per-language human-readable label (5 languages,
+    labels -- short per-language human-readable label (7 languages,
         en/hi/ta/te/kn/mr/ml), used by transport-layer messages that need to
         tell a farmer what's allowed on this channel (WhatsApp's
         blocked_intent message today; SMS/Telegram similar tomorrow).
