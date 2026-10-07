@@ -39,8 +39,8 @@ from base64 import b64encode
 from pathlib import Path
 from typing import Any, Optional
 
+from services.common import reply_words
 from services.common.draft_supervisor import (
-    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -95,27 +95,6 @@ _VALID_SPECIES = {"goat", "sheep"}
 _VALID_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
 _VALID_TAG_TYPE = {"visual", "rfid", "tattoo"}
 _BREED_UNSPECIFIED = "Not specified (local/mixed breed)"
-
-
-# Whole-reply Marathi "don't know", used only as a fallback when the
-# extraction LLM misses field_unknown (seen live: "माहीत नाही." kept
-# re-asking for the breed). Exact match on the full reply, never a
-# substring, so "जात माहीत नाही पण वजन 20 किलो" is still left to the LLM.
-_MARATHI_DONT_KNOW = frozenset({
-    "माहीत नाही", "माहित नाही",
-    "मला माहीत नाही", "मला माहित नाही",
-    "माहीत नाही मला", "माहित नाही मला",
-    "नक्की माहीत नाही", "नक्की माहित नाही",
-    "जात माहीत नाही", "जात माहित नाही",
-})
-
-
-def is_marathi_dont_know(text: str) -> bool:
-    """True only when the WHOLE reply is a Marathi "don't know" (ignoring
-    case, spaces and a final . ! ? ।)."""
-    norm = " ".join((text or "").strip().lower().rstrip(".!?।").split())
-    return norm in _MARATHI_DONT_KNOW
-
 
 
 # Farmer-facing words for stored English values. The draft and the saved
@@ -263,6 +242,10 @@ Examples (what goes into the record_animal_registration call):
 4) PHASE: collecting, just asked for 'species' | Farmer: "செம்மறியாடு" -> {species: 'sheep'} -- the full word is sheep, even though it ends with ஆடு (goat).
 5) PHASE: collecting, just asked for 'breed' | Farmer: "पता नहीं" -> {field_unknown: true} -- an explicit don't-know; never invent a breed.
 5a) PHASE: collecting, just asked for 'breed' | Farmer: "माहीत नाही" -> {field_unknown: true} -- Marathi explicit don't-know.
+5b) PHASE: collecting, just asked for 'breed' | Farmer: "తెలియదు" -> {field_unknown: true} -- Telugu explicit don't-know.
+5c) PHASE: collecting, just asked for 'breed' | Farmer: "தெரியாது" -> {field_unknown: true} -- Tamil explicit don't-know.
+5d) PHASE: collecting, just asked for 'breed' | Farmer: "ಗೊತ್ತಿಲ್ಲ" -> {field_unknown: true} -- Kannada explicit don't-know.
+5e) PHASE: collecting, just asked for 'breed' | Farmer: "not sure" -> {field_unknown: true} -- English explicit don't-know.
 6) PHASE: optional fields, ID already captured | Farmer: "Bort" -> {} -- a stray word with no correction language is NOT a new unique_animal_id.
 7) PHASE: optional fields, ID already captured | Farmer: "actually the ID is 1122" -> {unique_animal_id: '1122', corrects_identity: true}
 8) PHASE: optional fields | Farmer: "no, that's all" -> {wants_to_skip_optional: true}
@@ -661,7 +644,9 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["transcript_history"].append(text)
         entities = self._extract(draft, text)
 
-        conf_sig = entities.get("confirmation_signal") or marathi_confirmation_signal(text)
+        # LLM first; the whole-reply word list in services/common/reply_words.py
+        # is only a fallback when the LLM returns no signal.
+        conf_sig = entities.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
 
         if conf_sig == "cancel":
             self._save(draft)
@@ -699,8 +684,10 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # know" while breed is the pending field accepts a fallback value
         # instead of looping forever. Found missing live: without this, a
         # farmer who genuinely doesn't know had no path forward at all.
+        # LLM's field_unknown first; reply_words is the whole-reply fallback
+        # (seen live: Telugu "తెలియదు" came back with no field_unknown).
         if (
-            (entities.get("field_unknown") or is_marathi_dont_know(text))
+            (entities.get("field_unknown") or reply_words.is_dont_know(text, draft["language"]))
             and draft["state"] == "COLLECTING"
             and not draft["draft"].get("breed")
             and self._missing_required(draft)
@@ -722,9 +709,11 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 message = self._message(draft["language"], "welcome")
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
-        norm_t = text.strip().lower().rstrip(".!?।")
-        is_marathi_skip = norm_t in {"नाही", "नको", "नाही झाला आता", "काही नाही", "नाही काही नाही", "पुढे जा"}
-        if entities.get("wants_to_skip_optional") or entities.get("confirmation_signal") == "no" or is_marathi_skip:
+        if (
+            entities.get("wants_to_skip_optional")
+            or entities.get("confirmation_signal") == "no"
+            or reply_words.is_skip(text, draft["language"])
+        ):
             draft["state"] = "CONFIRMING"
             self._save(draft)
             message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))

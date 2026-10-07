@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from services.common import reply_words
 from services.common.draft_supervisor import (
-    marathi_confirmation_signal,
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
     _UNSET,
@@ -614,7 +614,7 @@ class AppointmentSupervisor(DraftSupervisor):
             pending = None
 
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
-        confirmation_signal = result.get("confirmation_signal") or marathi_confirmation_signal(text)
+        confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
         # Real gap, found via live testing: a genuine off-topic question
