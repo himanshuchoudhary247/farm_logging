@@ -25,6 +25,7 @@ LANG_NAMES: dict[str, str] = {
     "te": "Telugu",
     "ta": "Tamil",
     "mr": "Marathi",
+    "ml": "Malayalam",
     "en": "English",
 }
 

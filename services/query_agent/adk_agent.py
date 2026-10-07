@@ -32,10 +32,11 @@ from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
 from services.llm_service.adk_model import build_adk_model
 
-# Matches SUPPORTED_LANGUAGES elsewhere (appointment_supervisor,
-# animal_registration) -- kept to the same 5, not adding a 6th
-# (Malayalam) here alone, since that would give query_agent language
-# coverage the rest of the app (booking, registration) doesn't have.
+# Native digits per language. Kept in step with SUPPORTED_LANGUAGES
+# (appointment_supervisor, animal_registration), which now has all 7
+# languages. Malayalam is supported but has no entry here on purpose:
+# Malayalam text today uses Western digits (0-9), not ൦-൯, so its answers
+# keep 0-9 (falls through to "en", where conversion is a no-op).
 _NATIVE_DIGITS = {
     "hi": "०१२३४५६७८९",
     "ta": "௦௧௨௩௪௫௬௭௮௯",
@@ -160,6 +161,12 @@ _COLUMN_LABELS = {
         "status": "स्थिती", "birth_date": "जन्मतारीख", "current_location": "ठिकाण",
         "age_years": "वय (वर्षे)", "issue": "समस्या", "notes": "टिपा",
         "date": "तारीख", "time": "वेळ",
+    },
+    "ml": {
+        "species": "വർഗ്ഗം", "breed": "ഇനം", "sex": "ലിംഗം", "tag_or_name": "ടാഗ്/പേര്",
+        "status": "നില", "birth_date": "ജനനത്തീയതി", "current_location": "സ്ഥലം",
+        "age_years": "പ്രായം (വർഷം)", "issue": "പ്രശ്നം", "notes": "കുറിപ്പുകൾ",
+        "date": "തീയതി", "time": "സമയം",
     },
 }
 
