@@ -637,6 +637,14 @@ def chat_turn(farmer_id: str, req: ChatTurnRequest, _auth: None = Depends(requir
     services/chat_orchestrator/adk_router.py for the dispatch logic."""
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
+    if req.language not in SUPPORTED_LANGUAGES:
+        # Same validation as the sibling appointment endpoint (below). An
+        # unvalidated language previously passed through silently -- it
+        # still "worked" (degrades to script detection/English deep in
+        # the pipeline) but silently defeated the app-language-aware
+        # table-heading fix in query_agent, which depends on this field
+        # being a real, valid tag (found in deep-review of PR #41).
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {req.language}")
     try:
         t0 = time.time()
         result = route_turn_adk(farmer_id, req.session_id, req.text, req.language, include_audio=req.include_audio)

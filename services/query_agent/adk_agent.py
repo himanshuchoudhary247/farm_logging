@@ -91,7 +91,7 @@ def _localize_numbers(value: Any, lang: str) -> Any:
     round-trip and the API's numeric type contract for any downstream
     consumer that sorts/sums/compares. Found in review of PR #15's
     original always-translate behavior."""
-    if lang == "en":
+    if lang == "en" or lang not in _NATIVE_DIGITS:
         return value
     if isinstance(value, str):
         return _to_native_digits(value, lang)
@@ -189,8 +189,13 @@ def _labels_language(script_lang: str, app_language: "str | None") -> str:
     """Language for table headings: the app's language when we have labels
     for it, else the language detected from the query's script. The script
     alone can't tell Marathi from Hindi (both Devanagari), and a farmer
-    typing in Roman script looks like English, so the app's choice wins."""
-    app = (app_language or "").split("-")[0].lower()
+    typing in Roman script looks like English, so the app's choice wins.
+
+    Normalizes both "-" and "_" locale separators ("mr-IN", "mr_IN") --
+    without this, an underscore-style tag silently fell through to
+    script_lang, reinstating the exact Hindi-for-Marathi bug this
+    function exists to fix (found in deep-review of PR #41)."""
+    app = (app_language or "").strip().replace("_", "-").split("-")[0].lower()
     return app if app in _COLUMN_LABELS else script_lang
 
 
@@ -429,13 +434,16 @@ async def _run_query_async(
         "row_count": last_successful_result.get("row_count"),
         "truncated": last_successful_result.get("truncated", False),
     }
-    # Headings follow the app's language when known (see _labels_language);
-    # digits keep following the script, unchanged.
+    # Headings and row digits both follow labels_lang, so the display
+    # block is internally consistent in one language (not "English
+    # headings over Devanagari digits" when the app's language and the
+    # query's script differ -- found in deep-review of PR #41; previously
+    # rows used the raw script-detected `lang`, not labels_lang).
     labels_lang = _labels_language(lang, app_language)
     if labels_lang in _COLUMN_LABELS:
         raw_data["display"] = {
             "columns": _localize_columns(raw_data["columns"], labels_lang),
-            "rows": _localize_numbers(raw_data["rows"], lang),
+            "rows": _localize_numbers(raw_data["rows"], labels_lang),
         }
     return {
         "answer": text_answer,
