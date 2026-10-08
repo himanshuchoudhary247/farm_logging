@@ -18,6 +18,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
+from collections import OrderedDict
 from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
@@ -50,11 +53,28 @@ Your answer is shown as text AND read aloud by text-to-speech -- these can diffe
 After your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly one-sentence version (e.g. "Yes, heavy rain expected today -- move animals to shelter." rather than a sentence packed with mm/kph figures). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line."""
 
 
+# Short TTL cache, keyed by farmer_id: a farmer's own animals/health logs
+# change far less often than they ask weather questions (e.g. the sticky
+# "still waiting for a PIN" follow-up in adk_router.py re-runs a whole
+# weather turn, including this, within seconds). 2 minutes is long enough
+# to dedupe that, short enough that a fresh health log still shows up on
+# the farmer's very next unrelated question. Found in review of the
+# weather flow.
+_FARM_CONTEXT_TTL_SEC = 120
+_farm_context_cache: "OrderedDict[str, tuple[float, Optional[dict[str, Any]]]]" = OrderedDict()
+_farm_context_lock = threading.Lock()
+
+
 def _farm_context(farmer_id: str) -> Optional[dict[str, Any]]:
     """This farmer's own animals (short summary) and recent health issues,
     so the weather answer can be specific to their farm. farmer_id is bound
     at construction, never taken from the model, same as the location
     lookup. Best effort: a storage error just means a general answer."""
+    with _farm_context_lock:
+        cached = _farm_context_cache.get(farmer_id)
+        if cached is not None and time.time() - cached[0] <= _FARM_CONTEXT_TTL_SEC:
+            return cached[1]
+
     try:
         livestock = summarize_livestock(animals_for_farmer(farmer_id))
         issues = recent_issues(health_logs_for_farmer(farmer_id))
@@ -63,9 +83,14 @@ def _farm_context(farmer_id: str) -> Optional[dict[str, Any]]:
             "farm context unavailable farmer=%s: %s", farmer_id, exc,
         )
         return None
-    if not livestock and not issues:
-        return None
-    return {"livestock": livestock, "recent_health_issues": issues}
+    result = {"livestock": livestock, "recent_health_issues": issues} if (livestock or issues) else None
+
+    with _farm_context_lock:
+        _farm_context_cache[farmer_id] = (time.time(), result)
+        _farm_context_cache.move_to_end(farmer_id)
+        while len(_farm_context_cache) > 500:
+            _farm_context_cache.popitem(last=False)
+    return result
 
 
 def _make_get_weather_context_tool(farmer_id: str):

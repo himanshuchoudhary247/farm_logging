@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import threading
 import time
@@ -277,6 +278,39 @@ def _same_dates_past_years(years_back: int = 5) -> list[tuple[str, str]]:
     return ranges
 
 
+def _fetch_one_historical_year(lat: float, lon: float, start_date: str, end_date: str) -> dict[str, Any]:
+    try:
+        data = _request_json(
+            ARCHIVE_URL,
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "start_date": start_date,
+                "end_date": end_date,
+                "timezone": "auto",
+                "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
+            },
+        )
+        daily = data.get("daily") or {}
+        temps_max = [x for x in (daily.get("temperature_2m_max") or []) if x is not None]
+        temps_min = [x for x in (daily.get("temperature_2m_min") or []) if x is not None]
+        rain = [x for x in (daily.get("precipitation_sum") or []) if x is not None]
+        wind = [x for x in (daily.get("wind_speed_10m_max") or []) if x is not None]
+
+        return {
+            "year": start_date[:4],
+            "period": f"{start_date} / {end_date}",
+            "avg_temp_max": round(sum(temps_max) / len(temps_max), 1) if temps_max else None,
+            "avg_temp_min": round(sum(temps_min) / len(temps_min), 1) if temps_min else None,
+            "total_rainfall_mm": round(sum(rain), 1) if rain else 0.0,
+            "avg_wind_kph": round(sum(wind) / len(wind), 1) if wind else 0.0,
+            "extreme_rain_days": sum(1 for r in rain if r >= 15),
+            "extreme_wind_days": sum(1 for w in wind if w >= 30),
+        }
+    except Exception:
+        return {"year": start_date[:4], "period": f"{start_date} / {end_date}", "error": "data unavailable"}
+
+
 def get_historical_weather(lat: float, lon: float) -> dict[str, Any]:
     cache_key = f"hist:{lat:.4f}:{lon:.4f}"
     cached = _cache_get(cache_key)
@@ -284,39 +318,18 @@ def get_historical_weather(lat: float, lon: float) -> dict[str, Any]:
         return cached
 
     date_ranges = _same_dates_past_years(HISTORICAL_YEARS)
-    all_years: list[dict[str, Any]] = []
 
-    for start_date, end_date in date_ranges:
-        try:
-            data = _request_json(
-                ARCHIVE_URL,
-                params={
-                    "latitude": lat,
-                    "longitude": lon,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "timezone": "auto",
-                    "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max",
-                },
-            )
-            daily = data.get("daily") or {}
-            temps_max = [x for x in (daily.get("temperature_2m_max") or []) if x is not None]
-            temps_min = [x for x in (daily.get("temperature_2m_min") or []) if x is not None]
-            rain = [x for x in (daily.get("precipitation_sum") or []) if x is not None]
-            wind = [x for x in (daily.get("wind_speed_10m_max") or []) if x is not None]
-
-            all_years.append({
-                "year": start_date[:4],
-                "period": f"{start_date} / {end_date}",
-                "avg_temp_max": round(sum(temps_max) / len(temps_max), 1) if temps_max else None,
-                "avg_temp_min": round(sum(temps_min) / len(temps_min), 1) if temps_min else None,
-                "total_rainfall_mm": round(sum(rain), 1) if rain else 0.0,
-                "avg_wind_kph": round(sum(wind) / len(wind), 1) if wind else 0.0,
-                "extreme_rain_days": sum(1 for r in rain if r >= 15),
-                "extreme_wind_days": sum(1 for w in wind if w >= 30),
-            })
-        except Exception:
-            all_years.append({"year": start_date[:4], "period": f"{start_date} / {end_date}", "error": "data unavailable"})
+    # 5 independent years, each its own archive-API round trip -- these
+    # don't depend on each other, so fetching them one at a time serially
+    # (the original shape) means the farmer waits for 5x the single-call
+    # latency on every cold cache. ThreadPoolExecutor.map keeps results in
+    # date_ranges order regardless of which call finishes first (found in
+    # review of the weather flow).
+    with ThreadPoolExecutor(max_workers=HISTORICAL_YEARS) as pool:
+        all_years = list(pool.map(
+            lambda dr: _fetch_one_historical_year(lat, lon, dr[0], dr[1]),
+            date_ranges,
+        ))
 
     result = {
         "period_label": f"Same week, past {HISTORICAL_YEARS} years",
