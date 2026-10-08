@@ -45,6 +45,26 @@ def test_supervisors_use_the_shared_reply_words_fallback():
         assert not hasattr(module, "is_marathi_dont_know")
 
 
+@pytest.mark.parametrize("text, expected", [
+    ("रद्द करा", "cancel"),
+    ("नको", "no"),
+    ("हो", "yes"),
+])
+def test_hindi_tag_also_matches_marathi_words(text, expected):
+    """detect_language can't tell Hindi from Marathi (both Devanagari) --
+    a WhatsApp message tagged "hi-IN" may actually be from a Marathi
+    speaker. Hindi has no cancel/yes/no words of its own today, so without
+    this, those signals were silently unreachable under a "hi-IN" tag
+    (found in deep-review of this PR)."""
+    assert confirmation_signal(text, "hi-IN") == expected
+
+
+def test_hindi_tag_does_not_gain_false_positives_from_the_union():
+    """The sibling union must stay whole-reply exact -- it must not turn
+    into a substring match just because it now checks two languages."""
+    assert confirmation_signal("ताप आहे, औषध नको", "hi-IN") is None
+
+
 def _record_confirm(monkeypatch, cls):
     """Replace confirm() so we can see whether a turn tried to cancel."""
     calls = []

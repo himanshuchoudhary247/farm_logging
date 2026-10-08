@@ -68,9 +68,21 @@ def _lang(language: str) -> str:
     return (language or "en-IN").split("-")[0].lower()
 
 
+# Script detection can't tell these apart (both Devanagari) -- a message
+# tagged "hi" may actually be from a Marathi speaker (e.g. on WhatsApp,
+# where language comes from script detection, not an app selector). Safe
+# to union: the word sets are disjoint and matching stays whole-reply
+# exact, so this only adds matches, never widens a substring risk.
+_SCRIPT_SIBLINGS: Dict[str, "tuple[str, ...]"] = {"hi": ("mr",)}
+
+
 def matches(kind: str, text: str, language: str) -> bool:
-    """True only when the WHOLE reply is one of `kind`'s words for this language."""
-    words = _WORDS.get(kind, {}).get(_lang(language), frozenset())
+    """True only when the WHOLE reply is one of `kind`'s words for this
+    language, or for a script-sibling language detection can't rule out."""
+    lang = _lang(language)
+    words = _WORDS.get(kind, {}).get(lang, frozenset())
+    for sibling in _SCRIPT_SIBLINGS.get(lang, ()):
+        words |= _WORDS.get(kind, {}).get(sibling, frozenset())
     return _norm(text) in words
 
 
