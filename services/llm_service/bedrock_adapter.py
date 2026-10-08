@@ -729,6 +729,20 @@ _LANG_INSTRUCTIONS = {
 }
 
 
+def _lang_instruction(language: Optional[str]) -> str:
+    """Same normalization as services/farmer_onboarding_service/extraction.py's
+    sibling dict: exact match first (covers "mix-hi" etc as-is), then the
+    bare language prefix for a full locale tag like "ta-IN" -- this dict
+    was never normalizing that format, so a full-tag caller silently fell
+    back to English (found in deep-review of PR #40)."""
+    lang_code = (language or "en").strip()
+    return (
+        _LANG_INSTRUCTIONS.get(lang_code)
+        or _LANG_INSTRUCTIONS.get(lang_code.split("-")[0].lower())
+        or "Ask the next question in English."
+    )
+
+
 def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, language: str = "en") -> dict:
     import json as _json
     adapter = BedrockTextAdapter(task=TaskTier.EXTRACTION)
@@ -736,10 +750,7 @@ def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, lan
     filled = {k: v for k, v in existing.items() if _has_value(v)}
     missing = [f for f in FARM_FIELDS if not _has_value(filled.get(f))]
 
-    lang_code = language or "en"
-    lang_instruction = _LANG_INSTRUCTIONS.get(
-        lang_code, _LANG_INSTRUCTIONS.get(lang_code.replace("mix-", "mix"), "Ask the next question in English.")
-    )
+    lang_instruction = _lang_instruction(language)
 
     prompt = f"""You are an onboarding assistant for a livestock farm management system.
 
