@@ -89,6 +89,23 @@ _TEXT = {
         "missing_date": "अपॉइंटमेंटची तारीख",
         "missing_time": "अपॉइंटमेंटची वेळ",
     },
+    "ml": {
+        "welcome": "നമസ്കാരം. ദയവായി മൃഗത്തിന്റെ പേര് അല്ലെങ്കിൽ ടാഗ്, പ്രശ്നവും ലക്ഷണങ്ങളും, അപ്പോയിന്റ്മെന്റിന് ഇഷ്ടമുള്ള തീയതിയും സമയവും പറയൂ.",
+        "correct": "എനിക്ക് മനസ്സിലായത്: {summary}",
+        "updated": "പുതുക്കി: {summary}",
+        "yes_missing": "ദയവായി {field} പറയൂ.",
+        "ready": "ആവശ്യമായ എല്ലാ വിവരങ്ങളും പൂർണ്ണമാണ്. ഈ അപ്പോയിന്റ്മെന്റ് സമർപ്പിക്കണോ?",
+        "submit_yes": "സേവ് ചെയ്യാൻ തയ്യാറാകുമ്പോൾ 'സമർപ്പിക്കുക' എന്ന് പറയൂ.",
+        "submitted": "അപ്പോയിന്റ്മെന്റും മൃഗത്തിന്റെ ആരോഗ്യ രേഖയും വിജയകരമായി സേവ് ചെയ്തു.",
+        "animal_not_found": "നിങ്ങളുടെ പേരിൽ '{identifier}' എന്ന പേരോ ടാഗോ ഉള്ള മൃഗമില്ല. നിങ്ങൾ രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ: {animals}. ദയവായി ശരിയായ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി പറയൂ.",
+        "no_animals_registered": "നിങ്ങളുടെ പേരിൽ ഇതുവരെ ഒരു മൃഗവും രജിസ്റ്റർ ചെയ്തിട്ടില്ല, അതിനാൽ '{identifier}' കണ്ടെത്താനായില്ല. ആദ്യം ഒരു മൃഗത്തെ രജിസ്റ്റർ ചെയ്യൂ.",
+        "no": "ഏത് വിവരമാണ് തിരുത്തേണ്ടത്?",
+        "cancelled": "അപ്പോയിന്റ്മെന്റ് ഡ്രാഫ്റ്റ് റദ്ദാക്കി, സേവ് ചെയ്തിട്ടില്ല.",
+        "missing_animal_identifier": "മൃഗത്തിന്റെ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി",
+        "missing_issue": "മൃഗത്തിന്റെ പ്രശ്നവും ലക്ഷണങ്ങളും",
+        "missing_date": "അപ്പോയിന്റ്മെന്റ് തീയതി",
+        "missing_time": "അപ്പോയിന്റ്മെന്റ് സമയം",
+    },
     "ta": {
         "welcome": "வணக்கம். விலங்கின் பெயர் அல்லது குறிச்சொல், பிரச்சினை மற்றும் அறிகுறிகள், விருப்பமான சந்திப்பு தேதி மற்றும் நேரத்தைச் சொல்லுங்கள்.",
         "correct": "நான் புரிந்துகொண்டது: {summary}",
@@ -149,6 +166,7 @@ _LABELS = {
     "te": {"animal_identifier": "జంతువు", "issue": "సమస్య", "symptoms": "లక్షణాలు", "duration": "వ్యవధి", "severity": "తీవ్రత", "date": "తేదీ", "time": "సమయం", "notes": "గమనికలు"},
     "kn": {"animal_identifier": "ಪ್ರಾಣಿ", "issue": "ಸಮಸ್ಯೆ", "symptoms": "ಲಕ್ಷಣಗಳು", "duration": "ಅವಧಿ", "severity": "ತೀವ್ರತೆ", "date": "ದಿನಾಂಕ", "time": "ಸಮಯ", "notes": "ಟಿಪ್ಪಣಿಗಳು"},
     "mr": {"animal_identifier": "जनावर", "issue": "समस्या", "symptoms": "लक्षणे", "duration": "कालावधी", "severity": "तीव्रता", "date": "तारीख", "time": "वेळ", "notes": "टिपा"},
+    "ml": {"animal_identifier": "മൃഗം", "issue": "പ്രശ്നം", "symptoms": "ലക്ഷണങ്ങൾ", "duration": "കാലയളവ്", "severity": "തീവ്രത", "date": "തീയതി", "time": "സമയം", "notes": "കുറിപ്പുകൾ"},
 }
 
 _VALUES = {
@@ -157,6 +175,7 @@ _VALUES = {
     "te": {"not eating": "తినడం లేదు", "lethargy": "నీరసం", "fever": "జ్వరం", "swelling": "వాపు", "limping": "కుంటుతూ నడవడం", "wound": "గాయం", "not drinking": "నీరు తాగడం లేదు"},
     "kn": {"not eating": "ತಿನ್ನುತ್ತಿಲ್ಲ", "lethargy": "ಸುಸ್ತು", "fever": "ಜ್ವರ", "swelling": "ಊತ", "limping": "ಕುಂಟುವುದು", "wound": "ಗಾಯ", "not drinking": "ನೀರು ಕುಡಿಯುತ್ತಿಲ್ಲ"},
     "mr": {"not eating": "खात नाही", "lethargy": "सुस्ती", "fever": "ताप", "swelling": "सूज", "limping": "लंगडणे", "wound": "जखम", "not drinking": "पाणी पीत नाही"},
+    "ml": {"not eating": "തിന്നുന്നില്ല", "lethargy": "ക്ഷീണം", "fever": "പനി", "swelling": "വീക്കം", "limping": "മുടന്ത്", "wound": "മുറിവ്", "not drinking": "വെള്ളം കുടിക്കുന്നില്ല"},
 }
 
 
@@ -338,7 +357,7 @@ def _verify_animal(identifier: str, animals: list) -> tuple[Optional[Any], list]
 
 
 _SYMPTOM_KEYS = ["not eating", "fever", "limping", "swelling", "not drinking"]
-_OTHER_LABEL = {"en": "Other", "hi": "अन्य", "ta": "மற்றவை", "te": "ఇతర", "kn": "ಇತರ", "mr": "इतर"}
+_OTHER_LABEL = {"en": "Other", "hi": "अन्य", "ta": "மற்றவை", "te": "ఇతర", "kn": "ಇತರ", "mr": "इतर", "ml": "മറ്റുള്ളവ"}
 
 
 def _symptom_options(language: str) -> dict:

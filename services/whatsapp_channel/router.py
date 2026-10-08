@@ -41,6 +41,7 @@ import re
 from typing import Optional
 
 from services.chat_orchestrator.adk_router import route_turn_adk
+from services.common.draft_supervisor import SUPPORTED_LANGUAGES
 from services.query_agent.adk_agent import detect_language
 from services.whatsapp_channel.config import WhatsAppChannelConfig, load_config
 from services.whatsapp_channel.dedupe import MessageDedupe, default_dedupe
@@ -127,12 +128,23 @@ def _session_id_for(phone: str) -> str:
     return f"whatsapp-{digest}"
 
 
+# Derived from SUPPORTED_LANGUAGES rather than hardcoded: adding a language
+# there (the single source of truth) is enough to cover it here too. A
+# previous hardcoded {"hi":..., "ta":..., "te":..., "kn":...} dict here
+# missed "mr" and "ml" when they were added elsewhere, so any Marathi/
+# Malayalam-script WhatsApp message raised KeyError and the reply was
+# silently dropped (found in deep-review of PR #39).
+_SCRIPT_LANGUAGE_TAGS = {
+    tag.split("-")[0]: tag for tag in SUPPORTED_LANGUAGES if tag.split("-")[0] != "en"
+}
+
+
 def _pick_language(text: str, cfg: WhatsAppChannelConfig) -> str:
     """Reuse query_agent.detect_language for script-based detection.
     Returns a canonical IETF-like tag (`en-IN`, `hi-IN`, etc) that the
     downstream agents expect. Script-neutral text (bare number, emoji,
     punctuation) falls back to config's default_language."""
-    detected = detect_language(text)  # 'en' | 'hi' | 'ta' | 'te' | 'kn'
+    detected = detect_language(text)  # 'en' | 'hi' | 'ta' | 'te' | 'kn' | 'mr' | 'ml' | ...
     if detected == "en":
         # Ambiguous: could be genuinely English or just script-neutral.
         # If any Latin letter is present at all treat as English; else
@@ -141,7 +153,10 @@ def _pick_language(text: str, cfg: WhatsAppChannelConfig) -> str:
         if any(ch.isalpha() and ord(ch) < 128 for ch in text):
             return "en-IN"
         return cfg.default_language
-    return {"hi": "hi-IN", "ta": "ta-IN", "te": "te-IN", "kn": "kn-IN"}[detected]
+    # .get() with a fallback, not a bare index: a script range can be added
+    # to detect_language before SUPPORTED_LANGUAGES catches up (or vice
+    # versa) -- degrade to the configured default rather than crash.
+    return _SCRIPT_LANGUAGE_TAGS.get(detected, cfg.default_language)
 
 
 def _truncate_reply(text: str, cap: int, language: str) -> str:

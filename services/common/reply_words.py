@@ -39,6 +39,9 @@ _WORDS: Dict[str, Dict[str, FrozenSet[str]]] = {
         "kn": frozenset({
             "ಗೊತ್ತಿಲ್ಲ", "ನನಗೆ ಗೊತ್ತಿಲ್ಲ", "ತಳಿ ಗೊತ್ತಿಲ್ಲ",
         }),
+        "ml": frozenset({
+            "അറിയില്ല", "എനിക്ക് അറിയില്ല", "ഇനം അറിയില്ല", "നിശ്ചയമില്ല",
+        }),
     },
     # Declining more optional details (registration: optional step).
     "skip": {

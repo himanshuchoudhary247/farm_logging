@@ -197,7 +197,7 @@ def _weather_session_key(farmer_id: str, session_id: str) -> str:
 # Weather asks for a PIN/place at most this many times in a row before
 # the farmer's messages go back to normal intent classification.
 _MAX_LOCATION_ASKS = 3
-_REPLY_LANGUAGE_NAMES = {"hi": "Hindi", "ta": "Tamil", "te": "Telugu", "kn": "Kannada", "mr": "Marathi"}
+_REPLY_LANGUAGE_NAMES = {"hi": "Hindi", "ta": "Tamil", "te": "Telugu", "kn": "Kannada", "mr": "Marathi", "ml": "Malayalam"}
 
 
 def _with_reply_language(text: str, language: str) -> str:
