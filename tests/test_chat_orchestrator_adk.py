@@ -121,7 +121,7 @@ def test_classified_query_routes_to_query_agent(monkeypatch):
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("query"))
     seen: dict = {}
 
-    def _fake_query(query, farmer_id, session_id=None):
+    def _fake_query(query, farmer_id, session_id=None, app_language=None):
         seen["session_id"] = session_id
         return {"answer": "you have 53 animals", "sql": "SELECT COUNT(*)...", "data": {}}
 
@@ -185,7 +185,7 @@ def test_allowed_intents_none_preserves_existing_behavior(monkeypatch):
         adk_router, "process_query_adk",
         # 3-arg signature matches process_query_adk(text, farmer_id, session_id=...)
         # after PR #28 added the session_id kwarg; a 2-arg lambda would TypeError.
-        lambda query, farmer_id, session_id=None: {"answer": "12", "sql": "SELECT ...", "data": {}},
+        lambda query, farmer_id, session_id=None, app_language=None: {"answer": "12", "sql": "SELECT ...", "data": {}},
     )
     monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
     result = adk_router.route_turn_adk("f-1", "s-1", "how many")  # no allowed_intents
