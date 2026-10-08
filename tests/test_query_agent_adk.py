@@ -74,7 +74,9 @@ def test_localize_numbers_converts_digits_recursively():
 def test_localize_columns_translates_known_fields_leaves_unknown_alone():
     result = _localize_columns(["species", "breed", "COUNT(*)"], "kn")
     assert result == ["ಪ್ರಭೇದ", "ತಳಿ", "COUNT(*)"], "an aggregate/alias column isn't in the catalog, left as-is rather than guessed"
-    assert _localize_columns(["species"], "en") == ["species"], "English must be a no-op"
+    assert _localize_columns(["species", "COUNT(*)"], "en") == ["Species", "COUNT(*)"], (
+        "English gets readable display labels; raw data.columns stay unchanged"
+    )
     assert _localize_columns(None, "hi") is None
 
 
