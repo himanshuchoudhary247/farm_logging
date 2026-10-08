@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from services.weather_alert import service
@@ -146,3 +148,69 @@ def test_weather_cache_access_refreshes_lru_order():
     finally:
         service._MAX_CACHE_ENTRIES = original_cap
         service._cache.clear()
+
+
+def test_historical_weather_fetches_all_years_concurrently(monkeypatch):
+    """5 independent past-year archive calls ran one after another before
+    (found in review of the weather flow) -- now via ThreadPoolExecutor.
+    5 calls at 0.15s sequentially would take >= 0.75s; concurrently, ~0.15s.
+    A generous 0.5s bound catches a regression back to sequential without
+    being flaky on a slow CI box."""
+    service._cache.clear()
+    seen_ranges = []
+
+    def _fake_request_json(url, *, params, headers=None):
+        time.sleep(0.15)
+        seen_ranges.append((params["start_date"], params["end_date"]))
+        return {
+            "daily": {
+                "temperature_2m_max": [30.0],
+                "temperature_2m_min": [20.0],
+                "precipitation_sum": [5.0],
+                "wind_speed_10m_max": [10.0],
+            }
+        }
+
+    monkeypatch.setattr(service, "_request_json", _fake_request_json)
+
+    start = time.monotonic()
+    result = service.get_historical_weather(18.52, 73.86)
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 0.5, f"took {elapsed:.2f}s -- looks sequential, not concurrent"
+    assert len(result["years"]) == service.HISTORICAL_YEARS
+    assert len(seen_ranges) == service.HISTORICAL_YEARS
+    # Order preserved (most-recent-year first), independent of which
+    # thread's HTTP call actually finished first.
+    years_in_result = [y["year"] for y in result["years"]]
+    assert years_in_result == sorted(years_in_result, reverse=True), "years must stay in date_ranges order"
+    assert all("error" not in y for y in result["years"])
+
+
+def test_historical_weather_one_year_failing_does_not_drop_the_others(monkeypatch):
+    service._cache.clear()
+    call_count = {"n": 0}
+
+    def _fake_request_json(url, *, params, headers=None):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("archive API down for this year")
+        return {
+            "daily": {
+                "temperature_2m_max": [30.0],
+                "temperature_2m_min": [20.0],
+                "precipitation_sum": [5.0],
+                "wind_speed_10m_max": [10.0],
+            }
+        }
+
+    monkeypatch.setattr(service, "_request_json", _fake_request_json)
+
+    result = service.get_historical_weather(28.6, 77.2)
+    assert len(result["years"]) == service.HISTORICAL_YEARS
+    ok_years = [y for y in result["years"] if "error" not in y]
+    failed_years = [y for y in result["years"] if "error" in y]
+    assert len(failed_years) == 1
+    assert len(ok_years) == service.HISTORICAL_YEARS - 1
+    # The failure in one thread must not corrupt another year's data.
+    assert all(y["avg_temp_max"] == 30.0 for y in ok_years)
