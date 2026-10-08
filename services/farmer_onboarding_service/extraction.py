@@ -67,6 +67,7 @@ _FIELD_QUESTIONS: dict[str, str] = {
 
 _LANG_INSTRUCTIONS = {
     "hi": "Ask the next question in Hindi (हिंदी). Use Devanagari script.",
+    "ta": "Ask the next question in Tamil (தமிழ்). Use Tamil script.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use Kannada script.",
     "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
     "te": "Ask the next question in Telugu (తెలుగు). Use Telugu script.",

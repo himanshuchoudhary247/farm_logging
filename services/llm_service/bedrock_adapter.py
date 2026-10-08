@@ -719,6 +719,7 @@ _LANG_INSTRUCTIONS = {
     "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use the Kannada script.",
     "te": "Ask the next question in Telugu (తెలుగు). Use the Telugu script.",
+    "ta": "Ask the next question in Tamil (தமிழ்). Use the Tamil script.",
     "en": "Ask the next question in English.",
     "mix": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
     "mix-hi": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
