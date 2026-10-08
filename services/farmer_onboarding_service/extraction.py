@@ -67,6 +67,7 @@ _FIELD_QUESTIONS: dict[str, str] = {
 
 _LANG_INSTRUCTIONS = {
     "hi": "Ask the next question in Hindi (हिंदी). Use Devanagari script.",
+    "ta": "Ask the next question in Tamil (தமிழ்). Use Tamil script.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use Kannada script.",
     "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
     "ml": "Ask the next question in Malayalam (മലയാളം). Use Malayalam script.",
@@ -77,6 +78,21 @@ _LANG_INSTRUCTIONS = {
     "mix-kn": "Ask in Kannada + English mix.",
     "mix-te": "Ask in Telugu + English mix.",
 }
+
+
+def _lang_instruction(language: Optional[str]) -> str:
+    """Exact match first (covers "mix-hi" etc as-is), then the bare
+    language prefix for a full locale tag like "ta-IN" -- callers
+    elsewhere in the codebase use that format (SUPPORTED_LANGUAGES, the
+    frontend selector), and this dict was never normalizing it, so a
+    full-tag caller silently fell back to English (found in deep-review
+    of PR #40)."""
+    lang_code = (language or "en").strip()
+    return (
+        _LANG_INSTRUCTIONS.get(lang_code)
+        or _LANG_INSTRUCTIONS.get(lang_code.split("-")[0].lower())
+        or "Ask the next question in English."
+    )
 
 
 # ── Deterministic validation ────────────────────────────────────
@@ -253,11 +269,7 @@ def extract(
     missing_farm = _all_missing(filled_farm, FARM_FIELDS)
     all_missing = missing_farmer + missing_farm
 
-    lang_code = language or "en"
-    lang_instruction = _LANG_INSTRUCTIONS.get(
-        lang_code,
-        _LANG_INSTRUCTIONS.get(lang_code.replace("mix-", "mix"), "Ask the next question in English."),
-    )
+    lang_instruction = _lang_instruction(language)
 
     current_field_hint = f" (currently asking about: {current_field})" if current_field else ""
     prompt = f"""The farmer said: "{text}"{current_field_hint}
