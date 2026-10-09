@@ -19,6 +19,10 @@ class _FakeResponse:
 
 
 def test_get_weather_alert_from_pin(monkeypatch):
+    # This test drives the Nominatim path with a fake response. 411001 is in
+    # the local PIN table, which would answer first, so turn the table off.
+    monkeypatch.setenv("PIN_LOOKUP_LOCAL", "0")
+
     def _fake_get(url, params=None, headers=None, timeout=0):
         if "nominatim" in url:
             assert "q" in (params or {})

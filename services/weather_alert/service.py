@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
+import logging
 import threading
 import time
 from typing import Any
 
 import requests
 
+from services.weather_alert import pin_lookup
+
+
+_log = logging.getLogger(__name__)
 
 GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -103,6 +108,15 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
     if not q:
         raise ValueError("location query is empty")
 
+    # A 6-digit PIN is looked up in the offline India Post table first
+    # (pin_lookup.py). Nominatim is the fallback: PINs not in the table,
+    # place names, or the table turned off with PIN_LOOKUP_LOCAL=0.
+    if country_code.lower() == "in" and _is_pin_code(q):
+        local = pin_lookup.lookup(q)
+        if local is not None:
+            _log.info("geocode source=local pin=%s", q)
+            return ResolvedLocation(query=q, display_name=local.display_name, lat=local.lat, lon=local.lon)
+
     # countrycodes (in the request below) already limits the search to the
     # country. Adding ", IN" to the text made Nominatim match a place
     # literally named "In": PIN 471111 (Madhya Pradesh) resolved to
@@ -114,6 +128,7 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
     if cached:
         return cached
 
+    _log.info("geocode source=nominatim query=%s", query_text)
     rows = _request_json(
         GEOCODE_URL,
         params={
@@ -436,3 +451,4 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
         "alerts": alerts,
         "forecast_days": days_payload,
     }
+
