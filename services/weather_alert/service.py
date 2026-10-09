@@ -3,12 +3,17 @@ from __future__ import annotations
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import logging
 import threading
 import time
 from typing import Any
 
 import requests
 
+from services.weather_alert import pin_lookup
+
+
+_log = logging.getLogger(__name__)
 
 GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -104,16 +109,27 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
     if not q:
         raise ValueError("location query is empty")
 
-    if _is_pin_code(q):
-        query_text = f"{q}, {country_code.upper()}"
-    else:
-        query_text = q
+    # A 6-digit PIN is looked up in the offline India Post table first
+    # (pin_lookup.py). Nominatim is the fallback: PINs not in the table,
+    # place names, or the table turned off with PIN_LOOKUP_LOCAL=0.
+    if country_code.lower() == "in" and _is_pin_code(q):
+        local = pin_lookup.lookup(q)
+        if local is not None:
+            _log.info("geocode source=local pin=%s", q)
+            return ResolvedLocation(query=q, display_name=local.display_name, lat=local.lat, lon=local.lon)
+
+    # countrycodes (in the request below) already limits the search to the
+    # country. Adding ", IN" to the text made Nominatim match a place
+    # literally named "In": PIN 471111 (Madhya Pradesh) resolved to
+    # "In, Jagraon, ..., Punjab".
+    query_text = q
 
     cache_key = f"geo:{country_code}:{query_text}".lower()
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
+    _log.info("geocode source=nominatim query=%s", query_text)
     rows = _request_json(
         GEOCODE_URL,
         params={
@@ -121,6 +137,10 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
             "format": "jsonv2",
             "limit": 1,
             "addressdetails": 1,
+            # Without this Nominatim searches every country: some Indian PINs
+            # (e.g. 471111) matched a Turkish postcode and farmers got
+            # Turkey's weather. country_code was only in the free text.
+            "countrycodes": country_code,
         },
         headers={"User-Agent": "farmer-chat-weather-alert/1.0"},
     )
@@ -252,15 +272,23 @@ def _advisories_for_level(level: str) -> list[str]:
 HISTORICAL_YEARS = 5
 
 
+def _place_parts(display_name: str) -> list[str]:
+    # Nominatim puts the postcode in display_name: first for a PIN search
+    # ("411001, Pune City Subdistrict, Pune, Maharashtra, India") but near
+    # the end for a place-name search ("Pune, ..., Maharashtra, 411001,
+    # India"), where it landed in the state slot. Drop it before slicing.
+    return [p.strip() for p in display_name.split(",") if p.strip() and not p.strip().isdigit()]
+
+
 def _parse_district(display_name: str) -> str:
-    parts = [p.strip() for p in display_name.split(",")]
+    parts = _place_parts(display_name)
     if len(parts) >= 3:
         return parts[-3]
     return parts[0] if parts else display_name
 
 
 def _parse_state(display_name: str) -> str:
-    parts = [p.strip() for p in display_name.split(",") if p.strip()]
+    parts = _place_parts(display_name)
     if len(parts) >= 2:
         return parts[-2]
     return parts[-1] if parts else display_name
@@ -436,3 +464,4 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
         "alerts": alerts,
         "forecast_days": days_payload,
     }
+
