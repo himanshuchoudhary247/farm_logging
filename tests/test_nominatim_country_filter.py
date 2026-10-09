@@ -14,6 +14,9 @@ def _no_cache(monkeypatch):
 
 
 def test_pin_search_is_limited_to_india(monkeypatch):
+    # This test is about the Nominatim request. 471111 is in the local PIN
+    # table, which would answer first, so turn the table off.
+    monkeypatch.setenv("PIN_LOOKUP_LOCAL", "0")
     seen = {}
     monkeypatch.setattr(service, "_request_json", _fake_geocoder(seen))
     _no_cache(monkeypatch)
