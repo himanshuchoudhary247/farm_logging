@@ -18,7 +18,7 @@ def test_english_or_unknown_language_leaves_text_alone():
 def _run(monkeypatch, result, previous_asks=0):
     seen, sessions = {}, {}
 
-    def fake_weather(text, farmer_id):
+    def fake_weather(text, farmer_id, session_id=None):
         seen["text"] = text
         return {"result": result, "answer": "PIN?", "speech_text": None}
 

@@ -209,7 +209,7 @@ def _with_reply_language(text: str, language: str) -> str:
 
 def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None",
                   include_audio: bool, language: str, previous_asks: int = 0) -> dict[str, Any]:
-    weather = process_weather_query_adk(_with_reply_language(text, language), farmer_id)
+    weather = process_weather_query_adk(_with_reply_language(text, language), farmer_id, session_id=session_id)
     result = weather["result"]
     # Real bug, found live testing the flokiquser test-conversation set:
     # unlike appointment_supervisor, weather has zero multi-turn memory --
