@@ -33,6 +33,7 @@ from storage import animals_for_farmer, get_farmer_by_id, health_logs_for_farmer
 from services.advisory.llm_advisory import summarize_livestock
 from services.advisory.personalized import recent_issues
 from services.llm_service.adk_model import build_adk_model
+from services.flokiq_sync import client as flokiq_sync
 
 _INSTRUCTION = """You are a livestock weather and farm-advisory assistant.
 
@@ -99,7 +100,8 @@ def _make_get_weather_context_tool(farmer_id: str):
 
         Args:
             location: A PIN code or place name the farmer mentioned. Pass an
-                empty string to use the farmer's saved default location instead.
+                empty string to use the farmer's saved default location (or
+                their farm's PIN code) instead.
 
         Returns:
             On success: the weather/seasonal/feed_market data dict.
@@ -111,6 +113,12 @@ def _make_get_weather_context_tool(farmer_id: str):
         if not loc:
             farmer = get_farmer_by_id(farmer_id)
             loc = str(getattr(farmer, "weather_location", "") or "") if farmer else ""
+        if not loc:
+            # No saved weather location: use the PIN code of the farmer's farm
+            # in main_backend (set at onboarding), so the farmer is not asked
+            # for a PIN the app already has. Best effort: None keeps the old
+            # "please give a PIN" path.
+            loc = flokiq_sync.get_farm_pincode(farmer_id) or ""
         if not loc:
             return {"error": "no_location", "message": "Need a PIN code or place name to check the weather."}
         try:

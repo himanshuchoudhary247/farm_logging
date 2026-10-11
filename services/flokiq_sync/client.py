@@ -14,6 +14,10 @@ an OTP, so this service cannot log in as a user). main_backend then runs its
 normal booking logic: it assigns the farmer's store doctor and sends the
 booking SMS, same as an in-app booking.
 
+It also reads the PIN code of the farmer's farm from
+GET {FLOKIQ_API_BASE_URL}/internal/farmers/<id>/farm-location (same key), so
+weather advice can use it instead of asking the farmer (get_farm_pincode).
+
 Config (env, same precedence pattern as the rest of this app):
   FLOKIQ_SYNC_ENABLED       "true"/"1" to actually call out. Default off --
                             ships inert until explicitly turned on.
@@ -31,6 +35,8 @@ import json
 import logging
 import os
 import re
+import threading
+import time
 from typing import Any, Optional
 
 import requests
@@ -200,4 +206,80 @@ def create_health_log(
     except requests.RequestException as exc:
         _log.warning("flokiq_sync create_health_log failed user=%s err=%s", user_id, exc)
         return None
-    
+
+
+# Farm PIN lookups are cached per farmer, so weather does not call main_backend
+# on every turn. A found or missing PIN is kept for an hour (it changes only
+# when the farm is edited); a failed call is retried after a minute, so an
+# outage does not add the timeout to every weather turn.
+_FARM_PIN_TTL_S = 60 * 60
+_FARM_PIN_RETRY_S = 60
+_FARM_PIN_CACHE_MAX = 1000
+_PIN_RE = re.compile(r"^[1-9][0-9]{5}$")
+_farm_pin_cache: dict[str, tuple[float, Optional[str]]] = {}
+_farm_pin_lock = threading.Lock()
+
+
+def _now() -> float:
+    return time.monotonic()
+
+
+def get_farm_pincode(farmer_id: str, timeout_s: float = 3.0) -> Optional[str]:
+    """PIN code of the farmer's farm in main_backend
+    (GET /internal/farmers/{farmer_id}/farm-location), or None if sync is off
+    or unconfigured, the farmer is not a main_backend farmer, the farm has no
+    valid PIN, or the call failed. Used by weather when the farmer has no
+    saved weather location, so they are not asked for a PIN the app already
+    has. Never raises."""
+    if not is_enabled():
+        return None
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key or not _UUID_RE.match(str(farmer_id or "")):
+        return None
+
+    now = _now()
+    with _farm_pin_lock:
+        hit = _farm_pin_cache.get(farmer_id)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+
+    pincode, ttl = _fetch_farm_pincode(base, key, farmer_id, timeout_s)
+    with _farm_pin_lock:
+        if len(_farm_pin_cache) >= _FARM_PIN_CACHE_MAX:
+            _farm_pin_cache.clear()
+        _farm_pin_cache[farmer_id] = (now + ttl, pincode)
+    return pincode
+
+
+def _fetch_farm_pincode(base: str, key: str, farmer_id: str, timeout_s: float) -> tuple[Optional[str], float]:
+    """One call to main_backend: (pincode or None, how long to cache it)."""
+    try:
+        resp = requests.get(
+            f"{base}/internal/farmers/{farmer_id}/farm-location",
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync farm pincode failed farmer=%s err=%s", farmer_id, exc)
+        return None, _FARM_PIN_RETRY_S
+
+    if resp.status_code == 404:
+        _log.info("flokiq_sync farm pincode none farmer=%s", farmer_id)
+        return None, _FARM_PIN_TTL_S
+    if resp.status_code != 200:
+        _log.warning(
+            "flokiq_sync farm pincode failed farmer=%s status=%s body=%s",
+            farmer_id, resp.status_code, resp.text[:200],
+        )
+        return None, _FARM_PIN_RETRY_S
+
+    try:
+        pincode = str((resp.json() or {}).get("pincode") or "").strip()
+    except (ValueError, AttributeError):
+        pincode = ""
+    if not _PIN_RE.match(pincode):
+        _log.warning("flokiq_sync farm pincode not a 6-digit PIN farmer=%s", farmer_id)
+        return None, _FARM_PIN_TTL_S
+    _log.info("flokiq_sync farm pincode found farmer=%s", farmer_id)
+    return pincode, _FARM_PIN_TTL_S
