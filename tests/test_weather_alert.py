@@ -21,6 +21,12 @@ class _FakeResponse:
 
 
 def test_get_weather_alert_from_pin(monkeypatch):
+    """411001 is a real PIN in the local pincode_latlon.csv fast-path
+    (see test_resolve_location_pin.py), so this test disables it to keep
+    exercising what it's actually testing: the Nominatim-geocode path,
+    for a PIN the local table doesn't have."""
+    monkeypatch.setattr(service, "_local_pin_index", lambda: {})
+
     def _fake_get(url, params=None, headers=None, timeout=0):
         if "nominatim" in url:
             assert "q" in (params or {})

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
+import functools
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 import threading
 import time
 from typing import Any
@@ -13,6 +16,29 @@ import requests
 GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+
+# Local PIN -> lat/lon fast-path, so the common case (farmer gives an exact
+# 6-digit PIN) never has to call Nominatim at all. 19,258 PINs, built from
+# India Post's public pincode directory (via harshvardhaniimi/IndiaPIN,
+# MIT-licensed, itself sourced from data.gov.in's official pincode
+# directory). Only covers the exact-PIN case -- free-text place names
+# ("near Pune") still go through Nominatim below, same as before. Found
+# in review of the weather flow: Nominatim's public endpoint has a
+# documented 1 req/sec policy and isn't meant for production load; this
+# removes it from the critical path for the PIN case entirely.
+PINCODE_DATA_PATH = Path(__file__).parent / "data" / "pincode_latlon.csv"
+
+
+@functools.lru_cache(maxsize=1)
+def _local_pin_index() -> dict[str, tuple[float, float, str, str]]:
+    index: dict[str, tuple[float, float, str, str]] = {}
+    try:
+        with PINCODE_DATA_PATH.open(encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                index[row["pin"]] = (float(row["lat"]), float(row["lon"]), row["district"], row["state"])
+    except FileNotFoundError:
+        pass
+    return index
 
 _CACHE_TTL_SEC = 15 * 60
 _MAX_CACHE_ENTRIES = 500  # bug found in robustness audit: this cache was unbounded and had no lock
@@ -105,6 +131,16 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
         raise ValueError("location query is empty")
 
     if _is_pin_code(q):
+        if country_code.lower() == "in":
+            local = _local_pin_index().get(q)
+            if local:
+                lat, lon, district, state = local
+                return ResolvedLocation(
+                    query=q,
+                    display_name=f"{district}, {state}, India",
+                    lat=lat,
+                    lon=lon,
+                )
         query_text = f"{q}, {country_code.upper()}"
     else:
         query_text = q
