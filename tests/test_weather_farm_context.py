@@ -2,9 +2,21 @@
 touching the shared cached weather data."""
 from types import SimpleNamespace
 
+import pytest
+
 from services.weather_alert import adk_agent
 
 WEATHER = {"pin": "411001", "weather": {"summary": "Hot", "risk_level": "medium"}}
+
+
+@pytest.fixture(autouse=True)
+def _clear_farm_context_cache():
+    """_farm_context caches per farmer_id (see adk_agent.py); every test
+    here uses the same farmer_id "f-1" with different mocked data, so a
+    stale entry from a previous test would otherwise leak in."""
+    adk_agent._farm_context_cache.clear()
+    yield
+    adk_agent._farm_context_cache.clear()
 
 
 def _goat(age):
@@ -56,4 +68,50 @@ def test_storage_error_still_gives_weather(monkeypatch):
     result = tool("411001")
     assert result["weather"]["summary"] == "Hot"
     assert "your_farm" not in result
+
+
+def test_farm_context_is_cached_within_ttl(monkeypatch):
+    """A farmer's own animals/health logs change far less often than they
+    ask weather questions -- recomputing on every turn (e.g. the sticky
+    "still waiting for a PIN" re-ask in adk_router.py) hit storage for no
+    reason. Found in review of the weather flow."""
+    calls = {"n": 0}
+
+    def counting_animals(fid):
+        calls["n"] += 1
+        return [_goat(2)]
+
+    monkeypatch.setattr(adk_agent, "animals_for_farmer", counting_animals)
+    monkeypatch.setattr(adk_agent, "health_logs_for_farmer", lambda fid: [])
+
+    first = adk_agent._farm_context("f-1")
+    second = adk_agent._farm_context("f-1")
+    assert first == second
+    assert calls["n"] == 1, "second call within the TTL must hit the cache, not storage"
+
+
+def test_farm_context_cache_expires_after_ttl(monkeypatch):
+    calls = {"n": 0}
+
+    def counting_animals(fid):
+        calls["n"] += 1
+        return [_goat(2)]
+
+    monkeypatch.setattr(adk_agent, "animals_for_farmer", counting_animals)
+    monkeypatch.setattr(adk_agent, "health_logs_for_farmer", lambda fid: [])
+
+    adk_agent._farm_context("f-1")
+    cached_at, value = adk_agent._farm_context_cache["f-1"]
+    adk_agent._farm_context_cache["f-1"] = (cached_at - adk_agent._FARM_CONTEXT_TTL_SEC - 1, value)
+    adk_agent._farm_context("f-1")
+    assert calls["n"] == 2, "must refetch once the cached entry is older than the TTL"
+
+
+def test_farm_context_cache_is_scoped_per_farmer(monkeypatch):
+    animals_by_farmer = {"f-1": [_goat(2)], "f-2": []}
+    monkeypatch.setattr(adk_agent, "animals_for_farmer", lambda fid: animals_by_farmer[fid])
+    monkeypatch.setattr(adk_agent, "health_logs_for_farmer", lambda fid: [])
+
+    assert adk_agent._farm_context("f-1") is not None
+    assert adk_agent._farm_context("f-2") is None, "one farmer's cached context must never leak to another"
     

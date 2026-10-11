@@ -716,14 +716,31 @@ def _next_missing_field(data: dict):
 
 _LANG_INSTRUCTIONS = {
     "hi": "Ask the next question in Hindi (हिंदी). Use the Hindi script (Devanagari).",
+    "mr": "Ask the next question in Marathi (मराठी). Use Devanagari script and Marathi words, not Hindi.",
+    "ml": "Ask the next question in Malayalam (മലയാളം). Use the Malayalam script.",
     "kn": "Ask the next question in Kannada (ಕನ್ನಡ). Use the Kannada script.",
     "te": "Ask the next question in Telugu (తెలుగు). Use the Telugu script.",
+    "ta": "Ask the next question in Tamil (தமிழ்). Use the Tamil script.",
     "en": "Ask the next question in English.",
     "mix": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
     "mix-hi": "Ask the next question in Hinglish (mix of Hindi and English, using Latin script).",
     "mix-kn": "Ask the next question mixing Kannada and English (using Kannada + Latin script).",
     "mix-te": "Ask the next question mixing Telugu and English (using Telugu + Latin script).",
 }
+
+
+def _lang_instruction(language: Optional[str]) -> str:
+    """Same normalization as services/farmer_onboarding_service/extraction.py's
+    sibling dict: exact match first (covers "mix-hi" etc as-is), then the
+    bare language prefix for a full locale tag like "ta-IN" -- this dict
+    was never normalizing that format, so a full-tag caller silently fell
+    back to English (found in deep-review of PR #40)."""
+    lang_code = (language or "en").strip()
+    return (
+        _LANG_INSTRUCTIONS.get(lang_code)
+        or _LANG_INSTRUCTIONS.get(lang_code.split("-")[0].lower())
+        or "Ask the next question in English."
+    )
 
 
 def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, language: str = "en") -> dict:
@@ -733,10 +750,7 @@ def extract_farm_onboarding(text: str, existing_data: Optional[dict] = None, lan
     filled = {k: v for k, v in existing.items() if _has_value(v)}
     missing = [f for f in FARM_FIELDS if not _has_value(filled.get(f))]
 
-    lang_code = language or "en"
-    lang_instruction = _LANG_INSTRUCTIONS.get(
-        lang_code, _LANG_INSTRUCTIONS.get(lang_code.replace("mix-", "mix"), "Ask the next question in English.")
-    )
+    lang_instruction = _lang_instruction(language)
 
     prompt = f"""You are an onboarding assistant for a livestock farm management system.
 

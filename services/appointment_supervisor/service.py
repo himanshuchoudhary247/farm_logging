@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from services.common import reply_words
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -72,6 +72,40 @@ _TEXT = {
         "missing_date": "अपॉइंटमेंट की तारीख",
         "missing_time": "अपॉइंटमेंट का समय",
     },
+    "mr": {
+        "welcome": "नमस्कार. कृपया जनावराचे नाव किंवा टॅग, समस्या आणि लक्षणे, तसेच अपॉइंटमेंटची पसंतीची तारीख आणि वेळ सांगा.",
+        "correct": "मला समजले: {summary}",
+        "updated": "अपडेट केले: {summary}",
+        "yes_missing": "कृपया {field} सांगा.",
+        "ready": "सर्व आवश्यक माहिती पूर्ण आहे. तुम्हाला अपॉइंटमेंट सबमिट करायची आहे का?",
+        "submit_yes": "सेव्ह करण्यासाठी कृपया सबमिट म्हणा.",
+        "submitted": "अपॉइंटमेंट आणि जनावराचा आरोग्य रेकॉर्ड यशस्वीरित्या सेव्ह झाला आहे.",
+        "animal_not_found": "तुमच्या नावावर '{identifier}' नाव किंवा टॅग असलेले कोणतेही जनावर सापडले नाही. तुमची नोंदणीकृत जनावरे: {animals}. कृपया योग्य नाव, टॅग किंवा आयडी सांगा.",
+        "no_animals_registered": "तुमच्या नावावर अजून कोणतेही जनावर नोंदणीकृत नाही, त्यामुळे मी '{identifier}' जुळवू शकत नाही. कृपया आधी एखादे जनावर नोंदणी करा.",
+        "no": "तुम्हाला कोणती माहिती दुरुस्त करायची आहे?",
+        "cancelled": "अपॉइंटमेंटचा मसुदा रद्द केला आहे आणि सेव्ह केलेला नाही.",
+        "missing_animal_identifier": "जनावराचे नाव, टॅग किंवा आयडी",
+        "missing_issue": "जनावराची समस्या आणि लक्षणे",
+        "missing_date": "अपॉइंटमेंटची तारीख",
+        "missing_time": "अपॉइंटमेंटची वेळ",
+    },
+    "ml": {
+        "welcome": "നമസ്കാരം. ദയവായി മൃഗത്തിന്റെ പേര് അല്ലെങ്കിൽ ടാഗ്, പ്രശ്നവും ലക്ഷണങ്ങളും, അപ്പോയിന്റ്മെന്റിന് ഇഷ്ടമുള്ള തീയതിയും സമയവും പറയൂ.",
+        "correct": "എനിക്ക് മനസ്സിലായത്: {summary}",
+        "updated": "പുതുക്കി: {summary}",
+        "yes_missing": "ദയവായി {field} പറയൂ.",
+        "ready": "ആവശ്യമായ എല്ലാ വിവരങ്ങളും പൂർണ്ണമാണ്. ഈ അപ്പോയിന്റ്മെന്റ് സമർപ്പിക്കണോ?",
+        "submit_yes": "സേവ് ചെയ്യാൻ തയ്യാറാകുമ്പോൾ 'സമർപ്പിക്കുക' എന്ന് പറയൂ.",
+        "submitted": "അപ്പോയിന്റ്മെന്റും മൃഗത്തിന്റെ ആരോഗ്യ രേഖയും വിജയകരമായി സേവ് ചെയ്തു.",
+        "animal_not_found": "നിങ്ങളുടെ പേരിൽ '{identifier}' എന്ന പേരോ ടാഗോ ഉള്ള മൃഗമില്ല. നിങ്ങൾ രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ: {animals}. ദയവായി ശരിയായ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി പറയൂ.",
+        "no_animals_registered": "നിങ്ങളുടെ പേരിൽ ഇതുവരെ ഒരു മൃഗവും രജിസ്റ്റർ ചെയ്തിട്ടില്ല, അതിനാൽ '{identifier}' കണ്ടെത്താനായില്ല. ആദ്യം ഒരു മൃഗത്തെ രജിസ്റ്റർ ചെയ്യൂ.",
+        "no": "ഏത് വിവരമാണ് തിരുത്തേണ്ടത്?",
+        "cancelled": "അപ്പോയിന്റ്മെന്റ് ഡ്രാഫ്റ്റ് റദ്ദാക്കി, സേവ് ചെയ്തിട്ടില്ല.",
+        "missing_animal_identifier": "മൃഗത്തിന്റെ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി",
+        "missing_issue": "മൃഗത്തിന്റെ പ്രശ്നവും ലക്ഷണങ്ങളും",
+        "missing_date": "അപ്പോയിന്റ്മെന്റ് തീയതി",
+        "missing_time": "അപ്പോയിന്റ്മെന്റ് സമയം",
+    },
     "ta": {
         "welcome": "வணக்கம். விலங்கின் பெயர் அல்லது குறிச்சொல், பிரச்சினை மற்றும் அறிகுறிகள், விருப்பமான சந்திப்பு தேதி மற்றும் நேரத்தைச் சொல்லுங்கள்.",
         "correct": "நான் புரிந்துகொண்டது: {summary}",
@@ -131,6 +165,8 @@ _LABELS = {
     "ta": {"animal_identifier": "விலங்கு", "issue": "பிரச்சினை", "symptoms": "அறிகுறிகள்", "duration": "காலம்", "severity": "தீவிரம்", "date": "தேதி", "time": "நேரம்", "notes": "குறிப்புகள்"},
     "te": {"animal_identifier": "జంతువు", "issue": "సమస్య", "symptoms": "లక్షణాలు", "duration": "వ్యవధి", "severity": "తీవ్రత", "date": "తేదీ", "time": "సమయం", "notes": "గమనికలు"},
     "kn": {"animal_identifier": "ಪ್ರಾಣಿ", "issue": "ಸಮಸ್ಯೆ", "symptoms": "ಲಕ್ಷಣಗಳು", "duration": "ಅವಧಿ", "severity": "ತೀವ್ರತೆ", "date": "ದಿನಾಂಕ", "time": "ಸಮಯ", "notes": "ಟಿಪ್ಪಣಿಗಳು"},
+    "mr": {"animal_identifier": "जनावर", "issue": "समस्या", "symptoms": "लक्षणे", "duration": "कालावधी", "severity": "तीव्रता", "date": "तारीख", "time": "वेळ", "notes": "टिपा"},
+    "ml": {"animal_identifier": "മൃഗം", "issue": "പ്രശ്നം", "symptoms": "ലക്ഷണങ്ങൾ", "duration": "കാലയളവ്", "severity": "തീവ്രത", "date": "തീയതി", "time": "സമയം", "notes": "കുറിപ്പുകൾ"},
 }
 
 _VALUES = {
@@ -138,6 +174,8 @@ _VALUES = {
     "ta": {"not eating": "சாப்பிடவில்லை", "lethargy": "சோர்வு", "fever": "காய்ச்சல்", "swelling": "வீக்கம்", "limping": "நொண்டுதல்", "wound": "காயம்", "not drinking": "தண்ணீர் குடிக்கவில்லை"},
     "te": {"not eating": "తినడం లేదు", "lethargy": "నీరసం", "fever": "జ్వరం", "swelling": "వాపు", "limping": "కుంటుతూ నడవడం", "wound": "గాయం", "not drinking": "నీరు తాగడం లేదు"},
     "kn": {"not eating": "ತಿನ್ನುತ್ತಿಲ್ಲ", "lethargy": "ಸುಸ್ತು", "fever": "ಜ್ವರ", "swelling": "ಊತ", "limping": "ಕುಂಟುವುದು", "wound": "ಗಾಯ", "not drinking": "ನೀರು ಕುಡಿಯುತ್ತಿಲ್ಲ"},
+    "mr": {"not eating": "खात नाही", "lethargy": "सुस्ती", "fever": "ताप", "swelling": "सूज", "limping": "लंगडणे", "wound": "जखम", "not drinking": "पाणी पीत नाही"},
+    "ml": {"not eating": "തിന്നുന്നില്ല", "lethargy": "ക്ഷീണം", "fever": "പനി", "swelling": "വീക്കം", "limping": "മുടന്ത്", "wound": "മുറിവ്", "not drinking": "വെള്ളം കുടിക്കുന്നില്ല"},
 }
 
 
@@ -319,7 +357,7 @@ def _verify_animal(identifier: str, animals: list) -> tuple[Optional[Any], list]
 
 
 _SYMPTOM_KEYS = ["not eating", "fever", "limping", "swelling", "not drinking"]
-_OTHER_LABEL = {"en": "Other", "hi": "अन्य", "ta": "மற்றவை", "te": "ఇతర", "kn": "ಇతర"}
+_OTHER_LABEL = {"en": "Other", "hi": "अन्य", "ta": "மற்றவை", "te": "ఇతర", "kn": "ಇತರ", "mr": "इतर", "ml": "മറ്റുള്ളവ"}
 
 
 def _symptom_options(language: str) -> dict:
@@ -595,7 +633,7 @@ class AppointmentSupervisor(DraftSupervisor):
             pending = None
 
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
-        confirmation_signal = result.get("confirmation_signal")
+        confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
         # Real gap, found via live testing: a genuine off-topic question

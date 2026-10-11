@@ -873,6 +873,8 @@ function VoiceAppointment() {
               <option value="ta-IN">Tamil</option>
               <option value="te-IN">Telugu</option>
               <option value="kn-IN">Kannada</option>
+              <option value="mr-IN">Marathi</option>
+              <option value="ml-IN">Malayalam</option>
             </select>
           </label>
           <button

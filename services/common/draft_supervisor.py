@@ -4,7 +4,7 @@ Two now-live supervisors -- AppointmentSupervisor and
 AnimalRegistrationSupervisor -- had hand-duplicated the same machinery:
 the sha1-hashed per-(farmer, session) draft path, the FileLock-guarded
 atomic write, the load-or-fresh helper, the per-session RLock dict,
-the 5-language SUPPORTED_LANGUAGES map, the _lang() language-tag helper,
+the 7-language SUPPORTED_LANGUAGES map, the _lang() language-tag helper,
 the _UNSET sentinel, and the small dispatch that wraps turn/confirm/submit
 under _session_lock(). docs/conversation_patterns.md anticipates a third
 supervisor (health-log) using the same pattern; extracting this base now
@@ -44,6 +44,8 @@ SUPPORTED_LANGUAGES: Dict[str, str] = {
     "ta-IN": "Tamil",
     "te-IN": "Telugu",
     "kn-IN": "Kannada",
+    "mr-IN": "Marathi",
+    "ml-IN": "Malayalam",
 }
 
 # Sentinel distinguishing "caller didn't pass this optional arg, use the

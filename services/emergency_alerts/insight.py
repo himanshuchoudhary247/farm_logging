@@ -23,7 +23,8 @@ _LANG_INSTRUCTION = {
     "kn": "Write the final insight in Kannada (Kannada script).",
     "te": "Write the final insight in Telugu (Telugu script).",
     "ta": "Write the final insight in Tamil (Tamil script).",
-    "mr": "Write the final insight in Marathi (Devanagari script).",
+    "mr": "Write the final insight in Marathi (Devanagari script). Use Marathi words, not Hindi.",
+    "ml": "Write the final insight in Malayalam (Malayalam script).",
     "en": "Write the final insight in English.",
 }
 

@@ -189,11 +189,27 @@ async def _classify_intent_async(text: str) -> str:
 
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
+# The weather and query agents pick their reply language from the text
+# itself, so a language-neutral message (a bare PIN like "411001", a tag
+# number) came back in English even when the farmer's app language is
+# Marathi or Hindi. The app always sends the farmer's language, so pass
+# it on explicitly.
+# Weather asks for a PIN/place at most this many times in a row before
+# the farmer's messages go back to normal intent classification.
+_MAX_LOCATION_ASKS = 3
+_REPLY_LANGUAGE_NAMES = {"hi": "Hindi", "ta": "Tamil", "te": "Telugu", "kn": "Kannada", "mr": "Marathi", "ml": "Malayalam"}
+
+
+def _with_reply_language(text: str, language: str) -> str:
+    name = _REPLY_LANGUAGE_NAMES.get((language or "").split("-")[0].lower())
+    if not name:
+        return text
+    return f"{text}\n\n(Reply in {name}.)"
 
 
 def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None",
-                  include_audio: bool, language: str, allow_rearm: bool = True) -> dict[str, Any]:
-    weather = process_weather_query_adk(text, farmer_id)
+                  include_audio: bool, language: str, previous_asks: int = 0) -> dict[str, Any]:
+    weather = process_weather_query_adk(_with_reply_language(text, language), farmer_id)
     result = weather["result"]
     # Real bug, found live testing the flokiquser test-conversation set:
     # unlike appointment_supervisor, weather has zero multi-turn memory --
@@ -203,17 +219,23 @@ def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None
     # classifier sees a bare number with no weather-sounding words and
     # sends it to query_agent instead, which has no idea what to do with
     # it either. Bounded sticky fix, mirroring _has_active_booking_draft's
-    # pattern but capped to exactly ONE follow-up turn total, not
-    # indefinite -- allow_rearm=False on the sticky-routed call below
-    # means a second consecutive miss falls back to normal classification
-    # instead of trapping the farmer in weather if they've actually moved
-    # on to something else.
-    if allow_rearm:
-        weather_key = _weather_session_key(farmer_id, session_id)
-        if result.get("error") == "no_location":
-            update_session(weather_key, {"awaiting_location": True})
-        else:
-            update_session(weather_key, {"awaiting_location": False})
+    # pattern.
+    #
+    # Capped at _MAX_LOCATION_ASKS asks in a row, not one: with a
+    # one-turn cap, "weather?" -> PIN asked -> "will it rain?" -> PIN
+    # asked again -> "411001" had lost the sticky flag and went to
+    # query_agent (seen live). The cap still stops a farmer who has moved
+    # on from being trapped in weather.
+    weather_key = _weather_session_key(farmer_id, session_id)
+    asks = previous_asks + 1
+    # Any error, not only no_location: in Marathi the model sometimes
+    # passed a Marathi word ("आज") as the place, the lookup failed with a
+    # different error, it asked for the PIN anyway, and the PIN then went
+    # to query_agent (seen live).
+    if result.get("error") and asks < _MAX_LOCATION_ASKS:
+        update_session(weather_key, {"awaiting_location": True, "asks": asks})
+    else:
+        update_session(weather_key, {"awaiting_location": False})
     reply = weather["answer"] or _reply_text("weather_alert", result)
     return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
 
@@ -270,15 +292,17 @@ def route_turn_adk(
         return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
     weather_key = _weather_session_key(farmer_id, session_id)
-    if get_session(weather_key).get("awaiting_location"):
-        # Sticky, exactly once: clear immediately so a second consecutive
-        # miss (e.g. two bad PINs in a row) falls back to normal
-        # classification rather than locking the farmer into weather
-        # indefinitely if they've actually moved on to something else.
+    weather_state = get_session(weather_key)
+    if weather_state.get("awaiting_location"):
+        # Sticky while weather is still waiting for a location, capped at
+        # _MAX_LOCATION_ASKS asks in a row (see _run_weather): clear first;
+        # _run_weather re-arms only if it asks again and the cap allows,
+        # so a farmer who has moved on is never locked into weather.
         update_session(weather_key, {"awaiting_location": False})
         if not _allowed("weather"):
             return _blocked_envelope("weather", farmer_id, session_id, text, language)
-        return _run_weather(farmer_id, session_id, text, "weather", include_audio, language, allow_rearm=False)
+        return _run_weather(farmer_id, session_id, text, "weather", include_audio, language,
+                            previous_asks=int(weather_state.get("asks") or 1))
 
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
@@ -323,7 +347,10 @@ def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent
     # and remember earlier turns (PR #28 integration into the post-#30
     # dispatch-table shape; this exact collision was flagged in the code
     # review and would silently disappear under a naive git merge).
-    result = process_query_adk(text, farmer_id, session_id=session_id)
+    result = process_query_adk(
+        _with_reply_language(text, language), farmer_id,
+        session_id=session_id, app_language=language,
+    )
     reply = result.get("answer") or ""
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
 

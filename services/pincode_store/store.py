@@ -39,6 +39,7 @@ import os
 import threading
 import time
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
 from services.weather_alert.service import get_weather_alert, get_seasonal_advisory_data
@@ -96,17 +97,27 @@ def _is_usable(data: dict[str, Any]) -> bool:
 def _build(pin: str) -> dict[str, Any]:
     errors: list[str] = []
 
-    weather_alert: Optional[dict[str, Any]] = None
-    try:
-        weather_alert = get_weather_alert(pin, days=3)
-    except Exception as exc:
-        errors.append(f"weather_alert: {exc}")
+    # weather_alert and seasonal_advisory each resolve the PIN and hit
+    # Open-Meteo independently; neither depends on the other's result, so
+    # running them one after another just stacks two network round trips
+    # (feed_market does depend on the state either of these resolves, so
+    # it stays sequential, after both finish). Found in review of the
+    # weather flow.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        weather_future = pool.submit(get_weather_alert, pin, days=3)
+        seasonal_future = pool.submit(get_seasonal_advisory_data, pin, days=7)
 
-    seasonal: Optional[dict[str, Any]] = None
-    try:
-        seasonal = get_seasonal_advisory_data(pin, days=7)
-    except Exception as exc:
-        errors.append(f"seasonal_advisory: {exc}")
+        weather_alert: Optional[dict[str, Any]] = None
+        try:
+            weather_alert = weather_future.result()
+        except Exception as exc:
+            errors.append(f"weather_alert: {exc}")
+
+        seasonal: Optional[dict[str, Any]] = None
+        try:
+            seasonal = seasonal_future.result()
+        except Exception as exc:
+            errors.append(f"seasonal_advisory: {exc}")
 
     state = (weather_alert or {}).get("resolved_location", {}).get("state") or (seasonal or {}).get("state")
     feed_market: Optional[dict[str, Any]] = None

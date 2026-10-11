@@ -32,15 +32,17 @@ from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
 from services.llm_service.adk_model import build_adk_model
 
-# Matches SUPPORTED_LANGUAGES elsewhere (appointment_supervisor,
-# animal_registration) -- kept to the same 5, not adding a 6th
-# (Malayalam) here alone, since that would give query_agent language
-# coverage the rest of the app (booking, registration) doesn't have.
+# Native digits per language. Kept in step with SUPPORTED_LANGUAGES
+# (appointment_supervisor, animal_registration), which now has all 7
+# languages. Malayalam is supported but has no entry here on purpose:
+# Malayalam text today uses Western digits (0-9), not ൦-൯, so its answers
+# keep 0-9 (_to_native_digits finds no entry and returns the text as is).
 _NATIVE_DIGITS = {
     "hi": "०१२३४५६७८९",
     "ta": "௦௧௨௩௪௫௬௭௮௯",
     "te": "౦౧౨౩౪౫౬౭౮౯",
     "kn": "೦೧೨೩೪೫೬೭೮೯",
+    "mr": "०१२३४५६७८९",
 }
 
 # Unicode script ranges, checked in order -- first match wins. A query with
@@ -51,6 +53,7 @@ _SCRIPT_RANGES = (
     ("ta", (0x0B80, 0x0BFF)),
     ("te", (0x0C00, 0x0C7F)),
     ("kn", (0x0C80, 0x0CFF)),
+    ("ml", (0x0D00, 0x0D7F)),  # Malayalam: no _NATIVE_DIGITS entry, so digits stay 0-9
 )
 
 
@@ -88,7 +91,7 @@ def _localize_numbers(value: Any, lang: str) -> Any:
     round-trip and the API's numeric type contract for any downstream
     consumer that sorts/sums/compares. Found in review of PR #15's
     original always-translate behavior."""
-    if lang == "en":
+    if lang == "en" or lang not in _NATIVE_DIGITS:
         return value
     if isinstance(value, str):
         return _to_native_digits(value, lang)
@@ -154,6 +157,24 @@ _COLUMN_LABELS = {
         "age_years": "ವಯಸ್ಸು (ವರ್ಷಗಳು)", "issue": "ಸಮಸ್ಯೆ", "notes": "ಟಿಪ್ಪಣಿಗಳು",
         "date": "ದಿನಾಂಕ", "time": "ಸಮಯ",
     },
+    "en": {
+        "species": "Species", "breed": "Breed", "sex": "Sex", "tag_or_name": "Tag / Name",
+        "status": "Status", "birth_date": "Date of birth", "current_location": "Location",
+        "age_years": "Age (years)", "issue": "Issue", "notes": "Notes",
+        "date": "Date", "time": "Time",
+    },
+    "mr": {
+        "species": "प्रजाती", "breed": "जात", "sex": "लिंग", "tag_or_name": "टॅग/नाव",
+        "status": "स्थिती", "birth_date": "जन्मतारीख", "current_location": "ठिकाण",
+        "age_years": "वय (वर्षे)", "issue": "समस्या", "notes": "टिपा",
+        "date": "तारीख", "time": "वेळ",
+    },
+    "ml": {
+        "species": "വർഗ്ഗം", "breed": "ഇനം", "sex": "ലിംഗം", "tag_or_name": "ടാഗ്/പേര്",
+        "status": "നില", "birth_date": "ജനനത്തീയതി", "current_location": "സ്ഥലം",
+        "age_years": "പ്രായം (വർഷം)", "issue": "പ്രശ്നം", "notes": "കുറിപ്പുകൾ",
+        "date": "തീയതി", "time": "സമയം",
+    },
 }
 
 
@@ -162,6 +183,20 @@ def _localize_columns(columns: "list[str] | None", lang: str) -> "list[str] | No
         return columns
     labels = _COLUMN_LABELS[lang]
     return [labels.get(c, c) for c in columns]
+
+
+def _labels_language(script_lang: str, app_language: "str | None") -> str:
+    """Language for table headings: the app's language when we have labels
+    for it, else the language detected from the query's script. The script
+    alone can't tell Marathi from Hindi (both Devanagari), and a farmer
+    typing in Roman script looks like English, so the app's choice wins.
+
+    Normalizes both "-" and "_" locale separators ("mr-IN", "mr_IN") --
+    without this, an underscore-style tag silently fell through to
+    script_lang, reinstating the exact Hindi-for-Marathi bug this
+    function exists to fix (found in deep-review of PR #41)."""
+    app = (app_language or "").strip().replace("_", "-").split("-")[0].lower()
+    return app if app in _COLUMN_LABELS else script_lang
 
 
 _INSTRUCTION_TEMPLATE = """You are a livestock data analyst answering one farmer's questions about \
@@ -337,7 +372,12 @@ async def _get_or_create_session(service: BaseSessionService, user_id: str, sess
     return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
 
 
-async def _run_query_async(query: str, farmer_id: str, session_id: str | None = None) -> dict[str, Any]:
+async def _run_query_async(
+    query: str,
+    farmer_id: str,
+    session_id: str | None = None,
+    app_language: str | None = None,
+) -> dict[str, Any]:
     agent = build_query_agent(farmer_id)
     service = _session_service()
     runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
@@ -394,10 +434,16 @@ async def _run_query_async(query: str, farmer_id: str, session_id: str | None = 
         "row_count": last_successful_result.get("row_count"),
         "truncated": last_successful_result.get("truncated", False),
     }
-    if lang != "en":
+    # Headings and row digits both follow labels_lang, so the display
+    # block is internally consistent in one language (not "English
+    # headings over Devanagari digits" when the app's language and the
+    # query's script differ -- found in deep-review of PR #41; previously
+    # rows used the raw script-detected `lang`, not labels_lang).
+    labels_lang = _labels_language(lang, app_language)
+    if labels_lang in _COLUMN_LABELS:
         raw_data["display"] = {
-            "columns": _localize_columns(raw_data["columns"], lang),
-            "rows": _localize_numbers(raw_data["rows"], lang),
+            "columns": _localize_columns(raw_data["columns"], labels_lang),
+            "rows": _localize_numbers(raw_data["rows"], labels_lang),
         }
     return {
         "answer": text_answer,
@@ -407,7 +453,12 @@ async def _run_query_async(query: str, farmer_id: str, session_id: str | None = 
     }
 
 
-def process_query_adk(query: str, farmer_id: str, session_id: str | None = None) -> dict[str, Any]:
+def process_query_adk(
+    query: str,
+    farmer_id: str,
+    session_id: str | None = None,
+    app_language: str | None = None,
+) -> dict[str, Any]:
     """Drop-in replacement for agent.py's process_query(), same return shape
     ({"answer", "sql", "data"}), routed through an ADK Agent instead of the
     hand-rolled generate-SQL/execute/format/retry loop. Sync wrapper because
@@ -417,4 +468,4 @@ def process_query_adk(query: str, farmer_id: str, session_id: str | None = None)
     session_id (optional): the chat's session id. When given, the same ADK
     session is reused across turns so the agent remembers the conversation.
     When omitted, behaviour is unchanged (one-off session)."""
-    return asyncio.run(_run_query_async(query, farmer_id, session_id))
+    return asyncio.run(_run_query_async(query, farmer_id, session_id, app_language))

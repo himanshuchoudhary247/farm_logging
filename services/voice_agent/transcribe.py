@@ -47,7 +47,7 @@ class TranscribeService:
         if language_code:
             req["LanguageCode"] = language_code
         elif enable_multilingual:
-            language_opts_raw = os.getenv("AWS_TRANSCRIBE_LANGUAGE_OPTIONS", "en-IN,hi-IN,kn-IN,te-IN")
+            language_opts_raw = os.getenv("AWS_TRANSCRIBE_LANGUAGE_OPTIONS", "en-IN,hi-IN,ta-IN,kn-IN,te-IN,mr-IN,ml-IN")
             language_options = [x.strip() for x in language_opts_raw.split(",") if x.strip()]
             if language_options:
                 req["IdentifyLanguage"] = True
