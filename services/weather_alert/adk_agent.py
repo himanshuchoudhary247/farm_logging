@@ -183,6 +183,21 @@ _IN_MEMORY_SESSIONS = InMemorySessionService()
 # restarted, so a long chat does not keep growing every LLM call's prompt.
 _MAX_SESSION_EVENTS = 40
 
+# Per-session lock, same two-level pattern as pincode_store's _build_locks:
+# without it, two concurrent turns for the same user_id+session_id (e.g. a
+# duplicate webhook delivery) can race get/delete/create on the shared
+# InMemorySessionService -- one turn's delete_session can land between the
+# other's get_session and create_session, so that turn's create_session
+# then collides with (or silently clobbers) the one just made, losing the
+# session's history mid-conversation.
+_session_locks: dict[str, threading.Lock] = {}
+_session_locks_guard = threading.Lock()
+
+
+def _session_lock(key: str) -> threading.Lock:
+    with _session_locks_guard:
+        return _session_locks.setdefault(key, threading.Lock())
+
 
 def _db_engine_kwargs(db_url: str) -> dict:
     """Same as query_agent's: NullPool for a real database, nothing extra for
@@ -219,12 +234,13 @@ async def _get_or_create_session(service: BaseSessionService, user_id: str, sess
     one-off session, as before."""
     if not session_id:
         return await service.create_session(app_name=_APP_NAME, user_id=user_id)
-    session = await service.get_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
-    if session is not None and len(session.events) <= _MAX_SESSION_EVENTS:
-        return session
-    if session is not None:
-        await service.delete_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
-    return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+    with _session_lock(f"{user_id}:{session_id}"):
+        session = await service.get_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+        if session is not None and len(session.events) <= _MAX_SESSION_EVENTS:
+            return session
+        if session is not None:
+            await service.delete_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+        return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
 
 
 async def _run_weather_async(query: str, farmer_id: str, session_id: Optional[str] = None) -> dict[str, Any]:
