@@ -18,13 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from collections import OrderedDict
 from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
-from google.adk.runners import InMemoryRunner
+from google.adk.runners import Runner
+from google.adk.sessions import BaseSessionService, InMemorySessionService
 from google.genai import types
 
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
@@ -39,6 +41,7 @@ _INSTRUCTION = """You are a livestock weather and farm-advisory assistant.
 Rules:
 - Use the get_weather_context tool to fetch weather/seasonal/feed-market data for the farmer's location, then answer their specific question using that data.
 - If the farmer's message names a PIN code or place, pass it as the location argument. Otherwise pass an empty string -- the tool will use the farmer's saved default location.
+- Always call get_weather_context before answering, follow-up questions included. If the new message names no PIN code or place but an earlier message in this chat did, pass that same place instead of an empty string.
 - If the tool returns {"error": "no_location", ...}, tell the farmer you need a PIN code or place name to check the weather -- do not guess a location.
 - Keep your answer short, 1-3 sentences.
 - If the tool result includes "your_farm", make the advice specific to this farmer's own animals (species, young animals, recent health issues). Never name medicines or doses; if an animal is sick, tell them to consult a vet. Without "your_farm", give general advice.
@@ -160,11 +163,68 @@ def _split_text_and_speech(answer_text: str) -> tuple[str, str]:
     return answer_text, answer_text
 
 
-async def _run_weather_async(query: str, farmer_id: str) -> dict[str, Any]:
+_APP_NAME = "farmer_chat_weather_agent"
+
+# One session store for the whole process, same pattern as query_agent
+# (PR #28). Before this every weather turn got a fresh, empty session, so a
+# follow-up like "will it rain?" right after "weather in 411001?" did not
+# know the place and asked for the PIN again (seen live).
+_IN_MEMORY_SESSIONS = InMemorySessionService()
+
+# Upper bound on events kept in one ADK session. Past this the session is
+# restarted, so a long chat does not keep growing every LLM call's prompt.
+_MAX_SESSION_EVENTS = 40
+
+
+def _db_engine_kwargs(db_url: str) -> dict:
+    """Same as query_agent's: NullPool for a real database, nothing extra for
+    an in-memory SQLite URL or a URL that does not parse (ADK then raises its
+    own error with the password redacted)."""
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.pool import NullPool
+
+    try:
+        url = make_url(db_url)
+    except Exception:
+        return {}
+    if url.get_backend_name() == "sqlite" and url.database in (None, "", ":memory:"):
+        return {}
+    return {"poolclass": NullPool}
+
+
+def _session_service() -> BaseSessionService:
+    """In-memory by default. ADK_SESSION_DB_URL (a SQLAlchemy URL) keeps
+    sessions across restarts -- the same setting query_agent uses; app_name
+    keeps the two agents' sessions apart. Built per call because each turn
+    runs in its own asyncio.run event loop (see query_agent)."""
+    db_url = os.getenv("ADK_SESSION_DB_URL", "").strip()
+    if db_url:
+        from google.adk.sessions import DatabaseSessionService
+        return DatabaseSessionService(db_url=db_url, **_db_engine_kwargs(db_url))
+    return _IN_MEMORY_SESSIONS
+
+
+async def _get_or_create_session(service: BaseSessionService, user_id: str, session_id: Optional[str]):
+    """Reuses the chat's own session when the caller passes its session_id.
+    Keyed by user_id (farmer-<id>) too, so one farmer never sees another
+    farmer's session even with the same session_id. No session_id: a fresh
+    one-off session, as before."""
+    if not session_id:
+        return await service.create_session(app_name=_APP_NAME, user_id=user_id)
+    session = await service.get_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+    if session is not None and len(session.events) <= _MAX_SESSION_EVENTS:
+        return session
+    if session is not None:
+        await service.delete_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+    return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
+
+
+async def _run_weather_async(query: str, farmer_id: str, session_id: Optional[str] = None) -> dict[str, Any]:
     agent = build_weather_agent(farmer_id)
-    runner = InMemoryRunner(agent=agent, app_name="farmer_chat_weather_agent")
+    service = _session_service()
+    runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
-    session = await runner.session_service.create_session(app_name="farmer_chat_weather_agent", user_id=user_id)
+    session = await _get_or_create_session(service, user_id, session_id)
     message = types.Content(role="user", parts=[types.Part(text=query)])
 
     answer_text: str | None = None
@@ -182,9 +242,14 @@ async def _run_weather_async(query: str, farmer_id: str) -> dict[str, Any]:
     return {"result": result, "answer": text_answer, "speech_text": speech_text}
 
 
-def process_weather_query_adk(query: str, farmer_id: str) -> dict[str, Any]:
+def process_weather_query_adk(query: str, farmer_id: str, session_id: Optional[str] = None) -> dict[str, Any]:
     """Drop-in replacement for chat_orchestrator's WEATHER_ALERT branch
     (get_pincode_data + _answer_weather_question), routed through an ADK
     Agent. Returns {"result": <pincode data or error dict>, "answer": str,
-    "speech_text": str}."""
-    return asyncio.run(_run_weather_async(query, farmer_id))
+    "speech_text": str}.
+
+    session_id (optional): the chat's session id. When given, the same ADK
+    session is reused across turns, so the agent remembers earlier turns of
+    this chat (e.g. the PIN given a message ago). Without it, a fresh
+    session per call, as before."""
+    return asyncio.run(_run_weather_async(query, farmer_id, session_id))

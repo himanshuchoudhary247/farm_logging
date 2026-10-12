@@ -106,7 +106,7 @@ def test_classified_weather_routes_to_weather_agent(monkeypatch):
     monkeypatch.setattr(adk_router, "_classify_intent_async", _async_returning("weather"))
     monkeypatch.setattr(
         adk_router, "process_weather_query_adk",
-        lambda text, farmer_id: {"result": {"weather": {}}, "answer": "it will rain"},
+        lambda text, farmer_id, session_id=None: {"result": {"weather": {}}, "answer": "it will rain"},
     )
     monkeypatch.setattr(adk_router, "synthesize_speech", lambda text, target_lang=None: (None, None))
     result = adk_router.route_turn_adk("f-001", "classify-weather", "will it rain today")
