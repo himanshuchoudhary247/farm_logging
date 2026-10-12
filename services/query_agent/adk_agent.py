@@ -54,6 +54,12 @@ _SCRIPT_RANGES = (
     ("te", (0x0C00, 0x0C7F)),
     ("kn", (0x0C80, 0x0CFF)),
     ("ml", (0x0D00, 0x0D7F)),  # Malayalam: no _NATIVE_DIGITS entry, so digits stay 0-9
+    # Marathi shares Devanagari with Hindi -- detect_language() still
+    # returns "hi" for this range (first match wins, script alone can't
+    # tell them apart), but _answer_is_native_script needs its own "mr"
+    # entry so labels_lang="mr" (from _labels_language/app_language) is
+    # recognized as native script too, not just "hi".
+    ("mr", (0x0900, 0x097F)),
 )
 
 
@@ -197,6 +203,32 @@ def _labels_language(script_lang: str, app_language: "str | None") -> str:
     function exists to fix (found in deep-review of PR #41)."""
     app = (app_language or "").strip().replace("_", "-").split("-")[0].lower()
     return app if app in _COLUMN_LABELS else script_lang
+
+
+def _localize_answer_digits(text_answer: str, speech_text: str, labels_lang: str) -> "tuple[str, str]":
+    """Convert native-script digits in the model's text/speech answer.
+    Deterministic post-processing: the model replies in the right
+    language but is inconsistent about native-digit numerals within it
+    (verified live) -- fix in code, not the model. Only runs if the
+    answer really IS in that script; a Hindi query with an English
+    fallback answer previously came back as "You have १२ animals"
+    (mixed script) without this guard.
+
+    Takes labels_lang (the same app-language-aware choice the
+    data["display"] block uses, from _labels_language), not the raw
+    script-detected query language. Real bug, found in whole-dev-branch
+    review: using the raw script-detected language meant an en-IN app
+    user typing a query in Hindi script could get Devanagari digits in
+    the text/speech answer while data["display"] (correctly) showed
+    Latin digits in the same response. _answer_is_native_script("en",
+    ...) already no-ops unconditionally (see its own guard), so this is
+    safe for every labels_lang value, not just the hi/mr case that
+    motivated it."""
+    if _answer_is_native_script(text_answer, labels_lang):
+        text_answer = _localize_numbers(text_answer, labels_lang)
+    if _answer_is_native_script(speech_text, labels_lang):
+        speech_text = _localize_numbers(speech_text, labels_lang)
+    return text_answer, speech_text
 
 
 _INSTRUCTION_TEMPLATE = """You are a livestock data analyst answering one farmer's questions about \
@@ -407,17 +439,9 @@ async def _run_query_async(
 
     text_answer, speech_text = _split_text_and_speech(answer_text)
 
-    # Deterministic post-processing: the model replies in the right
-    # language but is inconsistent about native-digit numerals within it
-    # (verified live) -- fix in code, not the model. Only run if the
-    # answer really IS in that script; a Hindi query with an English
-    # fallback answer previously came back as "You have १२ animals"
-    # (mixed script) before this guard.
     lang = detect_language(query)
-    if _answer_is_native_script(text_answer, lang):
-        text_answer = _localize_numbers(text_answer, lang)
-    if _answer_is_native_script(speech_text, lang):
-        speech_text = _localize_numbers(speech_text, lang)
+    labels_lang = _labels_language(lang, app_language)
+    text_answer, speech_text = _localize_answer_digits(text_answer, speech_text, labels_lang)
 
     if last_successful_result is None:
         return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
@@ -434,12 +458,11 @@ async def _run_query_async(
         "row_count": last_successful_result.get("row_count"),
         "truncated": last_successful_result.get("truncated", False),
     }
-    # Headings and row digits both follow labels_lang, so the display
-    # block is internally consistent in one language (not "English
+    # Headings and row digits both follow labels_lang (computed above,
+    # now also used for the text/speech answer's digits) so the whole
+    # response is internally consistent in one language -- not "English
     # headings over Devanagari digits" when the app's language and the
-    # query's script differ -- found in deep-review of PR #41; previously
-    # rows used the raw script-detected `lang`, not labels_lang).
-    labels_lang = _labels_language(lang, app_language)
+    # query's script differ (found in deep-review of PR #41).
     if labels_lang in _COLUMN_LABELS:
         raw_data["display"] = {
             "columns": _localize_columns(raw_data["columns"], labels_lang),
