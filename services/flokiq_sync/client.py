@@ -1,36 +1,36 @@
-"""Outbound HTTP client for writing appointments/health-logs to flokiq's
-real backend (or the local mock_server.py during dev/test).
+"""Outbound HTTP client that writes farm_logging's appointment bookings to
+the main FlokIQ backend (main_backend), so a booking made through the
+Chocolate chatbot also shows in the app's appointment list.
 
 Called from appointment_supervisor.submit() AFTER the local write already
 succeeded -- this is best-effort sync, never the primary write path. A
 failure here is logged and swallowed; the farmer's booking is never lost
 because the local JSON store already has it.
 
+Appointments go to main_backend's server-to-server route
+POST {FLOKIQ_API_BASE_URL}/internal/appointments, authenticated with a
+shared key in the X-Internal-Api-Key header (main_backend's logins all need
+an OTP, so this service cannot log in as a user). main_backend then runs its
+normal booking logic: it assigns the farmer's store doctor and sends the
+booking SMS, same as an in-app booking.
+
 Config (env, same precedence pattern as the rest of this app):
   FLOKIQ_SYNC_ENABLED       "true"/"1" to actually call out. Default off --
                             ships inert until explicitly turned on.
-  FLOKIQ_API_BASE_URL       e.g. http://localhost:8077 (mock_server.py) or
-                            the real sandbox base URL once that's decided.
-  FLOKIQ_API_TOKEN          Bearer token for the outbound call. How
-                            farmer_chat gets a valid one (forwarded farmer
-                            token vs. a dedicated service-account token) is
-                            still an open question -- this just reads
-                            whatever's configured.
-  FLOKIQ_PLACEHOLDER_DOCTOR_ID       real users.id in flokiq's DB for the
-                                     "Pending Assignment" placeholder.
-  FLOKIQ_PLACEHOLDER_ADDED_BY_USER_ID  same, for addedByUserId. Can reuse
-                                     an existing system account -- doesn't
-                                     have to be a new row.
-
-If either placeholder id is unset, create_appointment() logs a warning and
-returns None without calling out -- flokiq's appointments.doctorId/
-addedByUserId are NOT NULL FKs, so a call with no value would just 400.
+  FLOKIQ_API_BASE_URL       main_backend base URL including /v1, e.g.
+                            https://api.example.com/v1
+  FLOKIQ_INTERNAL_API_KEY   the same value as INTERNAL_API_KEY on main_backend.
+  FLOKIQ_SYNC_HEALTH_LOGS   "true" to also call POST /health-logs. Off by
+                            default: that endpoint does not exist on
+                            main_backend yet (only on mock_server.py).
+  FLOKIQ_API_TOKEN          Bearer token, used only for /health-logs.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 from typing import Any, Optional
 
 import requests
@@ -40,9 +40,20 @@ if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
+_TRUTHY = {"1", "true", "yes", "on"}
+# main_backend's validation limit for appointment notes.
+_MAX_NOTES = 1000
+# main_backend farmer ids are UUIDs. Local demo farmers ("f-001") don't
+# exist there, so calling for them would only ever fail.
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+
 
 def is_enabled() -> bool:
-    return os.getenv("FLOKIQ_SYNC_ENABLED", "").lower() in {"1", "true", "yes", "on"}
+    return os.getenv("FLOKIQ_SYNC_ENABLED", "").lower() in _TRUTHY
+
+
+def _health_logs_enabled() -> bool:
+    return os.getenv("FLOKIQ_SYNC_HEALTH_LOGS", "").lower() in _TRUTHY
 
 
 def _base_url() -> Optional[str]:
@@ -54,6 +65,31 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
+def build_appointment_notes(values: dict[str, Any]) -> str:
+    """Short note for the vet in the app: which animal, what is wrong, and
+    that it was booked through the chatbot. The local booking keeps the
+    full details, but main_backend only stores a free-text note.
+    e.g. "GAURI (goat): not eating. Booked via Chocolate." """
+    animal = str(values.get("animal_name") or "").strip()
+    species = str(values.get("species") or "").strip()
+    issue = str(values.get("issue") or "").strip()
+    if not issue:
+        symptoms = [str(s).strip() for s in (values.get("symptoms") or []) if str(s).strip()]
+        issue = ", ".join(symptoms)
+    extra = str(values.get("miscellaneous_notes") or values.get("notes") or "").strip()
+
+    head = f"{animal} ({species})" if animal and species else (animal or species)
+    parts: list[str] = []
+    if head and issue:
+        parts.append(f"{head}: {issue}.")
+    elif head or issue:
+        parts.append(f"{head or issue}.")
+    if extra:
+        parts.append(extra if extra.endswith(".") else f"{extra}.")
+    parts.append("Booked via Chocolate.")
+    return " ".join(parts)[:_MAX_NOTES]
+
+
 def create_appointment(
     farmer_id: str,
     date: str,
@@ -62,47 +98,55 @@ def create_appointment(
     health_log_id: Optional[str] = None,
     timeout_s: float = 5.0,
 ) -> Optional[dict[str, Any]]:
-    """POST /appointments on flokiq. Returns the created record, or None if
-    sync is disabled/unconfigured/failed -- caller should treat None as
-    "not synced this time", not an error, and keep the local record as
-    the source of truth for the booking."""
+    """POST /internal/appointments on main_backend. Returns the created (or
+    already existing) appointment, or None if sync is disabled,
+    unconfigured or failed -- caller should treat None as "not synced this
+    time", not an error, and keep the local record as the source of truth
+    for the booking. main_backend returns the existing appointment instead
+    of a duplicate if the same farmer/date/time is sent twice."""
     if not is_enabled():
         return None
-    base = _base_url()
-    doctor_id = os.getenv("FLOKIQ_PLACEHOLDER_DOCTOR_ID")
-    added_by = os.getenv("FLOKIQ_PLACEHOLDER_ADDED_BY_USER_ID")
-    if not base:
-        _log.warning("flokiq_sync enabled but FLOKIQ_API_BASE_URL unset — skipping")
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key:
+        _log.warning("flokiq_sync enabled but FLOKIQ_API_BASE_URL or FLOKIQ_INTERNAL_API_KEY unset -- skipping")
         return None
-    if not doctor_id or not added_by:
-        _log.warning(
-            "flokiq_sync enabled but placeholder ids unset "
-            "(doctor_id=%s added_by=%s) — skipping, appointments.doctorId/"
-            "addedByUserId are NOT NULL on flokiq's side",
-            bool(doctor_id), bool(added_by),
-        )
+    if not _UUID_RE.match(str(farmer_id or "")):
+        _log.info("flokiq_sync skipped farmer=%s -- not a main_backend farmer id", farmer_id)
         return None
 
-    payload = {
+    payload: dict[str, Any] = {
         "farmerId": farmer_id,
         "date": date,
         "time": time,
-        "doctorId": doctor_id,
-        "addedByUserId": added_by,
-        "notes": notes,
+        "notes": (notes or "")[:_MAX_NOTES],
     }
     if health_log_id:
         payload["healthLogId"] = health_log_id
 
     try:
-        resp = requests.post(f"{base}/appointments", data=payload, headers=_headers(), timeout=timeout_s)
-        resp.raise_for_status()
-        result = resp.json()
-        _log.info("flokiq_sync appointment created id=%s farmer=%s", result.get("id"), farmer_id)
-        return result
+        resp = requests.post(
+            f"{base}/internal/appointments",
+            json=payload,
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
     except requests.RequestException as exc:
         _log.warning("flokiq_sync create_appointment failed farmer=%s err=%s", farmer_id, exc)
         return None
+
+    if resp.status_code not in (200, 201):
+        _log.warning(
+            "flokiq_sync create_appointment failed farmer=%s status=%s body=%s",
+            farmer_id, resp.status_code, resp.text[:200],
+        )
+        return None
+    try:
+        result = resp.json()
+    except ValueError:
+        result = {}
+    _log.info("flokiq_sync appointment synced id=%s farmer=%s", result.get("id"), farmer_id)
+    return result
 
 
 def create_health_log(
@@ -118,16 +162,17 @@ def create_health_log(
 ) -> Optional[dict[str, Any]]:
     """POST /health-logs. PROPOSED endpoint -- does not exist on the real
     flokiq backend yet (flokiquser has no health-log creation call at
-    all today). Works against mock_server.py now; will 404 against the
-    real sandbox until flokiq's team builds it. Same best-effort contract
-    as create_appointment: None means "not synced," never raises."""
-    if not is_enabled():
+    all today). Works against mock_server.py now; would 404 against
+    main_backend, so it is off unless FLOKIQ_SYNC_HEALTH_LOGS is set.
+    Same best-effort contract as create_appointment: None means "not
+    synced," never raises."""
+    if not is_enabled() or not _health_logs_enabled():
         return None
     base = _base_url()
     if not base:
         return None
     if not pincode:
-        _log.warning("flokiq_sync create_health_log skipped — pincode required (NOT NULL), none available")
+        _log.warning("flokiq_sync create_health_log skipped -- pincode required (NOT NULL), none available")
         return None
 
     payload = {
@@ -155,3 +200,4 @@ def create_health_log(
     except requests.RequestException as exc:
         _log.warning("flokiq_sync create_health_log failed user=%s err=%s", user_id, exc)
         return None
+    
