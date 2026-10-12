@@ -563,7 +563,19 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 system=_REGISTRATION_SYSTEM,
                 tool_choice_name="record_animal_registration",
             )
-            return result.get("tool_input") or {}
+            entities = result.get("tool_input") or {}
+            # Real bug, found in whole-branch review: this call bypasses
+            # bedrock_adapter.call_bedrock()'s normalization (see
+            # bedrock_adapter.py's confirmation_signal handling), which
+            # already maps the schema's own "no signal" value 'none' to
+            # None. Left raw, the literal string 'none' is truthy, so
+            # `entities.get("confirmation_signal") or fallback` at the
+            # call site never reaches the fallback -- an ambiguous reply
+            # at the CONFIRMING step silently reset the whole draft back
+            # to COLLECTING_OPTIONAL instead of re-asking yes/no.
+            if entities.get("confirmation_signal") == "none":
+                entities["confirmation_signal"] = None
+            return entities
         except Exception as exc:
             _log.warning("animal registration extraction failed: %s", exc)
             return {}
