@@ -312,6 +312,23 @@ def route_turn_adk(
         # weather waited for the PIN was answered by weather, used up an ask,
         # and the PIN that followed went to query_agent.
         sticky_intent = "weather" if _looks_like_pin(text) else asyncio.run(_classify_intent_async(text))
+        if sticky_intent == "query" and _allowed("query"):
+            # Real bug, found in whole-branch review: "query" here used to
+            # mean only "the classifier called a bare location reply
+            # ('Pune') query instead of weather" (seen live, as common as
+            # it calling the same text 'weather'). But 'query' is ALSO the
+            # genuine catch-all intent -- a real database question ("how
+            # many goats do I have") asked while weather waits for a PIN
+            # classified the same way and was swallowed by weather,
+            # producing a nonsensical weather reply to it. Dispatch for
+            # real and check: a genuine SQL+data result is strong evidence
+            # this was an answerable question, not a location reply --
+            # same pattern as appointment_supervisor's own off-topic-probe
+            # fix. No SQL/data (the common case for "Pune") falls through
+            # to the weather branch below, same as before.
+            probe = _dispatch_query(farmer_id, session_id, text, language, include_audio, "query")
+            if probe["result"].get("sql") and probe["result"].get("data"):
+                return probe
         if sticky_intent in ("weather", "query"):
             if not _allowed("weather"):
                 return _blocked_envelope("weather", farmer_id, session_id, text, language)

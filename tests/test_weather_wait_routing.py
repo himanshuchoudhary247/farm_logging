@@ -14,8 +14,11 @@ from services.chat_orchestrator import adk_router
 
 @pytest.fixture
 def waiting(monkeypatch):
-    """No booking/registration draft; weather is waiting for a PIN (1 ask so far)."""
-    calls = {"classifier": 0, "weather": [], "dispatched": [], "sessions": {}}
+    """No booking/registration draft; weather is waiting for a PIN (1 ask so far).
+    The "query" probe (see test_query_probe_* below) defaults to returning
+    no sql/data, matching the common "Pune" case -- not a real database
+    question, stays with weather."""
+    calls = {"classifier": 0, "weather": [], "dispatched": [], "sessions": {}, "probed": []}
     monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: False)
     monkeypatch.setattr(adk_router, "get_session", lambda key: {"awaiting_location": True, "asks": 1})
@@ -26,6 +29,12 @@ def waiting(monkeypatch):
         return {"agent": "weather_alert"}
 
     monkeypatch.setattr(adk_router, "_run_weather", fake_run_weather)
+
+    def fake_dispatch_query(farmer_id, session_id, text, language, include_audio, intent):
+        calls["probed"].append(text)
+        return {"agent": "query_agent", "result": {}}
+
+    monkeypatch.setattr(adk_router, "_dispatch_query", fake_dispatch_query)
 
     for name in ("appointment", "add_animal"):
         def fake_handler(farmer_id, session_id, text, language, include_audio, intent, _name=name):
@@ -60,10 +69,34 @@ def test_pin_with_space_goes_to_weather(monkeypatch, waiting):
 
 
 def test_place_name_classified_as_query_stays_with_weather(monkeypatch, waiting):
+    """"Pune" classifies as "query" (seen live, as often as "weather"),
+    but isn't a real database question -- the probe (mocked to return no
+    sql/data, the common case) must find nothing and fall through."""
     _classifier_says(monkeypatch, waiting, "query")
     result = adk_router.route_turn_adk("f-1", "s-1", "Pune", "hi-IN")
     assert result["agent"] == "weather_alert"
     assert waiting["classifier"] == 1
+    assert waiting["probed"] == ["Pune"], "must probe query_agent before assuming it's a location reply"
+
+
+def test_real_database_question_reaches_query_agent_not_weather(monkeypatch, waiting):
+    """Real bug, found in whole-branch review: before this fix, EVERY
+    "query"-classified turn while weather waited was swallowed by
+    weather, including a genuine database question like "how many goats
+    do I have" -- producing a nonsensical weather reply to it instead of
+    an actual answer. A probe that returns real sql+data is strong
+    evidence this was an answerable question, not a location reply."""
+    _classifier_says(monkeypatch, waiting, "query")
+    monkeypatch.setattr(
+        adk_router, "_dispatch_query",
+        lambda farmer_id, session_id, text, language, include_audio, intent: {
+            "agent": "query_agent",
+            "result": {"sql": "SELECT COUNT(*) FROM animals WHERE species='goat'", "data": {"count": 7}},
+        },
+    )
+    result = adk_router.route_turn_adk("f-1", "s-1", "how many goats do I have", "hi-IN")
+    assert result["agent"] == "query_agent"
+    assert waiting["weather"] == [], "must not also run the weather branch once query_agent answers for real"
 
 
 def test_weather_follow_up_stays_with_weather(monkeypatch, waiting):
