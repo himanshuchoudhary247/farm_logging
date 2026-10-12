@@ -1086,11 +1086,24 @@ class AppointmentSupervisor(DraftSupervisor):
             potential_ailments=recommendation["potential_ailments"],
             first_aid_advice=recommendation["first_aid_advice"],
         )
+        # Real bug, found in whole-branch review: build_appointment_notes
+        # reads values["animal_name"], a key this draft never stores --
+        # _copy_entities keeps only the resolved "animal_identifier", and
+        # the raw animal_id/animal_tag/animal_name fields are deliberately
+        # excluded from the draft. Every synced note was missing which
+        # animal it's for. The real animal is already resolved to
+        # `animal_id` above; look it up for its real tag/name and species.
+        resolved_animal = next((a for a in animals if a.id == animal_id), None)
+        notes_values = {
+            **values,
+            "animal_name": getattr(resolved_animal, "tag_or_name", None) or values.get("animal_identifier"),
+            "species": getattr(resolved_animal, "species", None) or values.get("species"),
+        }
         flokiq_sync.create_appointment(
             farmer_id=farmer_id,
             date=str(values.get("date")),
             time=str(values.get("time")),
-            notes=flokiq_sync.build_appointment_notes(values),
+            notes=flokiq_sync.build_appointment_notes(notes_values),
             health_log_id=(flokiq_health_log or {}).get("log_id"),
         )
 

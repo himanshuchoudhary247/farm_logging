@@ -265,6 +265,50 @@ def test_yes_at_ready_to_submit_actually_submits(tmp_path, monkeypatch):
     assert result.get("status") == "submitted", f"expected submit() to fire, got: {result}"
 
 
+def test_flokiq_sync_notes_name_the_real_animal(tmp_path, monkeypatch):
+    """Real bug, found in whole-branch review: build_appointment_notes
+    reads values["animal_name"], a key this draft never stores --
+    _copy_entities keeps only the resolved "animal_identifier" and
+    deliberately excludes animal_id/animal_tag/animal_name from the
+    generic copy loop. Every appointment synced to main_backend had a
+    vet-facing note missing which animal it was for. Must now use the
+    actually-resolved animal's tag_or_name/species."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {
+                "animal_identifier": "GAURI", "issue": "not eating",
+                "date": "2026-09-20", "time": "17:00",
+            }
+        },
+    )
+    fake_animal = type("Animal", (), {"id": "a-gauri", "tag_or_name": "GAURI", "species": "goat"})()
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [fake_animal])
+    monkeypatch.setattr(service, "append_health_log", lambda *a, **k: type("H", (), {"id": "h-1", "model_dump": lambda self: {"id": "h-1"}})())
+    monkeypatch.setattr(service, "append_appointment", lambda *a, **k: type("A", (), {"id": "a-1", "model_dump": lambda self: {"id": "a-1"}})())
+    monkeypatch.setattr(service, "append_ai_health_log", lambda **k: None)
+    monkeypatch.setattr(
+        service, "generate_health_recommendation",
+        lambda **k: {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""},
+    )
+    monkeypatch.setattr(service.flokiq_sync, "create_health_log", lambda **k: None)
+    captured = {}
+    monkeypatch.setattr(service.flokiq_sync, "create_appointment", lambda **k: captured.update(k))
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", "session-notes", "GAURI, not eating, tomorrow 5pm", "en-IN")
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    supervisor.turn("demo-farmer", "session-notes", "cool", "en-IN")
+    supervisor.turn("demo-farmer", "session-notes", "yes", "en-IN")
+
+    assert "GAURI" in captured["notes"], f"notes must name the real animal: {captured['notes']!r}"
+    assert "goat" in captured["notes"], f"notes must name the real species: {captured['notes']!r}"
+
+
 def test_animal_not_found_loops_back_instead_of_raising(tmp_path, monkeypatch):
     """Real bug: the animal was only ever checked at the very end, inside
     submit() -- a raw ValueError there became a dead-end HTTP 400 with no
