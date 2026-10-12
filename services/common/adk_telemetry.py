@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import os
 import time
 from typing import Any, Optional
 
@@ -38,6 +39,18 @@ _log = logging.getLogger("llm_telemetry")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
+
+
+def _payloads_enabled() -> bool:
+    """Off by default, same convention as this app's other sensitive-by-
+    default integrations (FLOKIQ_SYNC_ENABLED, WHATSAPP_ENABLED). A tool's
+    args/result can carry farmer health/animal data straight from storage
+    (query_agent's SQL results, weather's "your_farm" health summary) --
+    logging a preview of it at INFO with no redaction put that data into
+    ordinary application logs for every tool call, on every agent, with no
+    way to turn it off. Found in whole-dev-branch review. Set
+    ADK_TELEMETRY_LOG_PAYLOADS=1 for local debugging only."""
+    return os.getenv("ADK_TELEMETRY_LOG_PAYLOADS", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _emit(kind: str, fields: dict) -> None:
@@ -105,7 +118,17 @@ def log_tool_call(
 ) -> None:
     """Structured log for one tool execution. args/result are pre-bounded
     (see _short) so a huge SQL row-set or a long generated SQL string
-    can't blow up the log line."""
+    can't blow up the log line.
+
+    Content is redacted to a length-only placeholder unless
+    ADK_TELEMETRY_LOG_PAYLOADS=1 -- see _payloads_enabled(). A tool's
+    args/result can be farmer health/animal data straight from storage;
+    this is the one point every tool call's telemetry passes through, so
+    redacting here (rather than per-tool at the call site) can't be
+    forgotten when a new tool is added."""
+    if not _payloads_enabled():
+        args_preview = f"<redacted len={len(args_preview)}>" if args_preview else args_preview
+        result_preview = f"<redacted len={len(result_preview)}>" if result_preview else result_preview
     fields = {
         "agent": agent_name,
         "tool": tool_name,
