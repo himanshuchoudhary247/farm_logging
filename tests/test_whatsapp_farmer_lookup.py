@@ -33,13 +33,25 @@ def _write_farmers(storage_mod, tmp_path: Path, rows: list[dict]) -> None:
 
 
 def test_canonicalize_phone_variants_collapse_to_same_key(storage_mod):
+    """Real bug, found in whole-branch review: the previous version kept a
+    leading '+'/country-code prefix verbatim instead of normalizing it
+    away, so a bare-digit number (what Meta's webhook actually delivers,
+    e.g. "919876543210") never equaled the same farmer's '+'-prefixed
+    stored phone ("+919876543210") -- the digit sequences were identical
+    but the strings weren't. Canonical form is now always the last 10
+    digits, with no '+' or country code, so every variant below must
+    collapse to the same bare 10-digit key regardless of '+', spaces,
+    punctuation, a leading trunk '0', a country-code prefix, or a
+    provider scheme."""
     canon = storage_mod._canonicalize_phone
-    assert canon("+91 98765 43210") == "+919876543210"
-    assert canon("+91-98765-43210") == "+919876543210"
-    assert canon("+91(98765)43210") == "+919876543210"
-    assert canon("whatsapp:+91-98765 43210") == "+919876543210"
-    assert canon("tel:+919876543210") == "+919876543210"
-    assert canon("919876543210") == "919876543210"  # no leading + preserved
+    assert canon("+91 98765 43210") == "9876543210"
+    assert canon("+91-98765-43210") == "9876543210"
+    assert canon("+91(98765)43210") == "9876543210"
+    assert canon("whatsapp:+91-98765 43210") == "9876543210"
+    assert canon("tel:+919876543210") == "9876543210"
+    assert canon("919876543210") == "9876543210"  # Meta-style: bare digits, no '+'
+    assert canon("09876543210") == "9876543210"  # leading trunk 0
+    assert canon("9876543210") == "9876543210"  # already bare
     assert canon("") == ""
     assert canon(None) == ""
 
@@ -55,6 +67,19 @@ def test_resolves_farmer_by_phone_alone_no_whatsapp_phone_set(storage_mod, tmp_p
         {"id": "f-2", "name": "Ravi", "phone": "+911111111111"},
     ])
     found = storage_mod.get_farmer_by_whatsapp_phone("whatsapp:+91-98765 43210")
+    assert found is not None
+    assert found.id == "f-1"
+
+
+def test_resolves_farmer_when_whatsapp_delivers_bare_digits_no_plus(storage_mod, tmp_path):
+    """The exact real-world break: Meta's webhook delivers the sender as
+    bare digits with no '+' ("919876543210"), while the farmer's stored
+    phone has one ("+919876543210") -- same number, different string.
+    Must still resolve."""
+    _write_farmers(storage_mod, tmp_path, [
+        {"id": "f-1", "name": "Asha", "phone": "+919876543210"},
+    ])
+    found = storage_mod.get_farmer_by_whatsapp_phone("919876543210")
     assert found is not None
     assert found.id == "f-1"
 

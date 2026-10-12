@@ -191,7 +191,7 @@ def _try_enroll_from_reply(text: str) -> "Optional[object]":
     # Phone-shape check: canonicalize the reply, then look up by phone
     # OR whatsapp_phone (same helper the initial lookup uses).
     canon = _canonicalize_phone(stripped)
-    if canon and (canon.startswith("+") or canon.isdigit()) and len(canon) >= 8:
+    if canon and canon.isdigit() and len(canon) >= 8:
         found = get_farmer_by_whatsapp_phone(canon)
         if found is not None:
             return found
