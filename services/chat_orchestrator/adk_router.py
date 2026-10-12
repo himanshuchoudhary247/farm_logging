@@ -187,6 +187,12 @@ async def _classify_intent_async(text: str) -> str:
     return captured.get("intent", "query")
 
 
+def _looks_like_pin(text: str) -> bool:
+    """A bare 6-digit PIN, spaces allowed ("411001", "411 001")."""
+    compact = "".join(ch for ch in (text or "") if not ch.isspace())
+    return compact.isascii() and compact.isdigit() and len(compact) == 6
+
+
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
 # The weather and query agents pick their reply language from the text
@@ -299,10 +305,24 @@ def route_turn_adk(
         # _run_weather re-arms only if it asks again and the cap allows,
         # so a farmer who has moved on is never locked into weather.
         update_session(weather_key, {"awaiting_location": False})
-        if not _allowed("weather"):
-            return _blocked_envelope("weather", farmer_id, session_id, text, language)
-        return _run_weather(farmer_id, session_id, text, "weather", include_audio, language,
-                            previous_asks=int(weather_state.get("asks") or 1))
+        # A bare PIN goes straight to weather. Anything else is classified:
+        # a location answer ("Pune") comes back as weather or query and stays
+        # with weather, but a different request ("register a goat", "book a
+        # vet") goes to its own agent. Seen live: "register a goat" sent while
+        # weather waited for the PIN was answered by weather, used up an ask,
+        # and the PIN that followed went to query_agent.
+        sticky_intent = "weather" if _looks_like_pin(text) else asyncio.run(_classify_intent_async(text))
+        if sticky_intent in ("weather", "query"):
+            if not _allowed("weather"):
+                return _blocked_envelope("weather", farmer_id, session_id, text, language)
+            return _run_weather(farmer_id, session_id, text, "weather", include_audio, language,
+                                previous_asks=int(weather_state.get("asks") or 1))
+        _log.info("adk_router left weather wait farmer=%s session=%s text=%r intent=%s",
+                  farmer_id, session_id, text[:200], sticky_intent)
+        if not _allowed(sticky_intent):
+            return _blocked_envelope(sticky_intent, farmer_id, session_id, text, language)
+        handler = _DISPATCH_TABLE.get(sticky_intent) or _DISPATCH_TABLE["query"]
+        return handler(farmer_id, session_id, text, language, include_audio, sticky_intent)
 
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router classified farmer=%s session=%s text=%r intent=%s", farmer_id, session_id, text[:200], intent)
