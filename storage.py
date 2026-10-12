@@ -213,18 +213,29 @@ def update_farmer_weather_location(farmer_id: str, weather_location: str) -> Far
 def _canonicalize_phone(raw: Optional[str]) -> str:
     """Normalize a phone number for whatsapp-lookup equality. Handles the
     variants providers actually deliver: `whatsapp:+91-98765 43210`,
-    `tel:+919876543210`, `+91 98765 43210`, `919876543210`, `9876543210`.
-    Result: leading `+` if the original had one (or a country-code prefix),
-    otherwise plain digits. Empty/None -> ''."""
+    `tel:+919876543210`, `+91 98765 43210`, `919876543210`, `09876543210`,
+    `9876543210`.
+
+    Result: the last 10 digits (a plain Indian mobile number has exactly
+    10), so a country-code prefix (`91`), a trunk `0`, `+`, spaces, or a
+    provider's `whatsapp:`/`tel:`/`sms:` scheme all collapse to the same
+    key. Real bug, found in review: the previous version kept a leading
+    `+`/country-code prefix verbatim, so an already-registered farmer's
+    app-stored `phone` ("9876543210") never matched the number a WhatsApp
+    provider actually delivers ("919876543210" or "+919876543210") --
+    every registered farmer was treated as unknown on first WhatsApp
+    contact and forced through OTP enrollment regardless.
+
+    Fewer than 10 digits: returned as-is (never matches a real 10-digit
+    number, but doesn't crash on garbage input). Empty/None -> ''."""
     if not raw:
         return ""
     s = str(raw).strip().lower()
     for prefix in ("whatsapp:", "tel:", "sms:"):
         if s.startswith(prefix):
             s = s[len(prefix):]
-    keep_plus = s.startswith("+")
     digits = "".join(ch for ch in s if ch.isdigit())
-    return f"+{digits}" if keep_plus and digits else digits
+    return digits[-10:] if len(digits) >= 10 else digits
 
 
 def get_farmer_by_whatsapp_phone(phone: str) -> Optional[Farmer]:
