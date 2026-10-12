@@ -303,10 +303,30 @@ def _handle_unknown_sender(provider: WhatsAppProvider, cfg: WhatsAppChannelConfi
         return
 
     claim, question = _split_claim(msg.text)
-    allowed, _ = _claim_limiter.check(msg.from_phone)
-    candidate = _try_enroll_from_reply(claim) if (allowed and claim) else None
-    if not allowed:
-        _log.info("whatsapp enrollment claim rate-limited from=%s", msg.from_phone)
+    # _split_claim treats ANY non-empty message as a potential username
+    # claim (the first word), so `claim` alone can't tell a real attempt
+    # from plain chit-chat ("hi", "is this the vet bot?") -- try the
+    # lookup itself first (cheap, local, no network, leaks nothing: the
+    # farmer-facing reply is identical whether or not anything matched).
+    candidate = _try_enroll_from_reply(claim) if claim else None
+    # Real bug, found in whole-dev-branch review: the limiter used to be
+    # checked (and consumed) for every message from an unknown sender,
+    # so ordinary chit-chat silently ate the same budget a real claim
+    # needs, and an unenrolled farmer exploring the bot before sending
+    # their real phone number could exhaust it right before the claim
+    # that actually mattered. Only consume it for a message that's
+    # actually deliberate: phone-number-shaped (regardless of match --
+    # the enumeration-prone case this limiter exists for), or a bare
+    # word that resolved to a real farmer. A failed bare-word guess gets
+    # no observable signal either way (identical reply), so leaving it
+    # unmetered costs an attacker nothing it didn't already have.
+    looks_deliberate = bool(_PHONE_CLAIM_RE.match(msg.text or "")) or candidate is not None
+    allowed = True
+    if looks_deliberate:
+        allowed, _ = _claim_limiter.check(msg.from_phone)
+        if not allowed:
+            _log.info("whatsapp enrollment claim rate-limited from=%s", msg.from_phone)
+            candidate = None
     candidate_phone = getattr(candidate, "phone", "") if candidate is not None else ""
     if candidate is not None and candidate_phone:
         if _otp_send_limiter.check(str(candidate.id))[0]:

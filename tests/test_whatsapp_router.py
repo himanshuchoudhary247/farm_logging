@@ -186,6 +186,59 @@ def test_wrong_codes_lock_the_enrollment(env, monkeypatch):
     assert not _whatsapp_phone_of(env, "f-1")
 
 
+def test_plain_chitchat_does_not_consume_the_claim_budget(env, monkeypatch):
+    """Real bug, found in whole-dev-branch review: _split_claim treats
+    ANY non-empty message as a potential username claim (the first
+    word), so the limiter used to be checked -- and consumed -- for
+    plain chit-chat too. An unenrolled farmer exploring the bot (several
+    greetings/questions) before sending their real phone number could
+    exhaust the 10/hour budget before the claim that actually mattered.
+    None of these chit-chat messages must count against it."""
+    # Isolate the claim limiter from the general per-message rate limiter
+    # -- 10 messages in one test would otherwise hit that unrelated
+    # limiter (6/min) first. _get_rate_limiter rebuilds from the config
+    # value on every call, so the env var must change, not the instance.
+    monkeypatch.setenv("WHATSAPP_RATE_LIMIT_PER_MIN", "100")
+    monkeypatch.setenv("WHATSAPP_RATE_LIMIT_PER_HOUR", "1000")
+    env["cfg_mod"].reset_cache_for_tests()
+    sender = _enable_otp(env, monkeypatch)
+    _write_farmer(env["storage"], env["tmp_path"], "f-1", "Asha", phone="+911111111111")
+    chitchat = ["hi", "hello", "is this the vet bot?", "what can you do", "ok", "thanks", "test",
+                "namaste", "anyone there", "hey"]
+    for i, text in enumerate(chitchat):
+        env["router_mod"].handle_inbound(env["provider"], _msg(text, id_=f"chat-{i}"))
+    assert sender.sent == [], "chit-chat must never match a real claim or send an OTP"
+
+    # The real claim, sent after 10 chit-chat messages, must still succeed --
+    # if chit-chat had consumed the 10/hour budget, this would be silently
+    # rate-limited instead.
+    env["router_mod"].handle_inbound(env["provider"], _msg("+91 11111 11111", id_="real-claim"))
+    assert len(sender.sent) == 1, "the real claim must not be starved by preceding chit-chat"
+    assert sender.sent[0][0] == "+911111111111"
+
+
+def test_phone_shaped_claims_are_still_rate_limited(env, monkeypatch):
+    """Regression guard: the fix above must not weaken the limiter for
+    the case it actually exists to slow down -- repeated phone-number-
+    shaped claims from one sender, matching or not."""
+    sender = _enable_otp(env, monkeypatch)
+    calls = []
+    real_check = env["router_mod"]._claim_limiter.check
+
+    def counting_check(phone, *a, **k):
+        result = real_check(phone, *a, **k)
+        calls.append(result[0])
+        return result
+
+    monkeypatch.setattr(env["router_mod"]._claim_limiter, "check", counting_check)
+    # 4 non-matching phone-shaped claims, same sender, same minute --
+    # per_min=3 must block the 4th.
+    for i in range(4):
+        env["router_mod"].handle_inbound(env["provider"], _msg(f"+91 0000000{i}0", id_=f"guess-{i}"))
+    assert calls == [True, True, True, False], "a phone-shaped claim must always consume the limiter"
+    assert sender.sent == [], "none of these phone numbers are registered"
+
+
 def test_matched_and_unmatched_claims_get_the_same_reply(env, monkeypatch):
     """No account probing: the WhatsApp reply must not reveal whether a
     phone/username is registered."""
