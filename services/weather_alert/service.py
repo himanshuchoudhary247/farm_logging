@@ -11,6 +11,7 @@ from typing import Any
 import requests
 
 from services.weather_alert import pin_lookup
+from services.flokiq_sync import client as flokiq_sync
 
 
 _log = logging.getLogger(__name__)
@@ -129,6 +130,22 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
     if cached:
         return cached
 
+    # main_backend's persistent cache (survives this process restarting and
+    # this file's own 15-minute in-memory TTL expiring) -- a lat/lon never
+    # changes for a given PIN/place, so a hit here is good indefinitely.
+    # Best-effort: off/unconfigured/failed all just fall through to Nominatim.
+    backend_hit = flokiq_sync.get_cached_geocode(query_text, country_code)
+    if backend_hit is not None:
+        _log.info("geocode source=backend_cache query=%s", query_text)
+        resolved = ResolvedLocation(
+            query=q,
+            display_name=str(backend_hit.get("displayName") or query_text),
+            lat=float(backend_hit["lat"]),
+            lon=float(backend_hit["lon"]),
+        )
+        _cache_set(cache_key, resolved)
+        return resolved
+
     _log.info("geocode source=nominatim query=%s", query_text)
     rows = _request_json(
         GEOCODE_URL,
@@ -163,6 +180,11 @@ def resolve_location(query: str, country_code: str = "in") -> ResolvedLocation:
         lon=float(row["lon"]),
     )
     _cache_set(cache_key, resolved)
+    flokiq_sync.save_geocode(
+        query_text, resolved.display_name, resolved.lat, resolved.lon,
+        country_code=country_code, district=_parse_district(resolved.display_name),
+        state=_parse_state(resolved.display_name),
+    )
     return resolved
 
 
