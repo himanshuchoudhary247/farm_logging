@@ -53,7 +53,32 @@ def test_log_llm_call_omits_none_fields(caplog):
     assert "error=" not in msg
 
 
-def test_log_tool_call_bounds_and_captures_previews(caplog):
+def test_log_tool_call_redacts_payloads_by_default(caplog, monkeypatch):
+    """Real bug, found in whole-dev-branch review: args/result previews
+    were logged at INFO with zero redaction, on every tool call, for
+    every ADK agent -- including query_agent's SQL results and weather's
+    "your_farm" health summary, both farmer health/animal data straight
+    from storage. Must be redacted unless explicitly opted into."""
+    monkeypatch.delenv("ADK_TELEMETRY_LOG_PAYLOADS", raising=False)
+    with caplog.at_level(logging.INFO, logger="llm_telemetry"):
+        log_tool_call(
+            agent_name="query_agent",
+            tool_name="run_sql_query",
+            latency_ms=45.0,
+            args_preview="SELECT * FROM animals WHERE farmer_id='f-42'",
+            result_preview='{"rows":[{"tag":"GAURI","issue":"fever"}]}',
+        )
+    msg = [r.message for r in caplog.records if r.name == "llm_telemetry"][0]
+    assert msg.startswith("tool ")
+    assert "tool=run_sql_query" in msg
+    assert "ms=45" in msg
+    assert "GAURI" not in msg and "fever" not in msg and "f-42" not in msg
+    assert "args=<redacted len=" in msg
+    assert "result=<redacted len=" in msg
+
+
+def test_log_tool_call_shows_payloads_when_explicitly_enabled(caplog, monkeypatch):
+    monkeypatch.setenv("ADK_TELEMETRY_LOG_PAYLOADS", "1")
     with caplog.at_level(logging.INFO, logger="llm_telemetry"):
         log_tool_call(
             agent_name="query_agent",
@@ -63,11 +88,20 @@ def test_log_tool_call_bounds_and_captures_previews(caplog):
             result_preview='{"row_count":12}',
         )
     msg = [r.message for r in caplog.records if r.name == "llm_telemetry"][0]
-    assert msg.startswith("tool ")
-    assert "tool=run_sql_query" in msg
-    assert "ms=45" in msg
     assert "args=SELECT * FROM animals" in msg
-    assert "result=" in msg
+    assert "result=" in msg and "row_count" in msg
+
+
+def test_log_tool_call_redaction_handles_none_previews(caplog, monkeypatch):
+    """A tool call with no args/result preview at all must not crash or
+    produce a misleading '<redacted len=0>' for a field that was never
+    there in the first place."""
+    monkeypatch.delenv("ADK_TELEMETRY_LOG_PAYLOADS", raising=False)
+    with caplog.at_level(logging.INFO, logger="llm_telemetry"):
+        log_tool_call(agent_name="weather_alert", tool_name="get_weather_context", latency_ms=10.0)
+    msg = [r.message for r in caplog.records if r.name == "llm_telemetry"][0]
+    assert "args=" not in msg
+    assert "result=" not in msg
 
 
 def test_short_truncates_and_strips_newlines():
