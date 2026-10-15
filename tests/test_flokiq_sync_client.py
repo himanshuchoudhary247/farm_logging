@@ -91,6 +91,53 @@ def test_health_log_sync_is_off_by_default(on, monkeypatch):
     assert calls == []
 
 
+@pytest.fixture
+def health_on(on, monkeypatch):
+    monkeypatch.setenv("FLOKIQ_SYNC_HEALTH_LOGS", "true")
+
+
+def test_health_log_demo_farmer_id_is_skipped(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log("f-001", "411001", ["fever"]) is None
+    assert calls == []
+
+
+def test_health_log_sends_json_to_internal_route_with_key(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    result = client.create_health_log(
+        FARMER, "411001", ["fever", "not eating"],
+        animal_id="a-1", risk_level="Medium",
+        ai_diagnosis_suggestion="Could be a sign of mastitis.",
+        potential_ailments=["mastitis"], first_aid_advice="Keep hydrated.",
+    )
+    assert result == {"log_id": "h-1"}
+    call = calls[0]
+    assert call["url"] == "https://backend.test/v1/internal/health-logs"
+    assert call["headers"] == {"X-Internal-Api-Key": "secret-key"}
+    assert call["json"] == {
+        "farmerId": FARMER,
+        "pincode": "411001",
+        "symptomsReported": ["fever", "not eating"],
+        "animalId": "a-1",
+        "riskLevel": "Medium",
+        "aiDiagnosisSuggestion": "Could be a sign of mastitis.",
+        "potentialAilments": ["mastitis"],
+        "firstAidAdvice": "Keep hydrated.",
+    }
+
+
+def test_health_log_missing_key_makes_no_call(health_on, monkeypatch):
+    monkeypatch.delenv("FLOKIQ_INTERNAL_API_KEY")
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log(FARMER, "411001", ["fever"]) is None
+    assert calls == []
+
+
+def test_health_log_http_error_returns_none(health_on, monkeypatch):
+    _capture(monkeypatch, _Resp(400, None, '{"message":"bad"}'))
+    assert client.create_health_log(FARMER, "411001", ["fever"]) is None
+
+
 def test_notes_name_the_animal_and_issue():
     values = {"animal_name": "GAURI", "species": "goat", "issue": "not eating", "miscellaneous_notes": "since yesterday"}
     assert client.build_appointment_notes(values) == "GAURI (goat): not eating. since yesterday. Booked via Chocolate."
