@@ -103,4 +103,26 @@ def test_notes_fall_back_to_symptoms():
 
 def test_notes_are_capped():
     assert len(client.build_appointment_notes({"issue": "x" * 5000})) == 1000
+
+
+def test_will_attempt_sync_true_only_when_everything_create_appointment_needs_is_set(on):
+    """will_attempt_appointment_sync lets a caller distinguish "sync
+    doesn't apply here" from "sync was attempted and failed" -- both of
+    which create_appointment reports identically as None. Must mirror
+    create_appointment's own preconditions exactly."""
+    assert client.will_attempt_appointment_sync(FARMER) is True
+
+
+def test_will_attempt_sync_false_when_disabled(monkeypatch):
+    monkeypatch.delenv("FLOKIQ_SYNC_ENABLED", raising=False)
+    assert client.will_attempt_appointment_sync(FARMER) is False
+
+
+def test_will_attempt_sync_false_when_key_missing(on, monkeypatch):
+    monkeypatch.delenv("FLOKIQ_INTERNAL_API_KEY")
+    assert client.will_attempt_appointment_sync(FARMER) is False
+
+
+def test_will_attempt_sync_false_for_a_local_demo_farmer_id(on):
+    assert client.will_attempt_appointment_sync("f-001") is False
     
