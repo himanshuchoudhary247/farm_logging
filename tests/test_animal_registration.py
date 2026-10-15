@@ -253,6 +253,64 @@ def test_concurrent_turns_do_not_lose_transcript_entries(tmp_path, monkeypatch):
     assert len(draft["transcript_history"]) == 5, "every concurrent turn's transcript entry must survive"
 
 
+def test_extract_normalizes_none_literal_to_python_none(tmp_path, monkeypatch):
+    """Real bug, found in whole-branch review: the tool schema's own 'no
+    signal' value is the literal string 'none' (see
+    _ANIMAL_REGISTRATION_TOOL_SPEC's confirmation_signal enum), but this
+    call bypasses bedrock_adapter.call_bedrock()'s normalization that
+    already maps 'none' -> None for the shared extraction path. Left raw,
+    'none' is truthy, so `entities.get("confirmation_signal") or
+    fallback` at the call site never reaches the reply_words fallback."""
+    class FakeAdapter:
+        def __init__(self, task=None):
+            pass
+
+        def converse_with_tool(self, messages, tool_spec, system=None, tool_choice_name=None):
+            return {"tool_input": {"confirmation_signal": "none"}}
+
+    monkeypatch.setattr("services.animal_registration.service.BedrockTextAdapter", FakeAdapter)
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s13", "f-001", "en-IN")
+    entities = sup._extract(draft, "something ambiguous")
+    assert entities["confirmation_signal"] is None, "'none' must normalize to Python None, not stay truthy"
+
+
+def test_whole_reply_confirmation_word_resolves_when_llm_returns_none(tmp_path, monkeypatch):
+    """End-to-end: if the LLM can't classify (returns 'none') but the
+    farmer's whole reply is an exact-match confirmation word in
+    reply_words.py, the fallback must actually fire now -- before the
+    fix, the truthy 'none' string blocked it, and this exact scenario
+    silently reset the draft from CONFIRMING back to COLLECTING_OPTIONAL
+    instead of confirming."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    def fake_append_animal(**kwargs):
+        return type("Animal", (), {**kwargs, "id": "new-a-1", "tag_or_name": kwargs["tag_or_name"], "model_dump": lambda self: {**kwargs, "id": "new-a-1"}})()
+
+    monkeypatch.setattr("services.animal_registration.service.append_animal", fake_append_animal)
+
+    class FakeAdapter:
+        def __init__(self, task=None):
+            pass
+
+        def converse_with_tool(self, messages, tool_spec, system=None, tool_choice_name=None):
+            return {"tool_input": {"confirmation_signal": "none"}}
+
+    monkeypatch.setattr("services.animal_registration.service.BedrockTextAdapter", FakeAdapter)
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s14", "f-001", "mr-IN")
+    draft["state"] = "CONFIRMING"
+    draft["draft"] = {"unique_animal_id": "C-2", "species": "goat", "breed": "Jamunapari", "sex": "male"}
+    sup._save(draft)
+
+    # "हो" (Marathi "yes") is an exact whole-reply match in reply_words.py.
+    result = sup.turn("f-001", "s14", "हो", include_audio=False)
+    assert result["state"] == "SUBMITTED", "a reply_words-classifiable 'yes' must confirm, not silently reset the draft"
+
+
 def test_extract_tells_model_when_confirming(tmp_path, monkeypatch):
     """The confirmation_signal guidance only works if the model is told a
     confirm question was asked. Checks the CONFIRMING phase hint actually
