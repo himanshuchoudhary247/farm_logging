@@ -7,6 +7,8 @@ file -- using the OLD live Open-Meteo path unchanged for that fallback.
 
 **Blocked by:** 05
 
+**Implements:** [ADR 0005](../../../docs/ADR/0005-farm-weather-endpoint-pin-first.md)
+
 **Status:** ready-for-agent
 
 - [ ] Correct two-step lookup: `Farmer.findOne({where:{userId: req.user.id}})`

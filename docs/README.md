@@ -17,7 +17,7 @@ Detailed guides for the **Farmer livestock assistant** codebase. Start with [Get
 | [11 – Repository file index](11-repository-file-index.md) | Maps each important repo path to the right guide |
 | [Service split plan](service-split-plan.md) | Plan + applied changes to divide app into services |
 | [Model evaluation 2026-09-11](model-evaluation-2026-09-11.md) | Extraction model selection: 10-model x 60-conversation x 6-language live eval, bugs found + fixed, why DeepSeek V3 |
-| [ADR index](ADR/README.md) | Architecture decision records -- why, not what; includes decisions implemented in main_backend/flokiquser |
+| [ADR index](ADR/README.md) | Architecture decision records, why not what, also covers decisions implemented in main_backend and flokiquser |
 
 ### Config files, AWS bundle, and tooling (detailed)
 

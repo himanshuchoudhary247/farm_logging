@@ -6,6 +6,8 @@ job that fills it: distinct farm PINs -> resolve/dedup by grid -> one
 
 **Blocked by:** 02, 03, 04
 
+**Implements:** [ADR 0002](../../../docs/ADR/0002-weather-cache-key-grid-clustering.md), [ADR 0003](../../../docs/ADR/0003-weather-cache-ownership-main-backend.md)
+
 **Status:** ready-for-agent
 
 - [ ] `src/services/weather/weatherCacheStore.js` -- module-level `Map`,

@@ -7,6 +7,8 @@ Direction" line when the field is absent rather than rendering blank.
 
 **Blocked by:** 06
 
+**Implements:** [ADR 0005](../../../docs/ADR/0005-farm-weather-endpoint-pin-first.md)
+
 **Status:** ready-for-agent
 
 - [ ] Weather card no longer waits on geolocation before its first fetch

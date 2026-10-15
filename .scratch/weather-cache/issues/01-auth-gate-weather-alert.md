@@ -7,6 +7,8 @@ the key is unset, matching every other `require_api_key` route).
 
 **Blocked by:** None (can start immediately)
 
+**Implements:** [ADR 0004](../../../docs/ADR/0004-weather-alert-endpoint-auth.md)
+
 **Status:** ready-for-agent
 
 - [ ] `POST /weather/alert` depends on `require_api_key`

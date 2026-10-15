@@ -8,6 +8,8 @@ summary/riskLevel).
 
 **Blocked by:** None (can start immediately)
 
+**Implements:** [ADR 0001](../../../docs/ADR/0001-per-farmer-weather-report-source.md), [ADR 0002](../../../docs/ADR/0002-weather-cache-key-grid-clustering.md)
+
 **Status:** ready-for-agent
 
 - [ ] `src/utils/weatherGrid.js::roundToGrid` -- stable string key, correct

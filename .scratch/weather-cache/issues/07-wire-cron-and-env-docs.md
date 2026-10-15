@@ -5,6 +5,8 @@
 
 **Blocked by:** 05
 
+**Implements:** [ADR 0003](../../../docs/ADR/0003-weather-cache-ownership-main-backend.md)
+
 **Status:** ready-for-agent
 
 - [ ] `src/controllers/weather/weatherCache.cron.js::weatherCacheRefreshCron()`,

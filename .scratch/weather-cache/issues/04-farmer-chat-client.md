@@ -7,6 +7,8 @@
 **Blocked by:** None to code; needs Ticket 01 live in a real environment
 for the call to actually succeed end-to-end.
 
+**Implements:** [ADR 0001](../../../docs/ADR/0001-per-farmer-weather-report-source.md)
+
 **Status:** ready-for-agent
 
 - [ ] `src/services/weather/farmerChatClient.js::fetchWeatherAlert(locationOrPin, {days, countryCode})`
