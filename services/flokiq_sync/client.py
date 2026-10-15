@@ -23,20 +23,22 @@ GET/POST {FLOKIQ_API_BASE_URL}/internal/geocode (same key), so a location
 weather_alert resolves once via Nominatim survives this process's restarts
 and its own short in-memory cache expiring (get_cached_geocode, save_geocode).
 
+It also writes health logs created in the chatbot to
+POST {FLOKIQ_API_BASE_URL}/internal/health-logs (same key), so a health
+check done through the chatbot shows up in the app's farmer-facing health
+history (create_health_log).
+
 Config (env, same precedence pattern as the rest of this app):
   FLOKIQ_SYNC_ENABLED       "true"/"1" to actually call out. Default off --
                             ships inert until explicitly turned on.
   FLOKIQ_API_BASE_URL       main_backend base URL including /v1, e.g.
                             https://api.example.com/v1
   FLOKIQ_INTERNAL_API_KEY   the same value as INTERNAL_API_KEY on main_backend.
-  FLOKIQ_SYNC_HEALTH_LOGS   "true" to also call POST /health-logs. Off by
-                            default: that endpoint does not exist on
-                            main_backend yet (only on mock_server.py).
-  FLOKIQ_API_TOKEN          Bearer token, used only for /health-logs.
+  FLOKIQ_SYNC_HEALTH_LOGS   "true" to also call POST /internal/health-logs,
+                            on top of FLOKIQ_SYNC_ENABLED.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -69,11 +71,6 @@ def _health_logs_enabled() -> bool:
 
 def _base_url() -> Optional[str]:
     return os.getenv("FLOKIQ_API_BASE_URL")
-
-
-def _headers() -> dict[str, str]:
-    token = os.getenv("FLOKIQ_API_TOKEN")
-    return {"Authorization": f"Bearer {token}"} if token else {}
 
 
 def build_appointment_notes(values: dict[str, Any]) -> str:
@@ -161,7 +158,7 @@ def create_appointment(
 
 
 def create_health_log(
-    user_id: str,
+    farmer_id: str,
     pincode: str,
     symptoms: list[str],
     animal_id: Optional[str] = None,
@@ -171,46 +168,65 @@ def create_health_log(
     first_aid_advice: Optional[str] = None,
     timeout_s: float = 5.0,
 ) -> Optional[dict[str, Any]]:
-    """POST /health-logs. PROPOSED endpoint -- does not exist on the real
-    flokiq backend yet (flokiquser has no health-log creation call at
-    all today). Works against mock_server.py now; would 404 against
-    main_backend, so it is off unless FLOKIQ_SYNC_HEALTH_LOGS is set.
-    Same best-effort contract as create_appointment: None means "not
-    synced," never raises."""
+    """POST /internal/health-logs on main_backend, authenticated with the
+    same X-Internal-Api-Key as create_appointment (main_backend resolves
+    farmer.userId itself -- this never needs main_backend's internal User
+    id). Off unless FLOKIQ_SYNC_HEALTH_LOGS is set, on top of
+    FLOKIQ_SYNC_ENABLED. Same best-effort contract as create_appointment:
+    None means "not synced," never raises."""
     if not is_enabled() or not _health_logs_enabled():
         return None
-    base = _base_url()
-    if not base:
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key:
+        _log.warning("flokiq_sync enabled but FLOKIQ_API_BASE_URL or FLOKIQ_INTERNAL_API_KEY unset -- skipping")
+        return None
+    if not _UUID_RE.match(str(farmer_id or "")):
+        _log.info("flokiq_sync skipped farmer=%s -- not a main_backend farmer id", farmer_id)
         return None
     if not pincode:
         _log.warning("flokiq_sync create_health_log skipped -- pincode required (NOT NULL), none available")
         return None
 
-    payload = {
-        "user_id": user_id,
+    payload: dict[str, Any] = {
+        "farmerId": farmer_id,
         "pincode": pincode,
-        "symptoms_reported": json.dumps(symptoms or []),
+        "symptomsReported": symptoms or [],
     }
     if animal_id:
-        payload["animal_id"] = animal_id
+        payload["animalId"] = animal_id
     if risk_level:
-        payload["risk_level"] = risk_level
+        payload["riskLevel"] = risk_level
     if ai_diagnosis_suggestion:
-        payload["ai_diagnosis_suggestion"] = ai_diagnosis_suggestion
+        payload["aiDiagnosisSuggestion"] = ai_diagnosis_suggestion
     if potential_ailments:
-        payload["potential_ailments"] = json.dumps(potential_ailments)
+        payload["potentialAilments"] = potential_ailments
     if first_aid_advice:
-        payload["first_aid_advice"] = first_aid_advice
+        payload["firstAidAdvice"] = first_aid_advice
 
     try:
-        resp = requests.post(f"{base}/health-logs", data=payload, headers=_headers(), timeout=timeout_s)
-        resp.raise_for_status()
-        result = resp.json()
-        _log.info("flokiq_sync health_log created id=%s user=%s", result.get("log_id"), user_id)
-        return result
+        resp = requests.post(
+            f"{base}/internal/health-logs",
+            json=payload,
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
     except requests.RequestException as exc:
-        _log.warning("flokiq_sync create_health_log failed user=%s err=%s", user_id, exc)
+        _log.warning("flokiq_sync create_health_log failed farmer=%s err=%s", farmer_id, exc)
         return None
+
+    if resp.status_code not in (200, 201):
+        _log.warning(
+            "flokiq_sync create_health_log failed farmer=%s status=%s body=%s",
+            farmer_id, resp.status_code, resp.text[:200],
+        )
+        return None
+    try:
+        result = resp.json()
+    except ValueError:
+        result = {}
+    _log.info("flokiq_sync health_log created id=%s farmer=%s", result.get("log_id"), farmer_id)
+    return result
 
 
 # Farm PIN lookups are cached per farmer, so weather does not call main_backend
