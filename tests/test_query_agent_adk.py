@@ -18,6 +18,8 @@ pytest.importorskip("google.adk")
 from services.query_agent import db as query_db
 from services.query_agent.adk_agent import (
     _answer_is_native_script,
+    _labels_language,
+    _localize_answer_digits,
     _localize_columns,
     _localize_numbers,
     _make_run_sql_query_tool,
@@ -94,3 +96,39 @@ def test_answer_is_native_script_gates_localization():
     )
     assert _answer_is_native_script("", "hi") is False
     assert _answer_is_native_script("hello", "ta") is False
+
+
+def test_localize_answer_digits_uses_labels_lang_not_raw_script():
+    """Real bug, found in whole-dev-branch review: the text/speech answer's
+    digit localization used the raw script-detected language, not
+    labels_lang (the app-language-aware choice data["display"] already
+    uses, from PR #41). An en-IN app user typing a query in Hindi script
+    could get Devanagari digits in the text/speech answer while
+    data["display"] (correctly) showed Latin digits -- inconsistent
+    within one response."""
+    text, speech = _localize_answer_digits("आपके पास 12 जानवर हैं", "12 जानवर", labels_lang="hi")
+    assert text == "आपके पास १२ जानवर हैं"
+    assert speech == "१२ जानवर"
+
+
+def test_localize_answer_digits_respects_app_language_over_script():
+    """The scenario from the bug report: query typed in Hindi script
+    (so detect_language would say "hi"), but app_language is English --
+    _labels_language resolves that to labels_lang="en", which must leave
+    the answer's digits untouched (Latin), matching what data["display"]
+    would show for the same labels_lang."""
+    labels_lang = _labels_language("hi", "en-IN")
+    assert labels_lang == "en"
+    text, speech = _localize_answer_digits("आपके पास 12 जानवर हैं", "12 जानवर", labels_lang)
+    assert text == "आपके पास 12 जानवर हैं", "en labels_lang must leave digits as-is, even though the script is Hindi"
+    assert speech == "12 जानवर"
+
+
+def test_localize_answer_digits_marathi_app_gets_marathi_digits_not_hindi_fallback():
+    """Marathi and Hindi share the same Devanagari digit glyphs, so this
+    confirms the mr case (the one _labels_language exists to fix) still
+    localizes correctly through the shared helper."""
+    labels_lang = _labels_language("hi", "mr-IN")
+    assert labels_lang == "mr"
+    text, _ = _localize_answer_digits("तुमच्याकडे 12 जनावरे आहेत", "", labels_lang)
+    assert text == "तुमच्याकडे १२ जनावरे आहेत"
