@@ -220,6 +220,34 @@ def test_otp_sms_to_one_farmer_is_rate_limited(env, monkeypatch):
     assert len(sender.sent) == 1
 
 
+def test_otp_fanout_from_one_sender_is_rate_limited(env, monkeypatch):
+    """Real bug, found in whole-dev-branch review: _otp_send_limiter only
+    caps repeat codes to the SAME target farmer. A sender who can guess
+    several valid registered phone numbers could still trigger an
+    unsolicited OTP SMS to each of several different, unrelated farmers
+    -- each one individually still within its own per-target limit, so
+    nothing stopped it. Must be capped per-sender across distinct
+    targets too."""
+    sender = _enable_otp(env, monkeypatch)
+    for i in range(4):
+        _write_farmer(env["storage"], env["tmp_path"], f"f-{i}", f"Farmer{i}", phone=f"+9100000000{i}0")
+    # Isolate the fan-out limiter from the broader claim-attempt limiter
+    # (3/min would otherwise block the 4th claim first, for the wrong
+    # reason -- this test is specifically about distinct-target fan-out).
+    from services.whatsapp_channel.rate_limit import PhoneRateLimiter
+    monkeypatch.setattr(env["router_mod"], "_claim_limiter", PhoneRateLimiter(per_min=100, per_hour=100))
+    # Same attacking sender ("+919999999999"), 4 different real farmers'
+    # phone numbers claimed in rapid succession (all within the same
+    # minute, as a real enumeration script would) -- the fan-out
+    # limiter's per_min=1 caps this to exactly 1 success, tighter than
+    # its 3/hour ceiling (which only matters spread across the hour).
+    for i in range(4):
+        env["router_mod"].handle_inbound(
+            env["provider"], _msg(f"+9100000000{i}0", from_phone="+919999999999", id_=f"fanout-{i}"),
+        )
+    assert len(sender.sent) == 1, "rapid-fire distinct-target claims from one sender must be fan-out rate-limited"
+
+
 def test_unknown_farmer_enrollment_disabled_sends_generic_reject(env, monkeypatch):
     monkeypatch.setenv("WHATSAPP_ENROLLMENT_ENABLED", "0")
     env["cfg_mod"].reset_cache_for_tests()

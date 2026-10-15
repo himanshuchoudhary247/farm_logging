@@ -85,11 +85,25 @@ def _new_otp_send_limiter() -> PhoneRateLimiter:
     return PhoneRateLimiter(per_min=1, per_hour=3)
 
 
+def _new_otp_fanout_limiter() -> PhoneRateLimiter:
+    """Distinct farmers one WhatsApp sender can trigger an OTP SMS for.
+    _otp_send_limiter (above) only caps repeat codes to the SAME target --
+    a sender who can guess/enumerate several valid registered phone
+    numbers or usernames could still cause an unsolicited OTP SMS to go
+    out to each of several different, unrelated farmers, bounded only by
+    the broader claim-attempt limiter (10/hour) -- a harassment/SMS-cost
+    vector that limiter isn't really aimed at. Tighter cap specifically
+    on distinct successful sends per sender. Found in whole-dev-branch
+    review."""
+    return PhoneRateLimiter(per_min=1, per_hour=3)
+
+
 # Enrollment (OTP) state -- finding 1 of the PR #24 review. Same
 # in-memory, per-process limitation as the rate limiter and dedupe.
 _pending = PendingEnrollments()
 _claim_limiter = _new_claim_limiter()
 _otp_send_limiter = _new_otp_send_limiter()
+_otp_fanout_limiter = _new_otp_fanout_limiter()
 _otp_sender: Optional[OtpSender] = None
 _otp_sender_provider: Optional[str] = None
 
@@ -309,15 +323,17 @@ def _handle_unknown_sender(provider: WhatsAppProvider, cfg: WhatsAppChannelConfi
         _log.info("whatsapp enrollment claim rate-limited from=%s", msg.from_phone)
     candidate_phone = getattr(candidate, "phone", "") if candidate is not None else ""
     if candidate is not None and candidate_phone:
-        if _otp_send_limiter.check(str(candidate.id))[0]:
+        if not _otp_send_limiter.check(str(candidate.id))[0]:
+            _log.info("whatsapp enrollment OTP rate-limited farmer=%s", candidate.id)
+        elif not _otp_fanout_limiter.check(msg.from_phone)[0]:
+            _log.info("whatsapp enrollment OTP fan-out rate-limited from=%s candidate=%s", msg.from_phone, candidate.id)
+        else:
             code = new_code()
             if sender.send(candidate_phone, code):
                 _pending.start(msg.from_phone, candidate.id, candidate.name, code, question=question)
                 _log.info("whatsapp enrollment code sent farmer=%s from=%s", candidate.id, msg.from_phone)
             else:
                 _log.warning("whatsapp enrollment code send failed farmer=%s", candidate.id)
-        else:
-            _log.info("whatsapp enrollment OTP rate-limited farmer=%s", candidate.id)
     elif candidate is not None:
         _log.info("whatsapp enrollment claim matched farmer=%s with no registered phone", candidate.id)
 
@@ -383,12 +399,13 @@ def reset_state_for_tests() -> None:
     """Test hook: forget the module-level rate limiter, dedupe and
     enrollment (OTP) state so each test starts fresh. Never call from
     production code paths."""
-    global _rate_limiter, _dedupe, _pending, _claim_limiter, _otp_send_limiter
+    global _rate_limiter, _dedupe, _pending, _claim_limiter, _otp_send_limiter, _otp_fanout_limiter
     global _otp_sender, _otp_sender_provider
     _rate_limiter = None
     _dedupe = MessageDedupe()
     _pending = PendingEnrollments()
     _claim_limiter = _new_claim_limiter()
     _otp_send_limiter = _new_otp_send_limiter()
+    _otp_fanout_limiter = _new_otp_fanout_limiter()
     _otp_sender = None
     _otp_sender_provider = None
