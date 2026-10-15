@@ -202,6 +202,25 @@ def get_pincode_data(pin: str, force_refresh: bool = False, ttl_sec: Optional[in
                     "pincode_store refresh failed pin=%s errors=%s -- serving older data",
                     pin, data["errors"],
                 )
+                # Real bug, found in whole-dev-branch review: this
+                # returned the stale copy without ever touching
+                # _store[key]'s timestamp, which stays at its ORIGINAL
+                # fetch time -- already past ttl, or _fresh_entry
+                # wouldn't have returned None above. The very next
+                # message for this PIN saw the same expired timestamp
+                # and re-attempted a full live rebuild, on every single
+                # message during a sustained outage, contradicting this
+                # module's own documented "retried soon but not on every
+                # message" throttle (the same one _FAILED_TTL_SEC
+                # already gives a from-scratch failure). Bump the stored
+                # timestamp so the data is "fresh" for _FAILED_TTL_SEC
+                # more, same throttle window, without touching its
+                # content or marking the STORED copy stale (only the
+                # just-returned copy is -- peek() must still see the
+                # unmodified original, per the test below).
+                with _lock:
+                    _store[key] = (_now() - ttl + _FAILED_TTL_SEC, previous[1])
+                    _store.move_to_end(key)
                 return {**previous[1], "stale": True}
 
             _save(key, data)

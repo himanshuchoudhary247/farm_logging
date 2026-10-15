@@ -96,6 +96,45 @@ def test_failed_refresh_returns_older_data_marked_stale(clock, monkeypatch):
     assert "stale" not in store.peek("411001"), "saved entry itself is not changed"
 
 
+def test_stale_serve_is_not_retried_on_every_message_during_an_outage(clock, monkeypatch):
+    """Real bug, found in whole-dev-branch review: serving stale data
+    after a failed refresh never updated the entry's timestamp, so it
+    stayed expired at its original fetch time -- every subsequent
+    message for the same PIN re-attempted a full live rebuild, hitting
+    the (already failing) rate-limited APIs again, contradicting this
+    module's own "retried soon but not on every message" throttle."""
+    calls = []
+    monkeypatch.setattr(store, "_build", _fake_build(calls))
+    store.get_pincode_data("411001")
+    assert calls == ["411001"]
+
+    clock["t"] += 12 * 3600 + 1
+    monkeypatch.setattr(store, "_build", _fake_build(calls, ok=False))
+    store.get_pincode_data("411001")
+    assert calls == ["411001", "411001"], "the failed refresh attempt itself"
+
+    # A second message moments later must reuse the throttled entry
+    # (fetched_at bumped forward, content untouched) via the normal
+    # fresh-cache-hit path, not attempt another live rebuild. It no
+    # longer carries "stale": True -- that marker is this module's
+    # signal for "a refresh was just attempted and failed," not a
+    # permanent property of the stored data (which the test above
+    # already confirms is never mutated with it); the throttle's job is
+    # only to stop hammering the APIs, which this confirms.
+    clock["t"] += 60
+    data = store.get_pincode_data("411001")
+    assert data["weather"] == {"temp_c": 30}
+    assert calls == ["411001", "411001"], "must not re-attempt a rebuild within the retry window"
+
+    # After the retry window (same as a from-scratch failure's
+    # _FAILED_TTL_SEC), it tries again.
+    clock["t"] += 5 * 60 + 1
+    monkeypatch.setattr(store, "_build", _fake_build(calls))
+    data = store.get_pincode_data("411001")
+    assert "stale" not in data, "a successful retry after the window must return fresh, non-stale data"
+    assert calls == ["411001", "411001", "411001"]
+
+
 def test_caller_can_still_pass_its_own_lifetime(clock, monkeypatch):
     calls = []
     monkeypatch.setattr(store, "_build", _fake_build(calls))
