@@ -138,6 +138,30 @@ def test_bare_reply_to_targeted_field_question_is_wired_as_context(tmp_path, mon
     assert "animal_identifier" not in second["missing_fields"]
 
 
+def test_app_added_animal_is_matchable_via_chocolate(tmp_path, monkeypatch):
+    """Real gap, found in live-sync review: a farmer who adds an animal in
+    the app couldn't book an appointment for it through Chocolate, since
+    the chatbot only ever checked its own local store. No local animal
+    at all here -- the match must come entirely from flokiq_sync's
+    main_backend animal list."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "LAKSHMI"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service.flokiq_sync, "get_farm_animals",
+        lambda farmer_id: [{"id": "app-animal-1", "uniqueAnimalId": "LAKSHMI", "species": "sheep"}],
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    result = supervisor.turn("demo-farmer", "session-app-animal", "LAKSHMI has a limp", "en-IN")
+
+    assert result["draft"]["animal_id"] == "app-animal-1"
+    assert result["draft"]["animal_identifier"] == "LAKSHMI"
+
+
 def test_animal_tag_bridges_to_animal_identifier(tmp_path, monkeypatch):
     """_copy_entities must accept either animal_tag (bare ear-tag/ID number,
     the extraction schema's field for exactly this) or animal_name -- only

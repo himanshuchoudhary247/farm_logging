@@ -46,10 +46,11 @@ from services.common.draft_supervisor import (
     _UNSET,
     _lang,
 )
+from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.voice_agent.session_store import clear_session
 from services.voice_agent.tts import synthesize_speech
-from storage import animals_for_farmer, append_animal
+from storage import animals_for_farmer, append_animal, merge_app_animals
 
 _log = logging.getLogger("animal_registration")
 if not _log.handlers:
@@ -706,7 +707,8 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # while the farmer's attention is on the breed re-ask instead.
         if "unique_animal_id" in changed:
             wanted = str(draft["draft"]["unique_animal_id"]).strip().lower()
-            existing = [a for a in animals_for_farmer(farmer_id) if a.tag_or_name.strip().lower() == wanted]
+            all_animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
+            existing = [a for a in all_animals if a.tag_or_name.strip().lower() == wanted]
             if existing:
                 draft["draft"]["unique_animal_id"] = None
                 message = self._message(draft["language"], "duplicate_id", identifier=str(entities.get("unique_animal_id")))

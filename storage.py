@@ -291,6 +291,42 @@ def animals_for_farmer(farmer_id: str) -> list[Animal]:
     return [a for a in load_animals() if a.farmer_id == farmer_id]
 
 
+def merge_app_animals(farmer_id: str, local_animals: list[Animal], remote_animals: list[dict]) -> list[Animal]:
+    """Combines a farmer's locally-registered animals with their
+    main_backend-side ones (flokiq_sync.get_farm_animals's raw dicts), so
+    a farmer who added an animal in the app, not through this chatbot,
+    can still be matched against it here (e.g. when booking an
+    appointment). Takes both lists already fetched, rather than fetching
+    either itself, so callers keep full control (and testability) over
+    how each side is obtained.
+
+    Merged by tag (tag_or_name), case-insensitive: a tag present in
+    main_backend's list wins over a locally-registered animal with the
+    same tag, since main_backend's copy is the one visible in the app --
+    the authoritative one for "does this farmer already have this
+    animal.\""""
+    if not remote_animals:
+        return local_animals
+
+    merged_by_tag: dict[str, Animal] = {}
+    for a in local_animals:
+        merged_by_tag[a.tag_or_name.strip().lower()] = a
+    for a in remote_animals:
+        tag = str(a.get("uniqueAnimalId") or "").strip()
+        if not tag:
+            continue
+        merged_by_tag[tag.lower()] = Animal(
+            id=str(a.get("id") or ""),
+            farmer_id=farmer_id,
+            species=str(a.get("species") or ""),
+            tag_or_name=tag,
+            sex=str(a.get("sex") or ""),
+            breed=str(a.get("breed") or ""),
+            status=str(a.get("status") or "active"),
+        )
+    return list(merged_by_tag.values())
+
+
 def append_animal(
     farmer_id: str,
     tag_or_name: str,

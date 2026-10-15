@@ -91,6 +91,66 @@ def test_health_log_sync_is_off_by_default(on, monkeypatch):
     assert calls == []
 
 
+def _capture_get(monkeypatch, resp):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return resp
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    return calls
+
+
+@pytest.fixture(autouse=True)
+def _clear_farm_animals_cache():
+    client._farm_animals_cache.clear()
+    yield
+    client._farm_animals_cache.clear()
+
+
+def test_farm_animals_off_by_default_makes_no_call(monkeypatch):
+    monkeypatch.delenv("FLOKIQ_SYNC_ENABLED", raising=False)
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    assert client.get_farm_animals(FARMER) == []
+    assert calls == []
+
+
+def test_farm_animals_demo_farmer_id_is_skipped(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    assert client.get_farm_animals("f-001") == []
+    assert calls == []
+
+
+def test_farm_animals_gets_the_internal_route_with_key(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    result = client.get_farm_animals(FARMER)
+    assert result == [{"uniqueAnimalId": "GAURI"}]
+    call = calls[0]
+    assert call["url"] == f"https://backend.test/v1/internal/farmers/{FARMER}/animals"
+    assert call["headers"] == {"X-Internal-Api-Key": "secret-key"}
+
+
+def test_farm_animals_result_is_cached(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    client.get_farm_animals(FARMER)
+    client.get_farm_animals(FARMER)
+    assert len(calls) == 1, "a second call within the TTL must be served from cache"
+
+
+def test_farm_animals_http_error_returns_empty_list(on, monkeypatch):
+    _capture_get(monkeypatch, _Resp(500, None, "boom"))
+    assert client.get_farm_animals(FARMER) == []
+
+
+def test_farm_animals_network_error_returns_empty_list(on, monkeypatch):
+    def boom(url, **kwargs):
+        raise client.requests.ConnectionError("down")
+
+    monkeypatch.setattr(client.requests, "get", boom)
+    assert client.get_farm_animals(FARMER) == []
+
+
 def test_notes_name_the_animal_and_issue():
     values = {"animal_name": "GAURI", "species": "goat", "issue": "not eating", "miscellaneous_notes": "since yesterday"}
     assert client.build_appointment_notes(values) == "GAURI (goat): not eating. since yesterday. Booked via Chocolate."
