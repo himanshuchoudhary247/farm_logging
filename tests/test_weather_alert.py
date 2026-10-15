@@ -108,6 +108,64 @@ def test_get_weather_alert_low_risk(monkeypatch):
     assert out["resolved_location"]["state"] == "Karnataka"
 
 
+def test_resolve_location_uses_main_backend_cache_and_skips_nominatim(monkeypatch):
+    """main_backend's persistent geocode cache (/internal/geocode) is
+    checked before Nominatim -- a hit there must never also hit the
+    network, since lat/lon for a place never changes."""
+    service._cache.clear()
+    monkeypatch.setenv("PIN_LOOKUP_LOCAL", "0")
+    monkeypatch.setattr(
+        service.flokiq_sync, "get_cached_geocode",
+        lambda query, country_code: {
+            "displayName": "533101, Rajahmundry, Andhra Pradesh, India",
+            "lat": 17.0005,
+            "lon": 81.7799,
+        },
+    )
+
+    def _fake_get(url, params=None, headers=None, timeout=0):
+        raise AssertionError("Nominatim must not be called on a backend cache hit")
+
+    monkeypatch.setattr(service.requests, "get", _fake_get)
+
+    resolved = service.resolve_location("533101", country_code="in")
+    assert resolved.lat == 17.0005
+    assert resolved.lon == 81.7799
+    assert resolved.display_name.startswith("533101")
+
+
+def test_resolve_location_saves_to_main_backend_after_nominatim(monkeypatch):
+    """A location resolved live via Nominatim (no backend cache hit) is
+    written back to main_backend, so the next process/restart does not
+    need another Nominatim call for the same place."""
+    service._cache.clear()
+    monkeypatch.setenv("PIN_LOOKUP_LOCAL", "0")
+    monkeypatch.setattr(service.flokiq_sync, "get_cached_geocode", lambda query, country_code: None)
+    saved = {}
+    monkeypatch.setattr(
+        service.flokiq_sync, "save_geocode",
+        lambda query, display_name, lat, lon, country_code="in", district=None, state=None, **kw:
+            saved.update(query=query, display_name=display_name, lat=lat, lon=lon,
+                         country_code=country_code, district=district, state=state),
+    )
+
+    def _fake_get(url, params=None, headers=None, timeout=0):
+        assert "nominatim" in url
+        return _FakeResponse([
+            {"display_name": "Nashik, Maharashtra, India", "lat": "19.9975", "lon": "73.7898"},
+        ])
+
+    monkeypatch.setattr(service.requests, "get", _fake_get)
+
+    resolved = service.resolve_location("Nashik", country_code="in")
+    assert saved["query"] == "Nashik"
+    assert saved["display_name"] == resolved.display_name
+    assert saved["lat"] == resolved.lat
+    assert saved["lon"] == resolved.lon
+    assert saved["country_code"] == "in"
+    assert saved["state"] == "Maharashtra"
+
+
 def test_is_pin_code_rejects_non_ascii_digits():
     """Real bug, found in a robustness audit: str.isdigit() is True for
     non-ASCII digits too (Devanagari, superscripts, etc.) -- a PIN typed

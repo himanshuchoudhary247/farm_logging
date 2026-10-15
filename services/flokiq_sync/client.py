@@ -18,6 +18,11 @@ It also reads the PIN code of the farmer's farm from
 GET {FLOKIQ_API_BASE_URL}/internal/farmers/<id>/farm-location (same key), so
 weather advice can use it instead of asking the farmer (get_farm_pincode).
 
+It also persists geocoded PIN/place -> lat,lon lookups to
+GET/POST {FLOKIQ_API_BASE_URL}/internal/geocode (same key), so a location
+weather_alert resolves once via Nominatim survives this process's restarts
+and its own short in-memory cache expiring (get_cached_geocode, save_geocode).
+
 Config (env, same precedence pattern as the rest of this app):
   FLOKIQ_SYNC_ENABLED       "true"/"1" to actually call out. Default off --
                             ships inert until explicitly turned on.
@@ -283,3 +288,91 @@ def _fetch_farm_pincode(base: str, key: str, farmer_id: str, timeout_s: float) -
         return None, _FARM_PIN_TTL_S
     _log.info("flokiq_sync farm pincode found farmer=%s", farmer_id)
     return pincode, _FARM_PIN_TTL_S
+
+
+def get_cached_geocode(query: str, country_code: str = "in", timeout_s: float = 3.0) -> Optional[dict[str, Any]]:
+    """GET /internal/geocode on main_backend: a previously-resolved
+    PIN/place -> lat,lon,display_name, or None if sync is off/unconfigured,
+    nothing is cached for this query, or the call failed. A lat/lon never
+    changes for a given place, so the caller can treat a hit as good
+    indefinitely -- never raises."""
+    if not is_enabled():
+        return None
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key:
+        return None
+
+    try:
+        resp = requests.get(
+            f"{base}/internal/geocode",
+            params={"query": query, "countryCode": country_code},
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync get_cached_geocode failed query=%s err=%s", query, exc)
+        return None
+
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        _log.warning(
+            "flokiq_sync get_cached_geocode failed query=%s status=%s body=%s",
+            query, resp.status_code, resp.text[:200],
+        )
+        return None
+    try:
+        return resp.json()
+    except ValueError:
+        return None
+
+
+def save_geocode(
+    query: str,
+    display_name: str,
+    lat: float,
+    lon: float,
+    country_code: str = "in",
+    district: Optional[str] = None,
+    state: Optional[str] = None,
+    source: str = "nominatim",
+    timeout_s: float = 3.0,
+) -> None:
+    """POST /internal/geocode on main_backend: persist a location
+    weather_alert just resolved, so the next process (or this one after
+    its in-memory cache expires) does not need another Nominatim call for
+    the same PIN/place. Best-effort, like every other call in this module
+    -- a failure here only means the next lookup also goes to Nominatim,
+    never an error for the farmer. Never raises."""
+    if not is_enabled():
+        return
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key:
+        return
+
+    payload = {
+        "query": query,
+        "countryCode": country_code,
+        "displayName": display_name,
+        "lat": lat,
+        "lon": lon,
+        "district": district or "",
+        "state": state or "",
+        "source": source,
+    }
+    try:
+        resp = requests.post(
+            f"{base}/internal/geocode",
+            json=payload,
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+        if resp.status_code != 200:
+            _log.warning(
+                "flokiq_sync save_geocode failed query=%s status=%s body=%s",
+                query, resp.status_code, resp.text[:200],
+            )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync save_geocode failed query=%s err=%s", query, exc)
