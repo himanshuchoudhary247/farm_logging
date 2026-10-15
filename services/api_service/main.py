@@ -992,7 +992,7 @@ def confirm_voice_health_log(farmer_id: str, req: VoiceHealthLogConfirmRequest) 
 
 
 @app.post("/weather/alert")
-def weather_alert(req: WeatherAlertRequest) -> dict[str, Any]:
+def weather_alert(req: WeatherAlertRequest, _auth: None = Depends(require_api_key)) -> dict[str, Any]:
     try:
         return get_weather_alert(
             location_or_pin=req.location_or_pin,
