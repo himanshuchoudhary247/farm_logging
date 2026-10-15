@@ -2,6 +2,7 @@
 across turns, farmers never share a session, and callers that pass no
 session_id keep the old one-off behaviour."""
 import asyncio
+import threading
 
 from google.adk.sessions import InMemorySessionService
 
@@ -52,6 +53,52 @@ def test_session_over_the_event_cap_is_restarted(monkeypatch):
     session = _run(adk_agent._get_or_create_session(service, "farmer-f-001", "chat-1"))
     assert session.id == "chat-1"
     assert "last_query_answer" not in session.state
+
+
+def test_concurrent_turns_for_same_session_do_not_race(monkeypatch):
+    """Whole-dev-branch review finding: get/delete/create on a shared
+    InMemorySessionService had no per-session lock. Two concurrent turns
+    for the same user_id+session_id (e.g. a duplicate webhook delivery)
+    could race delete_session/create_session -- one turn's delete could
+    land between the other's get and create, so its create then collides
+    with (or clobbers) the one just made. Forces the restart branch for
+    every call (_MAX_SESSION_EVENTS=-1) and widens delete_session so a
+    second thread's call overlaps if the lock does not serialize them."""
+    monkeypatch.setattr(adk_agent, "_MAX_SESSION_EVENTS", -1)
+
+    active = {"n": 0, "max": 0}
+    guard = threading.Lock()
+
+    class _SlowSessions(InMemorySessionService):
+        async def delete_session(self, **kwargs):
+            with guard:
+                active["n"] += 1
+                active["max"] = max(active["max"], active["n"])
+            await asyncio.sleep(0.05)
+            result = await super().delete_session(**kwargs)
+            with guard:
+                active["n"] -= 1
+            return result
+
+    service = _SlowSessions()
+    _run(adk_agent._get_or_create_session(service, "farmer-f-001", "chat-1"))
+
+    errors = []
+
+    def worker():
+        try:
+            _run(adk_agent._get_or_create_session(service, "farmer-f-001", "chat-1"))
+        except Exception as exc:  # pragma: no cover - failure path under test
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, f"concurrent turns for the same session must not raise: {errors}"
+    assert active["max"] == 1, "per-session lock must serialize delete/create, not let them overlap"
 
 
 def test_in_memory_service_is_shared_when_no_db_url(monkeypatch):
