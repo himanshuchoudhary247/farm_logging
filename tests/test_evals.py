@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from evals.compare import aggregate, compare, verdict
 from evals.judge import check_turn, normalize_digits, script_share, turn_passed
 from evals.run import fill, load_conversations, validate_conversations
 
@@ -80,3 +81,39 @@ def test_layer1_numbers_match_the_data():
     want = {"goat": 14, "sheep": 7, "buffalo": 16, "cow": 9, "chicken": 7}
     assert {k: counts.get(k, 0) for k in want} == want
     assert sum(counts.values()) == 53
+
+
+# ---------------------------------------------------------------- compare.py
+
+
+def _run(results):
+    return {"results": results}
+
+
+def _res(cid, passed, ms=1000, agent="query_agent"):
+    return {"id": cid, "passed": passed, "layer": 1, "language": "en-IN", "title": cid,
+            "turns": [{"ms": ms, "error": None, "expect": {"agent": agent}, "agent": agent}]}
+
+
+def test_verdicts():
+    assert verdict({"rate": 1.0}, {"rate": 0.0}) == "REGRESSION"
+    assert verdict({"rate": 0.0}, {"rate": 1.0}) == "FIXED"
+    assert verdict({"rate": 0.67}, {"rate": 0.33}) == "FLAKY"
+    assert verdict({"rate": 1.0}, {"rate": 1.0}) == "SAME"
+    assert verdict({"rate": 0.0}, {"rate": 0.0}) == "SAME"
+    assert verdict(None, {"rate": 1.0}) == "NEW"
+
+
+def test_aggregate_counts_pass_rate_across_runs():
+    runs = [_run([_res("A", True), _res("B", False)]), _run([_res("A", True), _res("B", True)])]
+    agg = aggregate(runs)
+    assert agg["conversations"]["A"]["rate"] == 1.0
+    assert agg["conversations"]["B"]["passes"] == 1 and agg["conversations"]["B"]["runs"] == 2
+
+
+def test_compare_flags_regression_and_slower_agent():
+    base = aggregate([_run([_res("A", True, ms=1000)])] * 3)
+    now = aggregate([_run([_res("A", False, ms=5000)])])
+    out = compare(base, now)
+    assert out["rows"][0]["verdict"] == "REGRESSION"
+    assert out["slower"] and out["slower"][0]["agent"] == "query_agent"

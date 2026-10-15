@@ -1,0 +1,234 @@
+{
+  "created_at": "2026-10-15T23:32:57",
+  "git_commits": [
+    "28fdfe6-dirty"
+  ],
+  "run_count": 1,
+  "source_runs": [
+    "20261015-232509.json"
+  ],
+  "conversations": {
+    "L1-en-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Goat count",
+      "rate": 1.0
+    },
+    "L1-en-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-en-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Breed of GAURI",
+      "rate": 1.0
+    },
+    "L1-en-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-en-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
+    },
+    "L1-hi-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Sheep count",
+      "rate": 1.0
+    },
+    "L1-hi-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-hi-003": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "RAJA is a cow",
+      "rate": 0.0
+    },
+    "L1-hi-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-hi-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
+    },
+    "L1-kn-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Total animal count",
+      "rate": 1.0
+    },
+    "L1-kn-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-kn-003": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 0.667
+    },
+    "L1-ml-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Sheep count",
+      "rate": 1.0
+    },
+    "L1-ml-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-ml-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
+    },
+    "L1-mr-001": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Buffalo count",
+      "rate": 0.333
+    },
+    "L1-mr-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-mr-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-ta-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Goat count",
+      "rate": 1.0
+    },
+    "L1-ta-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-ta-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
+    },
+    "L1-te-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Cow count",
+      "rate": 1.0
+    },
+    "L1-te-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Weather: asks for PIN, then gives forecast",
+      "rate": 1.0
+    },
+    "L1-te-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Breed of GAURI",
+      "rate": 1.0
+    }
+  },
+  "latency_ms": {
+    "animal_registration": {
+      "n": 72,
+      "p50": 390,
+      "p90": 1072
+    },
+    "appointment_supervisor": {
+      "n": 60,
+      "p50": 758,
+      "p90": 3003
+    },
+    "query_agent": {
+      "n": 30,
+      "p50": 1734,
+      "p90": 2382
+    },
+    "weather_alert": {
+      "n": 42,
+      "p50": 1648,
+      "p90": 2037
+    }
+  }
+}

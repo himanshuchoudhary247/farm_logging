@@ -35,6 +35,36 @@ Results are saved to `evals/results/<run_id>.json` (not committed).
 Restart the server before a run if an earlier run or manual test changed data,
 so the query agent does not answer from old cached data.
 
+## Baseline and regressions
+
+The LLM does not answer the same way every time, so one run is not enough to
+call something broken. Run each conversation 3 times and save that as the
+baseline (commit `evals/baseline/baseline.json`):
+
+```
+python -m evals.run --layer 1 --repeat 3
+python -m evals.compare --save-baseline --latest 1
+```
+
+After a code change, run again and compare:
+
+```
+python -m evals.run --layer 1 --repeat 3
+python -m evals.compare --latest 1
+```
+
+| Verdict | Meaning |
+|---|---|
+| REGRESSION | passed every time in the baseline, now fails most of the time (exit code 1) |
+| WORSE | pass rate dropped by half or more |
+| FIXED | failed every time in the baseline, now passes most of the time |
+| FLAKY | passes sometimes, fails sometimes |
+| NEW | not in the baseline yet |
+
+An agent is marked slower when its p50 latency is 1.5x the baseline and at
+least 1 second slower. A baseline is refused if a run stopped early or used
+`--only` / `--lang`.
+
 ## Data safety
 
 Bookings and registrations really write to `data/`. So the runner refuses to

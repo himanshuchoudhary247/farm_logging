@@ -1,1 +1,1 @@
-# Saved baseline runs. Created with compare.py (coming in step 3).
+# baseline.json here is made by: python -m evals.compare --save-baseline --latest 1
