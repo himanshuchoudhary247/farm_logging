@@ -101,6 +101,23 @@ def build_appointment_notes(values: dict[str, Any]) -> str:
     return " ".join(parts)[:_MAX_NOTES]
 
 
+def will_attempt_appointment_sync(farmer_id: str) -> bool:
+    """True if create_appointment would actually attempt a network call
+    for this farmer_id right now (sync enabled, configured, and a real
+    main_backend farmer id) -- lets a caller distinguish "sync doesn't
+    apply here" (disabled, unconfigured, a local demo farmer_id) from
+    "sync was attempted and failed," both of which create_appointment
+    reports identically as None. Mirrors create_appointment's own
+    preconditions; keep the two in sync if either changes."""
+    if not is_enabled():
+        return False
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key:
+        return False
+    return bool(_UUID_RE.match(str(farmer_id or "")))
+
+
 def create_appointment(
     farmer_id: str,
     date: str,
