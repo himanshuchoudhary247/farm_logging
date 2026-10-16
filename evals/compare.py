@@ -129,8 +129,9 @@ ICON = {"REGRESSION": "[RED]   ", "WORSE": "[ORANGE]", "FIXED": "[GREEN] ",
 
 
 def print_report(baseline: dict, current: dict, result: dict, files: list[str]) -> None:
-    print(f"Baseline: {baseline.get('created_at', '?')}  commit {baseline.get('git_commits', '?')}  "
-          f"({baseline.get('run_count', '?')} runs)")
+    reps = max((c["runs"] for c in baseline["conversations"].values()), default=0)
+    print(f"Baseline: {baseline.get('created_at', '?')}  commit {', '.join(baseline.get('git_commits', ['?']))}  "
+          f"({baseline.get('run_count', '?')} result file(s), up to {reps} runs per conversation)")
     print(f"Current : {', '.join(files)}")
     counts = {v: sum(1 for r in result["rows"] if r["verdict"] == v) for v in ORDER}
     print("Summary : " + "  ".join(f"{v} {counts[v]}" for v in ORDER if counts[v]))
@@ -195,7 +196,9 @@ def main(argv: list[str] | None = None) -> int:
         total = len(current["conversations"])
         stable = sum(1 for c in current["conversations"].values() if c["rate"] >= STABLE_PASS)
         print(f"Saved baseline: {BASELINE_PATH.relative_to(EVALS_DIR.parent)}")
-        print(f"  {len(runs)} runs, {total} conversations, {stable} pass every time")
+        reps = max((c["runs"] for c in current["conversations"].values()), default=0)
+        print(f"  {len(runs)} result file(s), {total} conversations, up to {reps} runs each, "
+              f"{stable} pass every time")
         for cid, c in current["conversations"].items():
             if c["rate"] <= STABLE_FAIL:
                 print(f"  always fails: {cid:<12} {c['passes']}/{c['runs']}  {c['title']}")

@@ -8,7 +8,7 @@ Later runs are compared with a saved baseline to catch regressions.
 
 | Layer | File | What it tests |
 |---|---|---|
-| 1 | `conversations/layer1_normal.json` | One clear intent: simple questions and full happy-path flows |
+| 1 | `conversations/layer1_normal.json` | One clear intent: counts, breeds, names, weather, full booking and registration flows (77, 11 per language) |
 | 2 | `layer2_complex.json` (coming) | Harder versions: typos, missing details, corrections mid-flow |
 | 3 | `layer3_mixed.json` (coming) | Two things mixed in one conversation |
 | 4 | `layer4_twist.json` (coming) | The farmer changes the topic completely mid-flow |
@@ -92,7 +92,8 @@ end of the run (also on Ctrl+C).
 - `agent`: agent that must answer
 - `reply_contains_any` / `reply_contains_all` / `reply_not_contains`: text checks, case-insensitive
 - `number`: number that must be in the reply. Indian digits count, so `१४` is 14
-- `script`: set `false` to skip the check that the reply is in the farmer's script
+- `has_number`: `true` if the reply must contain some number (weather: temperature, rain mm, wind km/h)
+- `script`: set `false` to skip the check that the reply is in the farmer's script. ALL-CAPS names/IDs and Latin words from the farmer's message or the expected words (like a breed) are ignored by this check
 - `max_ms`: latency limit for that turn
 
 Conversation keys: `mutates: true` if it saves data; `data_checks` such as
@@ -100,6 +101,12 @@ Conversation keys: `mutates: true` if it saves data; `data_checks` such as
 `{"file": "appointments.json", "grew": true}`. `{tag}` is replaced with a
 unique value per run, so new IDs never clash.
 
-The expected numbers come from `data/animals.json` for farmer f-001
-(53 animals: goat 14, sheep 7, buffalo 16, cow 9, chicken 7).
-`tests/test_evals.py` fails if that data changes, so the JSON gets updated too.
+The expected facts come from `data/animals.json` for farmer f-001
+(53 animals: goat 14, sheep 7, buffalo 16, cow 9, chicken 7; breed counts and
+named animals are listed in `facts_note` at the top of each conversation file).
+`tests/test_evals.py` checks these facts against the data and fails if the data
+changes, so the JSON gets updated too.
+
+With `--repeat N`, all read-only conversations (every repeat) run before any
+conversation that saves data, so a booking or registration can never affect a
+count question.

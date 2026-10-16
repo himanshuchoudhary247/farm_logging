@@ -11,7 +11,12 @@ Supported `expect` keys (all optional):
     reply_not_contains  list of strings; none may appear
     number              int or list of ints; that number must appear in the reply
                         (Indian-script digits like १४ / ௧௪ count as 14)
-    script              false to skip the "reply is in the right script" check
+    has_number          true: the reply must contain at least one number
+                        (used for weather: temperature, rain mm, wind km/h)
+    script              false to skip the "reply is in the right script" check.
+                        Latin words that are names or IDs (ALL CAPS), or that
+                        appear in the farmer's message or in the expected words
+                        (e.g. breed "Murrah"), are ignored by this check.
     max_ms              latency budget for this turn in milliseconds
 """
 from __future__ import annotations
@@ -61,6 +66,20 @@ def _norm(text: str) -> str:
     return normalize_digits(unicodedata.normalize("NFC", text or "")).casefold()
 
 
+_LATIN_WORD = re.compile(r"[A-Za-z][A-Za-z\-']*")
+
+
+def strip_allowed_latin(text: str, allowed: set[str]) -> str:
+    """Drop Latin words that are fine inside an Indian-language reply:
+    ALL-CAPS names/IDs (GAURI, EVAL-1015-EN010) and words from `allowed`."""
+    def keep(m: re.Match) -> str:
+        w = m.group(0)
+        if (w.isupper() and len(w) > 1) or w.casefold() in allowed:
+            return " "
+        return w
+    return _LATIN_WORD.sub(keep, text or "")
+
+
 def script_share(text: str, lang: str) -> float | None:
     """Share of letters in `text` that belong to the script of `lang` (None if no letters)."""
     base = (lang or "").split("-")[0].lower()
@@ -79,7 +98,7 @@ def _check(name: str, ok: bool, detail: str = "") -> dict:
 
 
 def check_turn(expect: dict, *, agent: str | None, reply: str, ms: float | None,
-               language: str, error: str | None = None) -> list[dict]:
+               language: str, error: str | None = None, user_text: str = "") -> list[dict]:
     """Run every check that `expect` asks for and return the list of results."""
     expect = expect or {}
     if error:
@@ -114,8 +133,18 @@ def check_turn(expect: dict, *, agent: str | None, reply: str, ms: float | None,
         ok = any(int(w) in found for w in wants)
         checks.append(_check("number", ok, f"want {wants}, numbers in reply {found[:10]}"))
 
+    if expect.get("has_number"):
+        nums = re.findall(r"\d+", normalize_digits(reply))
+        checks.append(_check("has_number", bool(nums), f"numbers in reply {nums[:5]}"))
+
     if expect.get("script", True):
-        share = script_share(reply, language)
+        allowed = {w.casefold() for w in _LATIN_WORD.findall(user_text or "")}
+        for key in ("reply_contains_any", "reply_contains_all"):
+            for s in expect.get(key) or []:
+                allowed |= {w.casefold() for w in _LATIN_WORD.findall(s)}
+        base_lang = (language or "").split("-")[0].lower()
+        text_for_script = reply if base_lang == "en" else strip_allowed_latin(reply, allowed)
+        share = script_share(text_for_script, language)
         if share is not None:
             base = language.split("-")[0].lower()
             need = SCRIPT_MIN_SHARE.get(base, SCRIPT_MIN_SHARE_DEFAULT)

@@ -238,7 +238,7 @@ def run_conversation(conv: dict, *, base_url: str, tag: str, rep: int, timeout: 
         agent = (data or {}).get("agent")
         reply = (data or {}).get("reply_text") or ""
         checks = check_turn(turn.get("expect", {}), agent=agent, reply=reply, ms=ms,
-                            language=conv["language"], error=err)
+                            language=conv["language"], error=err, user_text=turn["user"])
         turns_out.append({
             "turn": i, "user": turn["user"], "expect": turn.get("expect", {}),
             "agent": agent, "reply": reply, "ms": round(ms), "error": err,
@@ -368,8 +368,11 @@ def main(argv: list[str] | None = None) -> int:
                   f"{detail}\nCommit or stash them, or run `git checkout -- data` if they are leftovers.")
             return 2
 
-    # Read-only conversations first, the ones that save data last.
-    convs.sort(key=lambda c: (bool(c.get("mutates")), c["layer"], c["id"]))
+    # Read-only conversations first (all repeats), the ones that save data last.
+    # So a booking or registration in repeat 1 can never leak into a count
+    # question of repeat 2, even if a server-side cache misses the data restore.
+    plan = sorted(((c, rep) for c in convs for rep in range(1, args.repeat + 1)),
+                  key=lambda cr: (bool(cr[0].get("mutates")), cr[1], cr[0]["layer"], cr[0]["id"]))
     started = datetime.now()
     run_id = started.strftime("%Y%m%d-%H%M%S")
     tag = started.strftime("%m%d%H%M%S")
@@ -382,17 +385,16 @@ def main(argv: list[str] | None = None) -> int:
     aborted = None
     n = 0
     try:
-        for rep in range(1, args.repeat + 1):
-            for conv in convs:
-                n += 1
-                res = run_conversation(conv, base_url=args.base_url, tag=tag, rep=rep,
-                                       timeout=args.timeout, conn_errors=conn_errors)
-                results.append(res)
-                secs = sum(t["ms"] for t in res["turns"]) / 1000
-                print(f"[{n}/{total}] {'PASS' if res['passed'] else 'FAIL'}  {res['id']:<12} "
-                      f"{res['language']:<6} {secs:6.1f}s  {res['title']}")
-                if conv.get("mutates") and not args.no_reset:
-                    restore_data()
+        for conv, rep in plan:
+            n += 1
+            res = run_conversation(conv, base_url=args.base_url, tag=tag, rep=rep,
+                                   timeout=args.timeout, conn_errors=conn_errors)
+            results.append(res)
+            secs = sum(t["ms"] for t in res["turns"]) / 1000
+            print(f"[{n}/{total}] {'PASS' if res['passed'] else 'FAIL'}  {res['id']:<12} r{rep} "
+                  f"{res['language']:<6} {secs:6.1f}s  {res['title']}")
+            if conv.get("mutates") and not args.no_reset:
+                restore_data()
     except ServerDown as e:
         aborted = str(e)
         print(f"\nStopped: {aborted}")

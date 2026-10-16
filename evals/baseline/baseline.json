@@ -1,11 +1,11 @@
 {
-  "created_at": "2026-10-15T23:32:57",
+  "created_at": "2026-10-16T23:19:32",
   "git_commits": [
-    "28fdfe6-dirty"
+    "3980a2a-dirty"
   ],
   "run_count": 1,
   "source_runs": [
-    "20261015-232509.json"
+    "20261016-225834.json"
   ],
   "conversations": {
     "L1-en-001": {
@@ -21,7 +21,7 @@
       "runs": 3,
       "layer": 1,
       "language": "en-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Chicken count",
       "rate": 1.0
     },
     "L1-en-003": {
@@ -29,7 +29,7 @@
       "runs": 3,
       "layer": 1,
       "language": "en-IN",
-      "title": "Breed of GAURI",
+      "title": "Total animal count",
       "rate": 1.0
     },
     "L1-en-004": {
@@ -37,7 +37,7 @@
       "runs": 3,
       "layer": 1,
       "language": "en-IN",
-      "title": "Book vet appointment for GAURI (full flow)",
+      "title": "Sirohi goat count",
       "rate": 1.0
     },
     "L1-en-005": {
@@ -45,8 +45,56 @@
       "runs": 3,
       "layer": 1,
       "language": "en-IN",
+      "title": "Breed of GAURI",
+      "rate": 1.0
+    },
+    "L1-en-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 1.0
+    },
+    "L1-en-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Weather: asks for PIN, then forecast for 411001",
+      "rate": 1.0
+    },
+    "L1-en-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-en-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-en-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
       "rate": 1.0
+    },
+    "L1-en-011": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 1,
+      "language": "en-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
+      "rate": 0.667
     },
     "L1-hi-001": {
       "passes": 3,
@@ -61,23 +109,23 @@
       "runs": 3,
       "layer": 1,
       "language": "hi-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Cow count",
       "rate": 1.0
     },
     "L1-hi-003": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "hi-IN",
-      "title": "RAJA is a cow",
-      "rate": 0.0
+      "title": "Total animal count",
+      "rate": 1.0
     },
     "L1-hi-004": {
       "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "hi-IN",
-      "title": "Book vet appointment for GAURI (full flow)",
+      "title": "Mehsana buffalo count",
       "rate": 1.0
     },
     "L1-hi-005": {
@@ -85,10 +133,74 @@
       "runs": 3,
       "layer": 1,
       "language": "hi-IN",
+      "title": "Breed of LAKSHMI",
+      "rate": 1.0
+    },
+    "L1-hi-006": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 0.0
+    },
+    "L1-hi-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Weather: asks for PIN, then forecast for 431001",
+      "rate": 1.0
+    },
+    "L1-hi-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-hi-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-hi-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
       "rate": 1.0
     },
+    "L1-hi-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "hi-IN",
+      "title": "Register a new female Marwari sheep (full flow)",
+      "rate": 1.0
+    },
     "L1-kn-001": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Chicken count",
+      "rate": 0.0
+    },
+    "L1-kn-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Cow count",
+      "rate": 1.0
+    },
+    "L1-kn-003": {
       "passes": 3,
       "runs": 3,
       "layer": 1,
@@ -96,21 +208,69 @@
       "title": "Total animal count",
       "rate": 1.0
     },
-    "L1-kn-002": {
+    "L1-kn-004": {
       "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "kn-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Aseel chicken count",
       "rate": 1.0
     },
-    "L1-kn-003": {
+    "L1-kn-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Breed of CHINNI",
+      "rate": 1.0
+    },
+    "L1-kn-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 1.0
+    },
+    "L1-kn-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Weather: asks for PIN, then forecast for 682001",
+      "rate": 1.0
+    },
+    "L1-kn-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-kn-009": {
       "passes": 2,
       "runs": 3,
       "layer": 1,
       "language": "kn-IN",
       "title": "Book vet appointment for GAURI (full flow)",
       "rate": 0.667
+    },
+    "L1-kn-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Register a new female Deccani sheep (full flow)",
+      "rate": 1.0
+    },
+    "L1-kn-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "kn-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
     },
     "L1-ml-001": {
       "passes": 3,
@@ -125,7 +285,7 @@
       "runs": 3,
       "layer": 1,
       "language": "ml-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Chicken count",
       "rate": 1.0
     },
     "L1-ml-003": {
@@ -133,23 +293,87 @@
       "runs": 3,
       "layer": 1,
       "language": "ml-IN",
+      "title": "Total animal count",
+      "rate": 1.0
+    },
+    "L1-ml-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Nili-Ravi buffalo count",
+      "rate": 1.0
+    },
+    "L1-ml-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Breed of BIJLI",
+      "rate": 1.0
+    },
+    "L1-ml-006": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 0.0
+    },
+    "L1-ml-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Weather: asks for PIN, then forecast for 110001",
+      "rate": 1.0
+    },
+    "L1-ml-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-ml-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-ml-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
       "rate": 1.0
     },
+    "L1-ml-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ml-IN",
+      "title": "Register a new female Nali sheep (full flow)",
+      "rate": 1.0
+    },
     "L1-mr-001": {
-      "passes": 1,
+      "passes": 0,
       "runs": 3,
       "layer": 1,
       "language": "mr-IN",
       "title": "Buffalo count",
-      "rate": 0.333
+      "rate": 0.0
     },
     "L1-mr-002": {
       "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "mr-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Goat count",
       "rate": 1.0
     },
     "L1-mr-003": {
@@ -157,7 +381,71 @@
       "runs": 3,
       "layer": 1,
       "language": "mr-IN",
+      "title": "Total animal count",
+      "rate": 1.0
+    },
+    "L1-mr-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Osmanabadi goat count",
+      "rate": 1.0
+    },
+    "L1-mr-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Breed of KAALI",
+      "rate": 1.0
+    },
+    "L1-mr-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 1.0
+    },
+    "L1-mr-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Weather: asks for PIN, then forecast for 500001",
+      "rate": 1.0
+    },
+    "L1-mr-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-mr-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
       "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-mr-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 1.0
+    },
+    "L1-mr-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "mr-IN",
+      "title": "Register a new female Deccani sheep (full flow)",
       "rate": 1.0
     },
     "L1-ta-001": {
@@ -173,7 +461,7 @@
       "runs": 3,
       "layer": 1,
       "language": "ta-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Buffalo count",
       "rate": 1.0
     },
     "L1-ta-003": {
@@ -181,7 +469,71 @@
       "runs": 3,
       "layer": 1,
       "language": "ta-IN",
+      "title": "Total animal count",
+      "rate": 1.0
+    },
+    "L1-ta-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Kankrej cow count",
+      "rate": 1.0
+    },
+    "L1-ta-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Breed of MOTI",
+      "rate": 1.0
+    },
+    "L1-ta-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 1.0
+    },
+    "L1-ta-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Weather: asks for PIN, then forecast for 600001",
+      "rate": 1.0
+    },
+    "L1-ta-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-ta-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-ta-010": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
+      "rate": 0.667
+    },
+    "L1-ta-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "ta-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
       "rate": 1.0
     },
     "L1-te-001": {
@@ -197,7 +549,7 @@
       "runs": 3,
       "layer": 1,
       "language": "te-IN",
-      "title": "Weather: asks for PIN, then gives forecast",
+      "title": "Sheep count",
       "rate": 1.0
     },
     "L1-te-003": {
@@ -205,30 +557,94 @@
       "runs": 3,
       "layer": 1,
       "language": "te-IN",
+      "title": "Total animal count",
+      "rate": 1.0
+    },
+    "L1-te-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Nali sheep count",
+      "rate": 1.0
+    },
+    "L1-te-005": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
       "title": "Breed of GAURI",
+      "rate": 0.0
+    },
+    "L1-te-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Animal type of a name that is also a common word",
+      "rate": 1.0
+    },
+    "L1-te-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Weather: asks for PIN, then forecast for 560001",
+      "rate": 1.0
+    },
+    "L1-te-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Weather by place name in one message",
+      "rate": 1.0
+    },
+    "L1-te-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "rate": 1.0
+    },
+    "L1-te-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
+      "rate": 1.0
+    },
+    "L1-te-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 1,
+      "language": "te-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
       "rate": 1.0
     }
   },
   "latency_ms": {
     "animal_registration": {
-      "n": 72,
-      "p50": 390,
-      "p90": 1072
+      "n": 245,
+      "p50": 422,
+      "p90": 1424
     },
     "appointment_supervisor": {
-      "n": 60,
-      "p50": 758,
-      "p90": 3003
+      "n": 105,
+      "p50": 968,
+      "p90": 3368
     },
     "query_agent": {
-      "n": 30,
-      "p50": 1734,
-      "p90": 2382
+      "n": 126,
+      "p50": 2478,
+      "p90": 3916
     },
     "weather_alert": {
-      "n": 42,
-      "p50": 1648,
-      "p90": 2037
+      "n": 63,
+      "p50": 1985,
+      "p90": 2856
     }
   }
 }
