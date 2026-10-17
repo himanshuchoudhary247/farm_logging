@@ -958,34 +958,43 @@ def _submit_appointment(tmp_path, monkeypatch, session_id, create_appointment_st
     return supervisor.turn("demo-farmer", session_id, "yes", "en-IN")
 
 
-def test_sync_failure_adds_a_soft_caveat_not_a_lie(tmp_path, monkeypatch):
+def test_sync_failure_replaces_the_message_not_appends_to_it(tmp_path, monkeypatch):
     """Real bug, found in whole-stack review: create_appointment's return
     value was never checked, so the farmer heard "saved successfully"
-    even when the sync to main_backend genuinely failed. A real,
-    attempted-and-failed sync must add the soft caveat."""
+    even when the sync to main_backend genuinely failed. A follow-up
+    review found the FIRST fix still dishonest: appending "may take a
+    little longer to show up in the app" after "saved successfully"
+    implies the app will eventually get it -- create_appointment has no
+    retry/queue, so on a real failure it never does. A genuine
+    attempted-and-failed sync must now use an honest, full replacement
+    message instead of appending a soft caveat to the success one."""
     result = _submit_appointment(
         tmp_path, monkeypatch, "session-sync-fail",
         create_appointment_stub=lambda **k: None,
         will_attempt_stub=lambda farmer_id: True,
     )
-    assert "little longer" in result["response_text"], (
-        f"a genuine sync failure must add the caveat: {result['response_text']!r}"
+    assert "could not send it to the app" in result["response_text"], (
+        f"a genuine sync failure must show the honest message: {result['response_text']!r}"
+    )
+    assert "saved successfully" not in result["response_text"], (
+        f"the success sentence must not appear alongside the failure message: {result['response_text']!r}"
     )
 
 
 def test_sync_not_attempted_stays_silent(tmp_path, monkeypatch):
     """create_appointment also returns None when sync simply doesn't
     apply (disabled, unconfigured, a local demo farmer_id) -- that is
-    NOT a failure, and must not trigger the caveat. Otherwise the caveat
-    would fire on every single booking in any environment where sync
-    isn't even turned on, which is misleading in the other direction."""
+    NOT a failure, and must not trigger the honest-failure message.
+    Otherwise it would fire on every single booking in any environment
+    where sync isn't even turned on, which is misleading in the other
+    direction."""
     result = _submit_appointment(
         tmp_path, monkeypatch, "session-sync-not-applicable",
         create_appointment_stub=lambda **k: None,
         will_attempt_stub=lambda farmer_id: False,
     )
-    assert "little longer" not in result["response_text"], (
-        f"sync not applying here must stay silent, not add the caveat: {result['response_text']!r}"
+    assert "could not send it to the app" not in result["response_text"], (
+        f"sync not applying here must stay silent: {result['response_text']!r}"
     )
 
 
@@ -995,6 +1004,6 @@ def test_successful_sync_stays_silent(tmp_path, monkeypatch):
         create_appointment_stub=lambda **k: {"id": "appt-123"},
         will_attempt_stub=lambda farmer_id: True,
     )
-    assert "little longer" not in result["response_text"], (
-        f"a successful sync must not show the failure caveat: {result['response_text']!r}"
+    assert "could not send it to the app" not in result["response_text"], (
+        f"a successful sync must not show the failure message: {result['response_text']!r}"
     )

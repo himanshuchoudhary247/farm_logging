@@ -101,21 +101,30 @@ def build_appointment_notes(values: dict[str, Any]) -> str:
     return " ".join(parts)[:_MAX_NOTES]
 
 
-def will_attempt_appointment_sync(farmer_id: str) -> bool:
-    """True if create_appointment would actually attempt a network call
-    for this farmer_id right now (sync enabled, configured, and a real
-    main_backend farmer id) -- lets a caller distinguish "sync doesn't
-    apply here" (disabled, unconfigured, a local demo farmer_id) from
-    "sync was attempted and failed," both of which create_appointment
-    reports identically as None. Mirrors create_appointment's own
-    preconditions; keep the two in sync if either changes."""
+def _can_sync_for_farmer(farmer_id: str) -> bool:
+    """Shared precondition check for every main_backend write call in
+    this module: sync enabled, base URL + key configured, and farmer_id
+    is a real main_backend farmer id (not a local demo one). Single
+    source of truth -- create_appointment and will_attempt_appointment_
+    sync used to each re-implement this check, with nothing enforcing
+    they stayed in agreement (reviewer-found risk, PR #64)."""
     if not is_enabled():
         return False
     base = (_base_url() or "").rstrip("/")
     key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
     if not base or not key:
+        _log.warning("flokiq_sync enabled but FLOKIQ_API_BASE_URL or FLOKIQ_INTERNAL_API_KEY unset -- skipping")
         return False
     return bool(_UUID_RE.match(str(farmer_id or "")))
+
+
+def will_attempt_appointment_sync(farmer_id: str) -> bool:
+    """True if create_appointment would actually attempt a network call
+    for this farmer_id right now -- lets a caller distinguish "sync
+    doesn't apply here" (disabled, unconfigured, a local demo farmer_id)
+    from "sync was attempted and failed," both of which create_appointment
+    reports identically as None."""
+    return _can_sync_for_farmer(farmer_id)
 
 
 def create_appointment(
@@ -132,16 +141,10 @@ def create_appointment(
     time", not an error, and keep the local record as the source of truth
     for the booking. main_backend returns the existing appointment instead
     of a duplicate if the same farmer/date/time is sent twice."""
-    if not is_enabled():
+    if not will_attempt_appointment_sync(farmer_id):
         return None
     base = (_base_url() or "").rstrip("/")
     key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
-    if not base or not key:
-        _log.warning("flokiq_sync enabled but FLOKIQ_API_BASE_URL or FLOKIQ_INTERNAL_API_KEY unset -- skipping")
-        return None
-    if not _UUID_RE.match(str(farmer_id or "")):
-        _log.info("flokiq_sync skipped farmer=%s -- not a main_backend farmer id", farmer_id)
-        return None
 
     payload: dict[str, Any] = {
         "farmerId": farmer_id,
