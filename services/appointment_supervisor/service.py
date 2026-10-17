@@ -46,6 +46,7 @@ _TEXT = {
         "ready": "All required details are complete. Would you like to submit this appointment?",
         "submit_yes": "Please say submit when you are ready to save the appointment.",
         "submitted": "The appointment and animal health record were saved successfully.",
+        "submitted_sync_failed": "Your appointment is saved here, but I could not send it to the app right now. Please check the app later.",
         "animal_not_found": "I could not find an animal named or tagged '{identifier}' registered to you. Your registered animals are: {animals}. Please tell me the correct name, tag, or ID.",
         "no_animals_registered": "You do not have any animals registered yet, so I cannot match '{identifier}' to one. Please register an animal first, or ask a human vet directly.",
         "no": "What would you like to correct?",
@@ -63,6 +64,7 @@ _TEXT = {
         "ready": "सभी जरूरी जानकारी पूरी है। क्या आप अपॉइंटमेंट जमा करना चाहते हैं?",
         "submit_yes": "सेव करने के लिए कृपया सबमिट कहें।",
         "submitted": "अपॉइंटमेंट और पशु स्वास्थ्य रिकॉर्ड सफलतापूर्वक सेव हो गए हैं।",
+        "submitted_sync_failed": "आपका अपॉइंटमेंट यहाँ सेव है, लेकिन मैं इसे अभी ऐप में नहीं भेज सका। कृपया बाद में ऐप देखें।",
         "animal_not_found": "मुझे आपके नाम पर '{identifier}' नाम या टैग वाला कोई पशु नहीं मिला। आपके पंजीकृत पशु हैं: {animals}। कृपया सही नाम, टैग या आईडी बताएं।",
         "no_animals_registered": "आपके नाम पर अभी कोई पशु पंजीकृत नहीं है, इसलिए मैं '{identifier}' का मिलान नहीं कर सकता। कृपया पहले एक पशु पंजीकृत करें।",
         "no": "आप किस जानकारी को सुधारना चाहते हैं?",
@@ -80,6 +82,7 @@ _TEXT = {
         "ready": "सर्व आवश्यक माहिती पूर्ण आहे. तुम्हाला अपॉइंटमेंट सबमिट करायची आहे का?",
         "submit_yes": "सेव्ह करण्यासाठी कृपया सबमिट म्हणा.",
         "submitted": "अपॉइंटमेंट आणि जनावराचा आरोग्य रेकॉर्ड यशस्वीरित्या सेव्ह झाला आहे.",
+        "submitted_sync_failed": "तुमचे अपॉइंटमेंट येथे सेव्ह झाले आहे, पण मी ते आता अ‍ॅपमध्ये पाठवू शकलो नाही. कृपया नंतर अ‍ॅप तपासा.",
         "animal_not_found": "तुमच्या नावावर '{identifier}' नाव किंवा टॅग असलेले कोणतेही जनावर सापडले नाही. तुमची नोंदणीकृत जनावरे: {animals}. कृपया योग्य नाव, टॅग किंवा आयडी सांगा.",
         "no_animals_registered": "तुमच्या नावावर अजून कोणतेही जनावर नोंदणीकृत नाही, त्यामुळे मी '{identifier}' जुळवू शकत नाही. कृपया आधी एखादे जनावर नोंदणी करा.",
         "no": "तुम्हाला कोणती माहिती दुरुस्त करायची आहे?",
@@ -97,6 +100,7 @@ _TEXT = {
         "ready": "ആവശ്യമായ എല്ലാ വിവരങ്ങളും പൂർണ്ണമാണ്. ഈ അപ്പോയിന്റ്മെന്റ് സമർപ്പിക്കണോ?",
         "submit_yes": "സേവ് ചെയ്യാൻ തയ്യാറാകുമ്പോൾ 'സമർപ്പിക്കുക' എന്ന് പറയൂ.",
         "submitted": "അപ്പോയിന്റ്മെന്റും മൃഗത്തിന്റെ ആരോഗ്യ രേഖയും വിജയകരമായി സേവ് ചെയ്തു.",
+        "submitted_sync_failed": "നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് ഇവിടെ സേവ് ചെയ്തിട്ടുണ്ട്, പക്ഷേ ഇപ്പോൾ ആപ്പിലേക്ക് അയയ്ക്കാൻ കഴിഞ്ഞില്ല. ദയവായി പിന്നീട് ആപ്പ് പരിശോധിക്കൂ.",
         "animal_not_found": "നിങ്ങളുടെ പേരിൽ '{identifier}' എന്ന പേരോ ടാഗോ ഉള്ള മൃഗമില്ല. നിങ്ങൾ രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ: {animals}. ദയവായി ശരിയായ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി പറയൂ.",
         "no_animals_registered": "നിങ്ങളുടെ പേരിൽ ഇതുവരെ ഒരു മൃഗവും രജിസ്റ്റർ ചെയ്തിട്ടില്ല, അതിനാൽ '{identifier}' കണ്ടെത്താനായില്ല. ആദ്യം ഒരു മൃഗത്തെ രജിസ്റ്റർ ചെയ്യൂ.",
         "no": "ഏത് വിവരമാണ് തിരുത്തേണ്ടത്?",
@@ -114,6 +118,7 @@ _TEXT = {
         "ready": "தேவையான தகவல்கள் அனைத்தும் உள்ளன. இந்த சந்திப்பை சமர்ப்பிக்கவா?",
         "submit_yes": "சேமிக்க தயாரானதும் சமர்ப்பிக்கவும் என்று சொல்லுங்கள்.",
         "submitted": "சந்திப்பு மற்றும் விலங்கு சுகாதார பதிவு வெற்றிகரமாக சேமிக்கப்பட்டது.",
+        "submitted_sync_failed": "உங்கள் சந்திப்பு இங்கே சேமிக்கப்பட்டுள்ளது, ஆனால் இப்போது ஆப்பிற்கு அனுப்ப முடியவில்லை. தயவுசெய்து பின்னர் ஆப்பைப் பார்க்கவும்.",
         "animal_not_found": "'{identifier}' என்ற பெயர் அல்லது டேக் கொண்ட விலங்கு உங்கள் பெயரில் இல்லை. உங்கள் பதிவு செய்யப்பட்ட விலங்குகள்: {animals}. சரியான பெயர், டேக் அல்லது ஐடி தெரிவிக்கவும்.",
         "no_animals_registered": "உங்கள் பெயரில் இதுவரை எந்த விலங்கும் பதிவு செய்யப்படவில்லை, எனவே '{identifier}' ஐ பொருத்த முடியவில்லை. முதலில் ஒரு விலங்கைப் பதிவு செய்யவும்.",
         "no": "எந்த தகவலை திருத்த வேண்டும்?",
@@ -131,6 +136,7 @@ _TEXT = {
         "ready": "అవసరమైన వివరాలు పూర్తయ్యాయి. ఈ అపాయింట్‌మెంట్‌ను సమర్పించాలా?",
         "submit_yes": "సేవ్ చేయడానికి సిద్ధంగా ఉన్నప్పుడు సబ్మిట్ అని చెప్పండి.",
         "submitted": "అపాయింట్‌మెంట్ మరియు జంతు ఆరోగ్య రికార్డు విజయవంతంగా సేవ్ చేయబడ్డాయి.",
+        "submitted_sync_failed": "మీ అపాయింట్‌మెంట్ ఇక్కడ సేవ్ చేయబడింది, కానీ దీన్ని ఇప్పుడు యాప్‌కు పంపలేకపోయాను. దయచేసి తర్వాత యాప్‌ను చూడండి.",
         "animal_not_found": "'{identifier}' అనే పేరు లేదా ట్యాగ్ ఉన్న జంతువు మీ పేరు మీద కనిపించలేదు. మీ నమోదిత జంతువులు: {animals}. దయచేసి సరైన పేరు, ట్యాగ్ లేదా ఐడి చెప్పండి.",
         "no_animals_registered": "మీ పేరు మీద ఇంకా ఏ జంతువు నమోదు కాలేదు, కాబట్టి '{identifier}' సరిపోల్చలేను. దయచేసి ముందుగా ఒక జంతువును నమోదు చేయండి.",
         "no": "ఏ వివరాన్ని సరిచేయాలి?",
@@ -148,6 +154,7 @@ _TEXT = {
         "ready": "ಅಗತ್ಯ ವಿವರಗಳು ಪೂರ್ಣಗೊಂಡಿವೆ. ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಲ್ಲಿಸಬೇಕೇ?",
         "submit_yes": "ಉಳಿಸಲು ಸಿದ್ಧವಾದಾಗ ಸಬ್ಮಿಟ್ ಎಂದು ಹೇಳಿ.",
         "submitted": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಮತ್ತು ಪ್ರಾಣಿಯ ಆರೋಗ್ಯ ದಾಖಲೆ ಯಶಸ್ವಿಯಾಗಿ ಉಳಿಸಲಾಗಿದೆ.",
+        "submitted_sync_failed": "ನಿಮ್ಮ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಇಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ, ಆದರೆ ಇದನ್ನು ಈಗ ಅಪ್ಲಿಕೇಶನ್‌ಗೆ ಕಳುಹಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಅಪ್ಲಿಕೇಶನ್ ಪರಿಶೀಲಿಸಿ.",
         "animal_not_found": "'{identifier}' ಎಂಬ ಹೆಸರು ಅಥವಾ ಟ್ಯಾಗ್ ಇರುವ ಪ್ರಾಣಿ ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ. ನಿಮ್ಮ ನೋಂದಾಯಿತ ಪ್ರಾಣಿಗಳು: {animals}. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ ತಿಳಿಸಿ.",
         "no_animals_registered": "ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಇನ್ನೂ ಯಾವುದೇ ಪ್ರಾಣಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ '{identifier}' ಅನ್ನು ಹೊಂದಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಮೊದಲು ಒಂದು ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಿ.",
         "no": "ಯಾವ ವಿವರವನ್ನು ಸರಿಪಡಿಸಬೇಕು?",
@@ -1099,13 +1106,24 @@ class AppointmentSupervisor(DraftSupervisor):
             "animal_name": getattr(resolved_animal, "tag_or_name", None) or values.get("animal_identifier"),
             "species": getattr(resolved_animal, "species", None) or values.get("species"),
         }
-        flokiq_sync.create_appointment(
+        # Real bug, found in whole-stack review: the result was never
+        # checked, so the farmer heard "saved successfully" even when the
+        # sync to main_backend genuinely failed (network error, main_backend
+        # rejected it, etc). create_appointment also returns None when sync
+        # simply doesn't apply here (disabled, unconfigured, a local demo
+        # farmer_id) -- will_attempt_appointment_sync distinguishes "sync
+        # wasn't attempted" from "sync was attempted and failed," so the
+        # caveat below only fires for a genuine failure, not every booking
+        # in an environment where sync isn't even turned on.
+        sync_was_attempted = flokiq_sync.will_attempt_appointment_sync(farmer_id)
+        sync_result = flokiq_sync.create_appointment(
             farmer_id=farmer_id,
             date=str(values.get("date")),
             time=str(values.get("time")),
             notes=flokiq_sync.build_appointment_notes(notes_values),
             health_log_id=(flokiq_health_log or {}).get("log_id"),
         )
+        sync_failed = sync_was_attempted and sync_result is None
 
         # Show the recommendation to the farmer -- spoken via TTS same as
         # every other response, plus returned as structured data for the
@@ -1123,7 +1141,16 @@ class AppointmentSupervisor(DraftSupervisor):
         # (UI, orchestrator envelope) read one consistent field regardless
         # of which state the conversation ended in, instead of needing a
         # separate branch just for the submit shape.
-        submitted_text = self._message(draft["language"], "submitted")
+        # Reviewer-found issue: appending a "may take a little longer to
+        # show up in the app" caveat after "saved successfully" was still
+        # dishonest -- create_appointment has no retry/queue, so a failed
+        # sync NEVER reaches the app, not just later. On a genuine failure
+        # this replaces the message entirely rather than appending to it,
+        # so the farmer is never told the booking succeeded when the part
+        # that mattered (reaching the vet's app) did not.
+        submitted_text = self._message(
+            draft["language"], "submitted_sync_failed" if sync_failed else "submitted"
+        )
         if recommendation.get("first_aid_advice"):
             submitted_text = f"{submitted_text} {recommendation['first_aid_advice']}"
         return {
