@@ -283,6 +283,36 @@ _VALUE_HINTS_ENV = "QUERY_AGENT_VALUE_HINTS"
 _MAX_HINT_NAMES = 150
 _MAX_HINT_BREEDS = 60
 
+# The farmer's word for each stored species, given to the model so it names
+# the species correctly in its answer. Real bug found by the evals suite:
+# asked "LAKSHMI ഏത് മൃഗമാണ്?" the model read species 'buffalo' from the
+# database and still answered "...പശുവാണ്" ("is a cow") in 10 of 10 runs; a
+# rule saying "translate faithfully" was not enough. Same idea as
+# _COLUMN_LABELS above: a fixed catalog keyed by the English database value,
+# not an LLM guess. Only used to word the answer -- never to match or filter
+# what the farmer typed. A species missing here simply gets no hint (the
+# model translates it itself, as before), and English needs none.
+_SPECIES_WORDS = {
+    "hi": {"goat": "बकरी", "sheep": "भेड़", "buffalo": "भैंस", "cow": "गाय", "chicken": "मुर्गी"},
+    "mr": {"goat": "शेळी", "sheep": "मेंढी", "buffalo": "म्हैस", "cow": "गाय", "chicken": "कोंबडी"},
+    "ta": {"goat": "வெள்ளாடு", "sheep": "செம்மறி ஆடு", "buffalo": "எருமை", "cow": "பசு", "chicken": "கோழி"},
+    "te": {"goat": "మేక", "sheep": "గొర్రె", "buffalo": "గేదె", "cow": "ఆవు", "chicken": "కోడి"},
+    "kn": {"goat": "ಮೇಕೆ", "sheep": "ಕುರಿ", "buffalo": "ಎಮ್ಮೆ", "cow": "ಹಸು", "chicken": "ಕೋಳಿ"},
+    "ml": {"goat": "ആട്", "sheep": "ചെമ്മരിയാട്", "buffalo": "എരുമ", "cow": "പശു", "chicken": "കോഴി"},
+}
+
+
+def _reply_language(script_lang: str, labels_lang: str) -> str:
+    """Language the answer will be written in, for the species words. The
+    model answers in the language the farmer typed, so the query's script
+    wins; the app's language only decides when the script can't (Roman
+    letters look like English, and Devanagari can be Hindi or Marathi)."""
+    if script_lang == "en":
+        return labels_lang
+    if script_lang == "hi" and labels_lang == "mr":
+        return "mr"
+    return script_lang
+
 
 def _hint_values(farmer_id: str, sql: str, limit: int) -> "list[str]":
     """Distinct non-empty values from one SELECT, as strings. Any failure
@@ -309,9 +339,10 @@ def _hint_values(farmer_id: str, sql: str, limit: int) -> "list[str]":
     return out
 
 
-def _farm_values_for_prompt(farmer_id: str) -> str:
+def _farm_values_for_prompt(farmer_id: str, language: "str | None" = None) -> str:
     """'Values in this farmer's records' section of the instruction, or ''
-    when disabled or when nothing could be read."""
+    when disabled or when nothing could be read. `language` (a key of
+    _SPECIES_WORDS) adds the farmer's word for each stored species."""
     if os.getenv(_VALUE_HINTS_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
         return ""
     species = _hint_values(
@@ -331,6 +362,13 @@ def _farm_values_for_prompt(farmer_id: str) -> str:
     lines = ["", "Values in this farmer's records (exact stored spellings):"]
     if species:
         lines.append("- species: " + ", ".join(species))
+        words = _SPECIES_WORDS.get(language or "", {})
+        pairs = [f"{s} = {words[s]}" for s in species if s in words]
+        if pairs:
+            lines.append(
+                "- when your answer names a species, use exactly these words for it "
+                "(for a male animal, the male word if the language has one): "
+                + "; ".join(pairs))
     if breeds:
         lines.append("- breeds (species: breed): " + "; ".join(breeds))
     if names:
@@ -361,10 +399,11 @@ def _make_run_sql_query_tool(farmer_id: str):
     return run_sql_query
 
 
-def build_query_agent(farmer_id: str) -> LlmAgent:
+def build_query_agent(farmer_id: str, language: "str | None" = None) -> LlmAgent:
     """One Agent per farmer_id -- farmer_id is baked into the tool closure
     above, not passed through the model, so no prompt can ever redirect a
-    query at a different farmer's data."""
+    query at a different farmer's data. `language` is the answer's language
+    (see _reply_language); it only adds the species words to the prompt."""
     model_spec = model_for_task(TaskTier.GENERATION)
     schema = generate_schema_for_prompt()
 
@@ -380,7 +419,7 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
         ),
         model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
         instruction=_INSTRUCTION_TEMPLATE.format(
-            schema=schema, farm_values=_farm_values_for_prompt(farmer_id)),
+            schema=schema, farm_values=_farm_values_for_prompt(farmer_id, language)),
         tools=[_make_run_sql_query_tool(farmer_id)],
         # Saves the final answer into the session state, so the next turn
         # (and later, other agents) can read what was last answered.
@@ -511,7 +550,9 @@ async def _run_query_async(
     session_id: str | None = None,
     app_language: str | None = None,
 ) -> dict[str, Any]:
-    agent = build_query_agent(farmer_id)
+    lang = detect_language(query)
+    labels_lang = _labels_language(lang, app_language)
+    agent = build_query_agent(farmer_id, _reply_language(lang, labels_lang))
     service = _session_service()
     runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
@@ -540,8 +581,6 @@ async def _run_query_async(
 
     text_answer, speech_text = _split_text_and_speech(answer_text)
 
-    lang = detect_language(query)
-    labels_lang = _labels_language(lang, app_language)
     text_answer, speech_text = _localize_answer_digits(text_answer, speech_text, labels_lang)
 
     if last_successful_result is None:

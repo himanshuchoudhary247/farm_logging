@@ -71,4 +71,76 @@ def test_long_name_lists_are_capped(monkeypatch):
     assert f"TAG-{adk_agent._MAX_HINT_NAMES - 1:04d}" in block
     assert f"TAG-{adk_agent._MAX_HINT_NAMES:04d}" not in block
     assert "more exist" in block
-    
+
+
+# ---- species words in the farmer's language ------------------------------
+# Found by the evals suite: "LAKSHMI ഏത് മൃഗമാണ്?" read species 'buffalo'
+# but answered "...പശുവാണ്" ("is a cow") in 10 of 10 runs.
+
+
+def test_species_words_for_the_farmers_language():
+    block = _farm_values_for_prompt("f-001", "ml")
+    assert "buffalo = എരുമ" in block and "cow = പശു" in block
+    assert "goat = ആട്" in block and "chicken = കോഴി" in block
+
+
+def test_no_species_words_for_english_or_unknown_language():
+    for language in (None, "en", "xx"):
+        block = _farm_values_for_prompt("f-001", language)
+        assert "use exactly these words" not in block
+        assert "- species: " in block
+
+
+def test_species_words_only_for_species_the_farmer_has(monkeypatch):
+    def fake(sql, farmer_id):
+        return {"success": True, "rows": [["goat"]]}
+    monkeypatch.setattr(adk_agent, "execute_query", fake)
+    block = _farm_values_for_prompt("f-001", "hi")
+    assert "goat = बकरी" in block
+    assert "भैंस" not in block
+
+
+def test_every_app_language_has_all_five_species_words():
+    # Kept in step with _COLUMN_LABELS (the app's languages); English needs none.
+    want = {"goat", "sheep", "buffalo", "cow", "chicken"}
+    for lang in adk_agent._COLUMN_LABELS:
+        if lang == "en":
+            continue
+        assert set(adk_agent._SPECIES_WORDS.get(lang, {})) == want, lang
+
+
+def test_reply_language_follows_what_the_farmer_typed():
+    pick = adk_agent._reply_language
+    assert pick("ml", "ml") == "ml"
+    assert pick("ml", "en") == "ml"   # app in English, farmer typed Malayalam
+    assert pick("hi", "mr") == "mr"   # Devanagari in a Marathi app
+    assert pick("hi", "hi") == "hi"
+    assert pick("en", "ta") == "ta"   # Roman letters in a Tamil app
+    assert pick("en", "en") == "en"
+
+
+def test_turn_builds_the_agent_with_the_answer_language(monkeypatch):
+    # The real call path: process_query_adk -> _run_query_async -> build_query_agent.
+    import asyncio
+
+    seen = []
+
+    class _Stop(Exception):
+        pass
+
+    def fake_build(farmer_id, language=None):
+        seen.append((farmer_id, language))
+        raise _Stop()
+
+    monkeypatch.setattr(adk_agent, "build_query_agent", fake_build)
+    for query, app_language, want in (
+        ("LAKSHMI ഏത് മൃഗമാണ്?", "ml-IN", "ml"),
+        ("BIJLI कोणता प्राणी आहे?", "mr-IN", "mr"),
+        ("What animal is MOTI?", "en-IN", "en"),
+    ):
+        try:
+            asyncio.run(adk_agent._run_query_async(query, "f-001", None, app_language))
+        except _Stop:
+            pass
+        assert seen[-1] == ("f-001", want), (query, seen[-1])
+        
