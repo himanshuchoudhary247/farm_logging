@@ -184,8 +184,14 @@ def create_health_log(
     if not _UUID_RE.match(str(farmer_id or "")):
         _log.info("flokiq_sync skipped farmer=%s -- not a main_backend farmer id", farmer_id)
         return None
-    if not pincode:
-        _log.warning("flokiq_sync create_health_log skipped -- pincode required (NOT NULL), none available")
+    # Reviewer-found bug: values["weather_location"] (this function's
+    # pincode argument, from the call site) can be a place name like
+    # "Pune" rather than a PIN -- sending that as pincode would 400
+    # against main_backend's validation. pincode is NOT NULL there, so
+    # an invalid value has to be treated the same as a missing one
+    # (skip this sync), not sent and left to fail.
+    if not pincode or not _PIN_RE.match(str(pincode)):
+        _log.warning("flokiq_sync create_health_log skipped -- pincode is not a 6-digit PIN: %r", pincode)
         return None
 
     payload: dict[str, Any] = {
@@ -193,10 +199,24 @@ def create_health_log(
         "pincode": pincode,
         "symptomsReported": symptoms or [],
     }
-    if animal_id:
+    # Reviewer-found bug: main_backend requires animalId to be a UUID,
+    # but animals registered through Chocolate have local, non-UUID ids
+    # (e.g. "MLTEST03"). Sending one of those would 400 the ENTIRE health
+    # log, dropping real symptoms/AI-diagnosis data over a field that's
+    # optional on main_backend's side. Only send it when it's actually a
+    # main_backend-shaped id; otherwise the log still goes through, just
+    # without an animal link.
+    if animal_id and _UUID_RE.match(str(animal_id)):
         payload["animalId"] = animal_id
-    if risk_level:
-        payload["riskLevel"] = risk_level
+    # riskLevel comes from an LLM and main_backend only accepts the exact
+    # casing Low/Medium/High -- normalize here so a model that returns
+    # "low"/"LOW" doesn't 400 the log. An unrecognized value is omitted
+    # (optional on main_backend's side) rather than sent and rejected.
+    normalized_risk_level = {"low": "Low", "medium": "Medium", "high": "High"}.get(
+        str(risk_level or "").strip().lower()
+    )
+    if normalized_risk_level:
+        payload["riskLevel"] = normalized_risk_level
     if ai_diagnosis_suggestion:
         payload["aiDiagnosisSuggestion"] = ai_diagnosis_suggestion
     if potential_ailments:

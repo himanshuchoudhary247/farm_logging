@@ -102,11 +102,14 @@ def test_health_log_demo_farmer_id_is_skipped(health_on, monkeypatch):
     assert calls == []
 
 
+ANIMAL = "11111111-1111-1111-1111-111111111111"
+
+
 def test_health_log_sends_json_to_internal_route_with_key(health_on, monkeypatch):
     calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
     result = client.create_health_log(
         FARMER, "411001", ["fever", "not eating"],
-        animal_id="a-1", risk_level="Medium",
+        animal_id=ANIMAL, risk_level="Medium",
         ai_diagnosis_suggestion="Could be a sign of mastitis.",
         potential_ailments=["mastitis"], first_aid_advice="Keep hydrated.",
     )
@@ -118,12 +121,48 @@ def test_health_log_sends_json_to_internal_route_with_key(health_on, monkeypatch
         "farmerId": FARMER,
         "pincode": "411001",
         "symptomsReported": ["fever", "not eating"],
-        "animalId": "a-1",
+        "animalId": ANIMAL,
         "riskLevel": "Medium",
         "aiDiagnosisSuggestion": "Could be a sign of mastitis.",
         "potentialAilments": ["mastitis"],
         "firstAidAdvice": "Keep hydrated.",
     }
+
+
+def test_health_log_non_uuid_animal_id_is_omitted_not_fatal(health_on, monkeypatch):
+    """Real bug, review-found: animals registered through Chocolate have
+    local, non-UUID ids (e.g. "MLTEST03"). main_backend requires animalId
+    to be a UUID -- sending one of those would 400 the ENTIRE log,
+    dropping real symptoms/AI-diagnosis data over an optional field. The
+    log must still go through, just without the animal link."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    result = client.create_health_log(FARMER, "411001", ["fever"], animal_id="MLTEST03")
+    assert result == {"log_id": "h-1"}
+    assert "animalId" not in calls[0]["json"]
+
+
+def test_health_log_non_pin_pincode_skips_the_call(health_on, monkeypatch):
+    """Real bug, review-found: pincode here can be values["weather_location"],
+    which is sometimes a place name ("Pune") rather than a 6-digit PIN.
+    pincode is NOT NULL on main_backend -- sending a place name would
+    400, so it must be treated the same as a missing pincode (skip)."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log(FARMER, "Pune", ["fever"]) is None
+    assert calls == []
+
+
+def test_health_log_risk_level_is_normalized_to_main_backends_casing(health_on, monkeypatch):
+    """risk_level comes from an LLM; main_backend only accepts the exact
+    casing Low/Medium/High."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    client.create_health_log(FARMER, "411001", ["fever"], risk_level="low")
+    assert calls[0]["json"]["riskLevel"] == "Low"
+
+
+def test_health_log_unrecognized_risk_level_is_omitted(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    client.create_health_log(FARMER, "411001", ["fever"], risk_level="critical")
+    assert "riskLevel" not in calls[0]["json"]
 
 
 def test_health_log_missing_key_makes_no_call(health_on, monkeypatch):
