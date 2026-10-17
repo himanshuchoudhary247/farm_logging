@@ -269,6 +269,64 @@ def test_migrated_rows_are_persisted_on_next_write(storage_mod, tmp_path: Path, 
     assert on_disk[0]["channel"] == "chat", "the old record must be saved in the upgraded form"
 
 
+def test_merge_app_animals_no_remote_returns_local_unchanged(storage_mod) -> None:
+    from models import Animal
+
+    local = [Animal(id="a-1", farmer_id="f-1", species="goat", tag_or_name="GAURI")]
+    assert storage_mod.merge_app_animals("f-1", local, []) == local
+
+
+def test_merge_app_animals_adds_a_new_tag(storage_mod) -> None:
+    from models import Animal
+
+    local = [Animal(id="a-1", farmer_id="f-1", species="goat", tag_or_name="GAURI")]
+    remote = [{"id": "r-1", "uniqueAnimalId": "LAKSHMI", "species": "sheep", "breed": "Nellore", "sex": "female", "status": "active"}]
+
+    merged = storage_mod.merge_app_animals("f-1", local, remote)
+    tags = {a.tag_or_name for a in merged}
+    assert tags == {"GAURI", "LAKSHMI"}
+    lakshmi = next(a for a in merged if a.tag_or_name == "LAKSHMI")
+    assert lakshmi.id == "r-1"
+    assert lakshmi.species == "sheep"
+    assert lakshmi.breed == "Nellore"
+
+
+def test_merge_app_animals_remote_wins_on_matching_tag(storage_mod) -> None:
+    """main_backend's copy is the one visible in the app -- the
+    authoritative one for "does this farmer already have this animal."""
+    from models import Animal
+
+    local = [Animal(id="a-1", farmer_id="f-1", species="goat", tag_or_name="GAURI", breed="local-breed")]
+    remote = [{"id": "r-1", "uniqueAnimalId": "GAURI", "species": "goat", "breed": "app-breed"}]
+
+    merged = storage_mod.merge_app_animals("f-1", local, remote)
+    assert len(merged) == 1
+    assert merged[0].id == "r-1"
+    assert merged[0].breed == "app-breed"
+
+
+def test_merge_app_animals_matches_tag_case_insensitively(storage_mod) -> None:
+    from models import Animal
+
+    local = [Animal(id="a-1", farmer_id="f-1", species="goat", tag_or_name="Gauri")]
+    remote = [{"id": "r-1", "uniqueAnimalId": "GAURI", "species": "goat"}]
+
+    merged = storage_mod.merge_app_animals("f-1", local, remote)
+    assert len(merged) == 1
+    assert merged[0].id == "r-1"
+
+
+def test_merge_app_animals_skips_a_remote_entry_with_no_tag(storage_mod) -> None:
+    from models import Animal
+
+    local = [Animal(id="a-1", farmer_id="f-1", species="goat", tag_or_name="GAURI")]
+    remote = [{"id": "r-1", "uniqueAnimalId": "", "species": "sheep"}]
+
+    merged = storage_mod.merge_app_animals("f-1", local, remote)
+    assert len(merged) == 1
+    assert merged[0].id == "a-1"
+
+
 def test_migration_registry_versions_are_valid(storage_mod) -> None:
     """Guards future edits: every registered step must target a version in
     2..CURRENT_SCHEMA_VERSION, with no duplicate versions per file. This

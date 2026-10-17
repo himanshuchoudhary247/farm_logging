@@ -24,6 +24,7 @@ from storage import (
     append_appointment,
     append_health_log,
     animals_for_farmer,
+    merge_app_animals,
 )
 
 
@@ -776,7 +777,7 @@ class AppointmentSupervisor(DraftSupervisor):
         # once verified it's skipped for the rest of this booking.
         identifier = draft["draft"].get("animal_identifier")
         if identifier and not draft.get("animal_verified"):
-            animals = animals_for_farmer(farmer_id)
+            animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
             matched, candidates = _verify_animal(identifier, animals)
             if matched:
                 draft["draft"]["animal_id"] = matched.id
@@ -966,7 +967,7 @@ class AppointmentSupervisor(DraftSupervisor):
             raise ValueError("The appointment requires final confirmation before submission")
         values = draft["draft"]
         animal_id = values.get("animal_id")
-        animals = animals_for_farmer(farmer_id)
+        animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
         if not animal_id:
             wanted = str(values.get("animal_identifier") or "").lower()
             matches = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]

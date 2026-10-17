@@ -432,3 +432,70 @@ def save_geocode(
             )
     except requests.RequestException as exc:
         _log.warning("flokiq_sync save_geocode failed query=%s err=%s", query, exc)
+
+
+# A farmer's main_backend-side animals are cached briefly per farmer_id --
+# unlike a farm's PIN (rarely edited), animals can be added through the app
+# at any time, so this uses a much shorter TTL than _FARM_PIN_TTL_S. A
+# failed call is retried sooner still, same reasoning as the PIN cache: an
+# outage should not add the network timeout to every single chat turn.
+_FARM_ANIMALS_TTL_S = 120
+_FARM_ANIMALS_RETRY_S = 20
+_FARM_ANIMALS_CACHE_MAX = 1000
+_farm_animals_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_farm_animals_lock = threading.Lock()
+
+
+def get_farm_animals(farmer_id: str, timeout_s: float = 3.0) -> list[dict[str, Any]]:
+    """This farmer's animals in main_backend (GET /internal/farmers/
+    {farmer_id}/animals), so a farmer who added an animal in the app can
+    still be matched against it through the chatbot. Always returns a
+    list -- empty if sync is off/unconfigured, the farmer_id isn't a
+    main_backend farmer, the farm has no animals, or the call failed.
+    Never raises."""
+    if not is_enabled():
+        return []
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    if not base or not key or not _UUID_RE.match(str(farmer_id or "")):
+        return []
+
+    now = _now()
+    with _farm_animals_lock:
+        hit = _farm_animals_cache.get(farmer_id)
+        if hit is not None and hit[0] > now:
+            return hit[1]
+
+    animals, ttl = _fetch_farm_animals(base, key, farmer_id, timeout_s)
+    with _farm_animals_lock:
+        if len(_farm_animals_cache) >= _FARM_ANIMALS_CACHE_MAX:
+            _farm_animals_cache.clear()
+        _farm_animals_cache[farmer_id] = (now + ttl, animals)
+    return animals
+
+
+def _fetch_farm_animals(base: str, key: str, farmer_id: str, timeout_s: float) -> tuple[list[dict[str, Any]], float]:
+    """One call to main_backend: (animals, how long to cache the result)."""
+    try:
+        resp = requests.get(
+            f"{base}/internal/farmers/{farmer_id}/animals",
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync farm animals failed farmer=%s err=%s", farmer_id, exc)
+        return [], _FARM_ANIMALS_RETRY_S
+
+    if resp.status_code != 200:
+        _log.warning(
+            "flokiq_sync farm animals failed farmer=%s status=%s body=%s",
+            farmer_id, resp.status_code, resp.text[:200],
+        )
+        return [], _FARM_ANIMALS_RETRY_S
+
+    try:
+        animals = (resp.json() or {}).get("animals") or []
+    except ValueError:
+        animals = []
+    _log.info("flokiq_sync farm animals found=%d farmer=%s", len(animals), farmer_id)
+    return animals, _FARM_ANIMALS_TTL_S
