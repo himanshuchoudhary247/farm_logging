@@ -930,3 +930,112 @@ def test_bare_wrong_tag_no_with_no_other_field_still_resets_animal(tmp_path, mon
     result = supervisor.turn("demo-farmer", "session-bare-wrong-tag", "wrong tag", "en-IN")
     assert result["draft"].get("animal_identifier") is None, "a bare rejection with nothing else stated must still reset the animal"
     assert result["state"] == "COLLECTING"
+
+
+# ---- "no, not GAURI, it's MOTI" at the final readback ---------------------
+# Found by the evals suite (layer 2, case 006, all 7 languages). Entities
+# below use the keys the real extraction emits (animal_name, not
+# animal_identifier) and the farm's real pair of Sirohi goats.
+
+def _gauri_moti(monkeypatch):
+    animals = [
+        type("Animal", (), {"id": "a-gauri", "tag_or_name": "GAURI", "species": "goat"})(),
+        type("Animal", (), {"id": "a-moti", "tag_or_name": "MOTI", "species": "goat"})(),
+    ]
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: animals)
+    return animals
+
+
+_GAURI_BOOKING = {"animal_name": "GAURI", "issue": "fever", "symptoms": ["fever"], "date": "2026-08-22", "time": "10:00"}
+
+
+def _readback_then(monkeypatch, tmp_path, session, second_entities, language="en-IN", first_entities=None):
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": dict(first_entities or _GAURI_BOOKING), "intent": "CREATE_APPOINTMENT"},
+    )
+    first = supervisor.turn("demo-farmer", session, "GAURI has fever, day after tomorrow 10 am", language)
+    assert first["state"] == "CONFIRMING" and first["missing_fields"] == []
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": dict(second_entities), "confirmation_signal": "no"},
+    )
+    return supervisor, supervisor.turn("demo-farmer", session, "no wait, not GAURI, it's MOTI", language)
+
+
+def test_no_with_a_new_animal_switches_the_animal_and_keeps_the_booking(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti", {"animal_name": "MOTI"})
+    assert result["state"] == "CONFIRMING", "must read the booking back again, not ask what to correct"
+    assert result["draft"]["animal_identifier"] == "MOTI"
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert result["draft"]["date"] == "2026-08-22" and result["draft"]["time"] == "10:00"
+    assert "MOTI" in result["response_text"] and "2026-08-22" in result["response_text"]
+
+
+def test_no_with_a_new_animal_when_extraction_repeats_earlier_fields(tmp_path, monkeypatch):
+    """Same, when the extraction also hands back the fields it already knew
+    (the session cache) next to the new animal."""
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti-cached", {**_GAURI_BOOKING, "animal_name": "MOTI"})
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert result["draft"]["date"] == "2026-08-22"
+
+
+def test_new_animal_is_not_sent_to_the_off_topic_probe(tmp_path, monkeypatch):
+    """kn/ml/ta/te: the probe found MOTI in the database and answered with
+    MOTI's details instead of continuing the booking."""
+    _gauri_moti(monkeypatch)
+    calls = []
+
+    def probe(query, farmer_id):
+        calls.append(query)
+        return {"answer": "MOTI is a Sirohi goat", "sql": "SELECT 1", "data": [{"name": "MOTI"}]}
+
+    monkeypatch.setattr(service, "process_query", probe)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti-probe", {"animal_name": "MOTI"}, language="kn-IN")
+    assert calls == []
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert "Sirohi goat" not in result["response_text"]
+
+
+def test_no_with_a_new_date_updates_the_date(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-new-date", {"date": "2026-08-23"})
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["date"] == "2026-08-23"
+    assert result["draft"]["animal_id"] == "a-gauri", "the animal was not in question"
+
+
+def test_bare_no_at_readback_still_asks_what_to_correct(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-bare-no", {})
+    assert result["state"] == "CORRECTING"
+    assert result["response_text"] == "What would you like to correct?"
+
+
+def test_no_that_repeats_the_same_animal_in_another_script_is_a_bare_no(tmp_path, monkeypatch):
+    """The farmer first said "गौरी" (verified to GAURI by the fuzzy match).
+    The extraction repeating "गौरी" from the session cache is not a new
+    animal, so this is still a bare "no"."""
+    _gauri_moti(monkeypatch)
+    monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: ("a-gauri", []))
+    hindi = {**_GAURI_BOOKING, "animal_name": "गौरी"}
+    _, result = _readback_then(monkeypatch, tmp_path, "s-hi-same", hindi, language="hi-IN", first_entities=hindi)
+    assert result["state"] == "CORRECTING"
+    assert result["draft"]["animal_id"] == "a-gauri"
+
+
+def test_off_topic_question_at_readback_still_goes_to_the_probe(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    monkeypatch.setattr(
+        service, "process_query",
+        lambda query, farmer_id: {"answer": "You have 14 goats", "sql": "SELECT 1", "data": [{"n": 14}]},
+    )
+    _, result = _readback_then(monkeypatch, tmp_path, "s-offtopic", {})
+    assert result["response_text"] == "You have 14 goats"
+    assert result["draft"]["animal_id"] == "a-gauri"
+

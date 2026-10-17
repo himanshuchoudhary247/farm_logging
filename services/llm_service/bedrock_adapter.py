@@ -522,6 +522,9 @@ _EXTRACTION_TOOL_SPEC = {
                     "type": "string",
                     "description": (
                         "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD. "
+                        "A word for today, tomorrow or yesterday in any language or script "
+                        "(e.g. आज, இன்று, ఈరోజు, ಇಂದು, ഇന്ന് for today) is written as 'today', "
+                        "'tomorrow' or 'yesterday'. "
                         "Any other day the farmer names, in any language, must be written "
                         "as the ISO date found in the Calendar line -- look it up there, "
                         "never count days yourself: day after tomorrow (e.g. परसों, परवा, "
@@ -1060,3 +1063,4 @@ def generate_health_recommendation(
     except Exception as exc:
         _log.warning("generate_health_recommendation failed: %s", exc)
         return {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""}
+
