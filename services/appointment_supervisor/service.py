@@ -1084,7 +1084,7 @@ class AppointmentSupervisor(DraftSupervisor):
         # and swallowed inside flokiq_sync, never raised, never loses the
         # farmer's appointment.
         flokiq_health_log = flokiq_sync.create_health_log(
-            user_id=farmer_id,
+            farmer_id=farmer_id,
             pincode=str(values.get("weather_location") or ""),
             symptoms=values.get("symptoms") or [],
             animal_id=animal_id,
