@@ -388,14 +388,42 @@ def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
     # 03:44 IST, UTC clock still read 2026-09-10.
     today = datetime.now(ZoneInfo("Asia/Kolkata")).date()
     tomorrow = (today + timedelta(days=1)).isoformat()
+    calendar = _date_calendar(today)
+    calendar_line = f"\n{calendar}" if calendar else ""
 
     return f"""User: "{text}"
 Context: intent={json.dumps(session_intent)} entities={json.dumps(session_entities, ensure_ascii=False)} pending={json.dumps(pending_questions, ensure_ascii=False)}
-Today: {today.isoformat()} Tomorrow: {tomorrow}
+Today: {today.isoformat()} Tomorrow: {tomorrow}{calendar_line}
 Extract intent+entities. Return ONLY JSON."""
 
 
-# Bedrock Converse tool spec for extraction. The model calls this tool with
+# Calendar for the extraction prompt. Real bugs found by the evals suite:
+# with only "Today/Tomorrow" in the prompt the model had to count days
+# itself and got "day after tomorrow" wrong -- Kannada ನಾಡಿದ್ದು came back
+# as today or no date, Telugu ఎల్లుండి as tomorrow. With the coming days
+# listed it only has to look a day up, for any relative date in any
+# language (day after tomorrow, a weekday, "in 5 days"). Built fresh on
+# every call from the IST date passed in, never cached; weekday names come
+# from a fixed tuple so the server's locale can't change them.
+# EXTRACTION_DATE_CALENDAR=0 turns it off.
+_CALENDAR_ENV = "EXTRACTION_DATE_CALENDAR"
+_CALENDAR_DAYS = 21
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+_DAY_LABELS = {0: "today", 1: "tomorrow", 2: "day after tomorrow"}
+
+
+def _date_calendar(today) -> str:
+    """'Calendar (next 21 days): 2026-10-17 Saturday (today); ...' or ''
+    when turned off."""
+    if os.getenv(_CALENDAR_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    from datetime import timedelta
+    days = []
+    for offset in range(_CALENDAR_DAYS):
+        day = today + timedelta(days=offset)
+        label = f" ({_DAY_LABELS[offset]})" if offset in _DAY_LABELS else ""
+        days.append(f"{day.isoformat()} {_WEEKDAYS[day.weekday()]}{label}")
+    return f"Calendar (next {_CALENDAR_DAYS} days): " + "; ".join(days)
 # already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
 # strategies, no _coerce_confidence/_coerce_list shims. Verified working on
 # DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
@@ -494,6 +522,14 @@ _EXTRACTION_TOOL_SPEC = {
                     "type": "string",
                     "description": (
                         "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD. "
+                        "Any other day the farmer names, in any language, must be written "
+                        "as the ISO date found in the Calendar line -- look it up there, "
+                        "never count days yourself: day after tomorrow (e.g. परसों, परवा, "
+                        "நாளை மறுநாள், ఎల్లుండి, ನಾಡಿದ್ದು, മറ്റന്നാൾ); a weekday ('Monday', "
+                        "'next Monday', 'सोमवार को') is the first date after today with that "
+                        "weekday; 'in N days' is today plus N; a day of the month ('the "
+                        "20th', '20 तारीख') is the next date with that day number -- this "
+                        "month if it has not passed yet, otherwise next month. "
                         "Only set this when the farmer's words clearly express a date. A "
                         "bare number alone (e.g. '11', '55') does NOT clearly express a "
                         "date -- do NOT guess a day-of-month or default to today. Leave "
