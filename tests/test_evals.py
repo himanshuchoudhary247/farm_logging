@@ -55,7 +55,30 @@ def test_fill_replaces_tag_everywhere():
     conv = {"turns": [{"user": "EVAL-{tag}-X", "expect": {"reply_contains_any": ["EVAL-{tag}-X"]}}]}
     out = fill(conv, "123")
     assert out["turns"][0]["user"] == "EVAL-123-X"
-    assert out["turns"][0]["expect"]["reply_contains_any"] == ["EVAL-123-X"]
+
+
+def test_fill_replaces_date_placeholders():
+    from datetime import date
+    out = fill({"t": ["on {date+2}", "{date}", "{date-1}", "EVAL-{tag}"]}, "7", today=date(2026, 10, 17))
+    assert out["t"] == ["on 2026-10-19", "2026-10-17", "2026-10-16", "EVAL-7"]
+
+
+def test_fill_date_crosses_month_end():
+    from datetime import date
+    assert fill("{date+2}", "x", today=date(2026, 10, 31)) == "2026-11-02"
+
+
+def test_validate_flags_unknown_placeholders():
+    bad = [{"id": "X", "language": "en-IN", "turns": [{"user": "hi {dat+2}", "expect": {}}]}]
+    assert validate_conversations(bad) == ["X: unknown placeholder {dat+2}"]
+
+
+def test_every_booking_checks_the_date_the_bot_understood():
+    # "day after tomorrow" in each language must come back as today + 2.
+    convs = {c["id"]: c for c in load_conversations()}
+    for lang in ("en", "hi", "mr", "ta", "te", "kn", "ml"):
+        expect = convs[f"L1-{lang}-009"]["turns"][2]["expect"]
+        assert expect.get("reply_contains_all") == ["{date+2}"], lang
 
 
 def _f001_rows():

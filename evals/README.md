@@ -100,6 +100,9 @@ Conversation keys: `mutates: true` if it saves data; `data_checks` such as
 `{"file": "animals.json", "contains": "EVAL-{tag}-EN005"}` or
 `{"file": "appointments.json", "grew": true}`. `{tag}` is replaced with a
 unique value per run, so new IDs never clash.
+`{date}`, `{date+2}`, `{date-1}` become that day as YYYY-MM-DD, counted
+from today in India, so a booking can check the date the bot understood
+("day after tomorrow" -> `{date+2}`). `--validate` flags any other `{...}`.
 
 The expected facts come from `data/animals.json` for farmer f-001
 (53 animals: goat 14, sheep 7, buffalo 16, cow 9, chicken 7; breed counts and

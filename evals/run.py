@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import socket
 import statistics
 import subprocess
@@ -27,7 +28,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -86,17 +87,38 @@ def validate_conversations(convs: list[dict]) -> list[str]:
                 problems.append(f"{cid} turn {i}: unknown agent {agent!r}")
         if c.get("data_checks") and not c.get("mutates"):
             problems.append(f"{cid}: has data_checks but mutates is false")
+        for bad in sorted(set(_PLACEHOLDER.findall(json.dumps(c, ensure_ascii=False))) - {"tag"}):
+            if not _DATE_PLACEHOLDER.fullmatch("{" + bad + "}"):
+                problems.append(f"{cid}: unknown placeholder {{{bad}}}")
     return problems
 
 
-def fill(value, tag: str):
-    """Replace {tag} placeholders in strings, lists and dicts."""
+# {tag} -> unique per run. {date}, {date+2}, {date-1} -> that day as
+# YYYY-MM-DD, counted from today in India (the bot works out "today",
+# "tomorrow", "day after tomorrow" in IST too). Lets a booking check the
+# actual date the bot understood, not only the time: Kannada "ನಾಡಿದ್ದು"
+# (day after tomorrow) was saved as today and the old check still passed.
+IST = timezone(timedelta(hours=5, minutes=30))
+_PLACEHOLDER = re.compile(r"\{([^{}\s\"]+)\}")
+_DATE_PLACEHOLDER = re.compile(r"\{date(?:([+-])(\d{1,3}))?\}")
+
+
+def _date_for(match: re.Match, today) -> str:
+    sign, days = match.group(1), int(match.group(2) or 0)
+    return (today + timedelta(days=-days if sign == "-" else days)).isoformat()
+
+
+def fill(value, tag: str, today=None):
+    """Replace {tag} and {date+N} placeholders in strings, lists and dicts."""
+    if today is None:
+        today = datetime.now(IST).date()
     if isinstance(value, str):
-        return value.replace("{tag}", tag)
+        value = value.replace("{tag}", tag)
+        return _DATE_PLACEHOLDER.sub(lambda m: _date_for(m, today), value)
     if isinstance(value, list):
-        return [fill(v, tag) for v in value]
+        return [fill(v, tag, today) for v in value]
     if isinstance(value, dict):
-        return {k: fill(v, tag) for k, v in value.items()}
+        return {k: fill(v, tag, today) for k, v in value.items()}
     return value
 
 

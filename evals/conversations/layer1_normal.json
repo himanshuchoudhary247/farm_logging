@@ -171,6 +171,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -483,6 +486,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -791,6 +797,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -1098,6 +1107,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -1404,6 +1416,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -1719,6 +1734,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
@@ -2027,6 +2045,9 @@
               "2:00",
               "2 PM",
               "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
             ]
           }
         },
