@@ -1,0 +1,1468 @@
+{
+  "layer": 2,
+  "name": "complex",
+  "description": "Harder versions of layer 1: spelling slips, Roman letters, a misspelled animal name, a per-kind breakdown, bookings with a missing animal, a mid-flow animal change, weekday / next-weekday / in-N-days dates, a past date and a past time today. 11 per language. Bookings never get the final 'yes', so nothing is saved.",
+  "farmer_id": "f-001",
+  "facts_note": "Same farm as layer 1 (f-001): goat 14, buffalo 16, GAURI and MOTI = Sirohi goats. Dates and times use placeholders counted from now in IST: {date+N}, {next-mon}, {this-thu}, {past-time} (see evals/run.py).",
+  "conversations": [
+    {
+      "id": "L2-en-001",
+      "language": "en-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many goates do i hav",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-002",
+      "language": "en-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "u got how many buffalos on my farm",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-003",
+      "language": "en-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "what breed is GORI",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-004",
+      "language": "en-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many of each kind of animal do i have",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-005",
+      "language": "en-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "need a vet",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "she has fever",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "tag"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-006",
+      "language": "en-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI has fever, day after tomorrow 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "no wait, not GAURI, it's MOTI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-007",
+      "language": "en-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI has loose motions, need a vet on Thursday at 2 pm",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-008",
+      "language": "en-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI has loose motions, need a vet next Monday at 2 pm",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-009",
+      "language": "en-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI has fever, book a vet in 3 days at 11 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-010",
+      "language": "en-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI is coughing, book the vet for {date-2} at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "date"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-011",
+      "language": "en-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI has fever, need a vet today at {past-time}",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-001",
+      "language": "hi-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी बकरीया है",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-002",
+      "language": "hi-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "meri bakriyan kitni hain",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-003",
+      "language": "hi-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "गोरी की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-004",
+      "language": "hi-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "हर तरह के कितने जानवर हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-005",
+      "language": "hi-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "डॉक्टर बुलाना है",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "बुखार है",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "टैग"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-006",
+      "language": "hi-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI को बुखार है, परसों सुबह 10 बजे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "नहीं नहीं, GAURI नहीं, MOTI को",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-007",
+      "language": "hi-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI को दस्त हो रहे हैं, गुरुवार को दोपहर 2 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-008",
+      "language": "hi-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI को दस्त हो रहे हैं, अगले सोमवार दोपहर 2 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-009",
+      "language": "hi-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI को बुखार है, 3 दिन बाद सुबह 11 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-010",
+      "language": "hi-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI को खांसी है, {date-2} को सुबह 10 बजे डॉक्टर बुक करो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "तारीख"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-hi-011",
+      "language": "hi-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI को बुखार है, आज {past-time} बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-001",
+      "language": "mr-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किति शेळ्या आहेत",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-002",
+      "language": "mr-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "majhya kade kiti shelya ahet",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-003",
+      "language": "mr-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "गोरीची जात कोणती?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-004",
+      "language": "mr-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "प्रत्येक प्रकारचे किती जनावरे आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-005",
+      "language": "mr-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "डॉक्टर बोलवायचा आहे",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ताप आहे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "टॅग"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-006",
+      "language": "mr-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ला ताप आहे, परवा सकाळी 10 वाजता",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "नाही नाही, GAURI नाही, MOTI ला",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-007",
+      "language": "mr-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ला जुलाब होत आहेत, गुरुवारी दुपारी 2 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-008",
+      "language": "mr-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ला जुलाब होत आहेत, पुढच्या सोमवारी दुपारी 2 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-009",
+      "language": "mr-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI ला ताप आहे, 3 दिवसांनी सकाळी 11 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-010",
+      "language": "mr-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ला खोकला आहे, {date-2} ला सकाळी 10 वाजता डॉक्टर बुक करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "तारीख"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-011",
+      "language": "mr-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ला ताप आहे, आज {past-time} वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-001",
+      "language": "ta-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை வெள்ளாடு இருக்கு",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-002",
+      "language": "ta-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ennidam ethanai aadugal irukku",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-003",
+      "language": "ta-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "கோரி என்ன இனவகை?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-004",
+      "language": "ta-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ஒவ்வொரு வகையிலும் எத்தனை விலங்குகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-005",
+      "language": "ta-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "காய்ச்சல் இருக்கு",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "குறிச்சொல்"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-006",
+      "language": "ta-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI க்கு காய்ச்சல், நாளை மறுநாள் காலை 10 மணிக்கு",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "இல்லை இல்லை, GAURI இல்லை, MOTI க்கு",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-007",
+      "language": "ta-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI க்கு வயிற்றுப்போக்கு, வியாழக்கிழமை மதியம் 2 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-008",
+      "language": "ta-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI க்கு வயிற்றுப்போக்கு, அடுத்த திங்கட்கிழமை மதியம் 2 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-009",
+      "language": "ta-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI க்கு காய்ச்சல், 3 நாட்கள் கழித்து காலை 11 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-010",
+      "language": "ta-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI க்கு இருமல், {date-2} அன்று காலை 10 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "தேதி"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ta-011",
+      "language": "ta-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI க்கு காய்ச்சல், இன்று {past-time} மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-001",
+      "language": "te-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని మేకలు ఉన్నయి",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-002",
+      "language": "te-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "naa daggara enni mekalu unnayi",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-003",
+      "language": "te-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "గోరి బ్రీడ్ ఏమిటి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-004",
+      "language": "te-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ఒక్కో రకం జంతువులు ఎన్ని ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-005",
+      "language": "te-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "జ్వరం ఉంది",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "ట్యాగ్"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-006",
+      "language": "te-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI కి జ్వరం, ఎల్లుండి ఉదయం 10 గంటలకు",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "కాదు కాదు, GAURI కాదు, MOTI కి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-007",
+      "language": "te-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI కి విరేచనాలు, గురువారం మధ్యాహ్నం 2 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-008",
+      "language": "te-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI కి విరేచనాలు, వచ్చే సోమవారం మధ్యాహ్నం 2 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-009",
+      "language": "te-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI కి జ్వరం, 3 రోజుల తర్వాత ఉదయం 11 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-010",
+      "language": "te-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI కి దగ్గు, {date-2} న ఉదయం 10 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "తేదీ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-011",
+      "language": "te-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI కి జ్వరం, ఈరోజు {past-time} గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-001",
+      "language": "kn-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಹತ್ರ ಎಷ್ಟು ಮೇಕೆ ಇದೆ",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-002",
+      "language": "kn-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "nanna hatra eshtu mekegalu ive",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-003",
+      "language": "kn-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ಗೋರಿ ತಳಿ ಯಾವುದು?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-004",
+      "language": "kn-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ಪ್ರತಿ ವಿಧದ ಎಷ್ಟು ಪ್ರಾಣಿಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-005",
+      "language": "kn-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ಜ್ವರ ಇದೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "ಟ್ಯಾಗ್"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-006",
+      "language": "kn-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ಗೆ ಜ್ವರ, ನಾಡಿದ್ದು ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ಇಲ್ಲ ಇಲ್ಲ, GAURI ಅಲ್ಲ, MOTI ಗೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-007",
+      "language": "kn-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ಗೆ ಭೇದಿ, ಗುರುವಾರ ಮಧ್ಯಾಹ್ನ 2 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-008",
+      "language": "kn-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ಗೆ ಭೇದಿ, ಮುಂದಿನ ಸೋಮವಾರ ಮಧ್ಯಾಹ್ನ 2 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-009",
+      "language": "kn-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI ಗೆ ಜ್ವರ, 3 ದಿನದ ನಂತರ ಬೆಳಿಗ್ಗೆ 11 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-010",
+      "language": "kn-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ಗೆ ಕೆಮ್ಮು, {date-2} ರಂದು ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "ದಿನಾಂಕ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-kn-011",
+      "language": "kn-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ಗೆ ಜ್ವರ, ಇಂದು {past-time} ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-001",
+      "language": "ml-IN",
+      "title": "Goat count with a spelling slip",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ആട് ഉണ്ട്",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-002",
+      "language": "ml-IN",
+      "title": "Count typed in Roman letters / informal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ente kayyil ethra aadukal undu",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-003",
+      "language": "ml-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ഗോരി ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-004",
+      "language": "ml-IN",
+      "title": "Count of each kind of animal",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ഓരോ തരത്തിലും എത്ര മൃഗങ്ങൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_all": [
+              "16",
+              "14"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-005",
+      "language": "ml-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "പനിയുണ്ട്",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "ടാഗ്"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-006",
+      "language": "ml-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ക്ക് പനി, മറ്റന്നാൾ രാവിലെ 10 മണിക്ക്",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "അല്ല അല്ല, GAURI അല്ല, MOTI ക്ക്",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-007",
+      "language": "ml-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ക്ക് വയറിളക്കം, വ്യാഴാഴ്ച ഉച്ചയ്ക്ക് 2 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{this-thu}",
+              "{next-thu}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-008",
+      "language": "ml-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ക്ക് വയറിളക്കം, അടുത്ത തിങ്കളാഴ്ച ഉച്ചയ്ക്ക് 2 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "{next-mon}",
+              "{next-mon+7}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-009",
+      "language": "ml-IN",
+      "title": "Booking in 3 days",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "LAKSHMI ക്ക് പനി, 3 ദിവസം കഴിഞ്ഞ് രാവിലെ 11 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+3}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-010",
+      "language": "ml-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ക്ക് ചുമ, {date-2} ന് രാവിലെ 10 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{date-2}"
+            ],
+            "reply_contains_any": [
+              "തീയതി"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-011",
+      "language": "ml-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ക്ക് പനി, ഇന്ന് {past-time} മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_not_contains": [
+              "{past-time}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

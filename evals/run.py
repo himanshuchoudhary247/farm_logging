@@ -87,20 +87,31 @@ def validate_conversations(convs: list[dict]) -> list[str]:
                 problems.append(f"{cid} turn {i}: unknown agent {agent!r}")
         if c.get("data_checks") and not c.get("mutates"):
             problems.append(f"{cid}: has data_checks but mutates is false")
-        for bad in sorted(set(_PLACEHOLDER.findall(json.dumps(c, ensure_ascii=False))) - {"tag"}):
-            if not _DATE_PLACEHOLDER.fullmatch("{" + bad + "}"):
-                problems.append(f"{cid}: unknown placeholder {{{bad}}}")
+        for bad in sorted(set(_PLACEHOLDER.findall(json.dumps(c, ensure_ascii=False))) - {"tag", "past-time"}):
+            token = "{" + bad + "}"
+            if not (_DATE_PLACEHOLDER.fullmatch(token) or _WEEKDAY_PLACEHOLDER.fullmatch(token)):
+                problems.append(f"{cid}: unknown placeholder {token}")
     return problems
 
 
-# {tag} -> unique per run. {date}, {date+2}, {date-1} -> that day as
-# YYYY-MM-DD, counted from today in India (the bot works out "today",
-# "tomorrow", "day after tomorrow" in IST too). Lets a booking check the
-# actual date the bot understood, not only the time: Kannada "ನಾಡಿದ್ದು"
-# (day after tomorrow) was saved as today and the old check still passed.
+# Placeholders, all counted from "now" in India (the bot works out dates in
+# IST too), so a conversation checks the right answer on any day it runs:
+#   {tag}        unique per run, so new IDs never clash
+#   {date}, {date+2}, {date-1}   that day as YYYY-MM-DD. Lets a booking check
+#                the date the bot understood, not only the time: Kannada
+#                "ನಾಡಿದ್ದು" was saved as today and the old check still passed.
+#   {next-mon}   first Monday strictly after today (mon..sun); {next-mon+7}
+#                the one a week later -- "next Monday" can mean either.
+#   {this-mon}   today if today is Monday, else {next-mon} -- "on Monday"
+#                said on a Monday can mean today.
+#   {past-time}  HH:00 two hours ago (00:00 just after midnight): a time
+#                today that has always passed, for the "today 10 am at 1 pm"
+#                booking case.
 IST = timezone(timedelta(hours=5, minutes=30))
 _PLACEHOLDER = re.compile(r"\{([^{}\s\"]+)\}")
 _DATE_PLACEHOLDER = re.compile(r"\{date(?:([+-])(\d{1,3}))?\}")
+_WEEKDAY_PLACEHOLDER = re.compile(r"\{(next|this)-(mon|tue|wed|thu|fri|sat|sun)(?:\+(\d{1,3}))?\}")
+_WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 def _date_for(match: re.Match, today) -> str:
@@ -108,17 +119,32 @@ def _date_for(match: re.Match, today) -> str:
     return (today + timedelta(days=-days if sign == "-" else days)).isoformat()
 
 
-def fill(value, tag: str, today=None):
-    """Replace {tag} and {date+N} placeholders in strings, lists and dicts."""
+def _weekday_for(match: re.Match, today) -> str:
+    kind, name, extra = match.group(1), match.group(2), int(match.group(3) or 0)
+    ahead = (_WEEKDAYS.index(name) - today.weekday()) % 7
+    if ahead == 0 and kind == "next":
+        ahead = 7
+    return (today + timedelta(days=ahead + extra)).isoformat()
+
+
+def fill(value, tag: str, today=None, now=None):
+    """Replace the placeholders above in strings, lists and dicts. `today`
+    (a date) or `now` (a datetime) pin the clock for tests."""
+    if now is None:
+        now = datetime.now(IST)
+        if today is not None:
+            now = now.replace(year=today.year, month=today.month, day=today.day)
     if today is None:
-        today = datetime.now(IST).date()
+        today = now.date()
     if isinstance(value, str):
         value = value.replace("{tag}", tag)
+        value = value.replace("{past-time}", f"{max(now.hour - 2, 0):02d}:00")
+        value = _WEEKDAY_PLACEHOLDER.sub(lambda m: _weekday_for(m, today), value)
         return _DATE_PLACEHOLDER.sub(lambda m: _date_for(m, today), value)
     if isinstance(value, list):
-        return [fill(v, tag, today) for v in value]
+        return [fill(v, tag, today, now) for v in value]
     if isinstance(value, dict):
-        return {k: fill(v, tag, today) for k, v in value.items()}
+        return {k: fill(v, tag, today, now) for k, v in value.items()}
     return value
 
 
