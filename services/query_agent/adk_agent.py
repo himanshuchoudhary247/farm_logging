@@ -29,6 +29,7 @@ from google.adk.runners import InMemoryRunner, Runner
 from google.adk.sessions import BaseSessionService, InMemorySessionService
 from google.genai import types
 
+from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
@@ -248,6 +249,7 @@ Rules:
 - Use LOWER() for case-insensitive text filtering.
 - The database stores species/breed/status and other enum-like values in English only. Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
 - The section "Values in this farmer's records" below lists the exact species, breeds and animal names stored for this farmer. Map the farmer's words (in any language or script) to one of those exact values before writing SQL: a local-language species word to its English species value, a breed name to the listed breed spelling, and an animal name written in another script or spelling to the listed name as stored (names are usually stored in Latin capitals). Do not filter on a value that is not in that list; if nothing in the list matches, run a query to check before saying it does not exist.
+- The farmer's message may end with a note saying which stored animal a word most likely refers to (found by comparing how the word sounds with the farmer's stored names, in any script). Treat that word as that animal's name and look the animal up -- do not read it as a species or another word that sounds alike. Only if the rest of the message clearly shows the farmer means something else, follow the farmer.
 - When your answer names an animal's species, translate the English database value faithfully into the farmer's language (a buffalo is never a cow, a goat is never a sheep).
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
 - If asking for a single total/count, give just the number in your answer.
@@ -377,6 +379,59 @@ def _farm_values_for_prompt(farmer_id: str, language: "str | None" = None) -> st
         lines.append("- animal names/tags: " + ", ".join(shown)
                      + (" (more exist; query to check others)" if more else ""))
     return "\n".join(lines) + "\n"
+
+
+# Name notes for the farmer's message. Farmers type an animal's name in
+# their own script and spelling (गोरी, గౌరి, கௌரி for a stored "GAURI"), and
+# the model, even with the names listed above, often fails to connect them
+# -- it may read the name as a similar-sounding word (a species) or answer
+# that no such animal exists. Each word of the message is compared with the
+# farmer's own stored names by sound (services/common/name_match.py); a
+# confident match is added as a short note at the end of the message. No
+# model call, no word lists. QUERY_AGENT_NAME_HINTS=0 turns it off.
+_NAME_HINTS_ENV = "QUERY_AGENT_NAME_HINTS"
+_MAX_NAME_NOTES = 3
+# One row (group_concat) so the result is not cut at db._MAX_ROWS.
+_ALL_NAMES_SQL = (
+    "SELECT group_concat(tag_or_name, char(10)) FROM "
+    "(SELECT DISTINCT tag_or_name FROM animals "
+    "WHERE tag_or_name IS NOT NULL AND tag_or_name != '')"
+)
+
+
+def _stored_animal_names(farmer_id: str) -> "list[str]":
+    """All of this farmer's animal names/tags. [] if they can't be read."""
+    try:
+        result = execute_query(_ALL_NAMES_SQL, farmer_id)
+    except Exception as exc:
+        logger.warning("query_agent name notes skipped farmer=%s: %s", farmer_id, exc)
+        return []
+    if not result.get("success"):
+        logger.warning("query_agent name notes skipped farmer=%s: %s", farmer_id, result.get("error"))
+        return []
+    rows = result.get("rows") or []
+    joined = rows[0][0] if rows and rows[0] else None
+    return [n.strip() for n in str(joined or "").split("\n") if n.strip()]
+
+
+def _with_name_notes(query: str, farmer_id: str) -> str:
+    """`query` plus a note for each word that most likely names one of the
+    farmer's animals, or `query` unchanged when nothing matches, the store
+    can't be read, or the feature is turned off."""
+    if os.getenv(_NAME_HINTS_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return query
+    names = _stored_animal_names(farmer_id)
+    if not names:
+        return query
+    mentions = find_name_mentions(query, names)[:_MAX_NAME_NOTES]
+    if not mentions:
+        return query
+    logger.info(
+        "query_agent name notes farmer=%s %s", farmer_id,
+        ", ".join(f"{m.word!r}->{m.name} ({m.score})" for m in mentions),
+    )
+    notes = "; ".join(f'"{m.word}" most likely means the farmer\'s animal {m.name}' for m in mentions)
+    return f"{query}\n\n(Note: {notes}.)"
 
 
 def _make_run_sql_query_tool(farmer_id: str):
@@ -557,7 +612,7 @@ async def _run_query_async(
     runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
     session = await _get_or_create_session(service, user_id, session_id)
-    message = types.Content(role="user", parts=[types.Part(text=query)])
+    message = types.Content(role="user", parts=[types.Part(text=_with_name_notes(query, farmer_id))])
 
     answer_text: str | None = None
     last_successful_result: dict[str, Any] | None = None
