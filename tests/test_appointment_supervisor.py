@@ -150,6 +150,30 @@ def test_bare_reply_to_targeted_field_question_is_wired_as_context(tmp_path, mon
     assert "animal_identifier" not in second["missing_fields"]
 
 
+def test_app_added_animal_is_matchable_via_chocolate(tmp_path, monkeypatch):
+    """Real gap, found in live-sync review: a farmer who adds an animal in
+    the app couldn't book an appointment for it through Chocolate, since
+    the chatbot only ever checked its own local store. No local animal
+    at all here -- the match must come entirely from flokiq_sync's
+    main_backend animal list."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "LAKSHMI"}},
+    )
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service.flokiq_sync, "get_farm_animals",
+        lambda farmer_id: [{"id": "app-animal-1", "uniqueAnimalId": "LAKSHMI", "species": "sheep"}],
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+
+    result = supervisor.turn("demo-farmer", "session-app-animal", "LAKSHMI has a limp", "en-IN")
+
+    assert result["draft"]["animal_id"] == "app-animal-1"
+    assert result["draft"]["animal_identifier"] == "LAKSHMI"
+
+
 def test_animal_tag_bridges_to_animal_identifier(tmp_path, monkeypatch):
     """_copy_entities must accept either animal_tag (bare ear-tag/ID number,
     the extraction schema's field for exactly this) or animal_name -- only
@@ -1039,3 +1063,92 @@ def test_off_topic_question_at_readback_still_goes_to_the_probe(tmp_path, monkey
     assert result["response_text"] == "You have 14 goats"
     assert result["draft"]["animal_id"] == "a-gauri"
 
+
+def _submit_appointment(tmp_path, monkeypatch, session_id, create_appointment_stub, will_attempt_stub):
+    """Shared setup for the sync-outcome-messaging tests below: drives a
+    full turn/confirm/submit sequence, same shape as
+    test_flokiq_sync_notes_name_the_real_animal, returning the final
+    submit result."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {
+                "animal_identifier": "GAURI", "issue": "not eating",
+                "date": "2026-09-20", "time": "17:00",
+            }
+        },
+    )
+    fake_animal = type("Animal", (), {"id": "a-gauri", "tag_or_name": "GAURI", "species": "goat"})()
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [fake_animal])
+    monkeypatch.setattr(service, "append_health_log", lambda *a, **k: type("H", (), {"id": "h-1", "model_dump": lambda self: {"id": "h-1"}})())
+    monkeypatch.setattr(service, "append_appointment", lambda *a, **k: type("A", (), {"id": "a-1", "model_dump": lambda self: {"id": "a-1"}})())
+    monkeypatch.setattr(service, "append_ai_health_log", lambda **k: None)
+    monkeypatch.setattr(
+        service, "generate_health_recommendation",
+        lambda **k: {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""},
+    )
+    monkeypatch.setattr(service.flokiq_sync, "create_health_log", lambda **k: None)
+    monkeypatch.setattr(service.flokiq_sync, "will_attempt_appointment_sync", will_attempt_stub)
+    monkeypatch.setattr(service.flokiq_sync, "create_appointment", create_appointment_stub)
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    supervisor.turn("demo-farmer", session_id, "GAURI, not eating, tomorrow 5pm", "en-IN")
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "yes"},
+    )
+    supervisor.turn("demo-farmer", session_id, "cool", "en-IN")
+    return supervisor.turn("demo-farmer", session_id, "yes", "en-IN")
+
+
+def test_sync_failure_replaces_the_message_not_appends_to_it(tmp_path, monkeypatch):
+    """Real bug, found in whole-stack review: create_appointment's return
+    value was never checked, so the farmer heard "saved successfully"
+    even when the sync to main_backend genuinely failed. A follow-up
+    review found the FIRST fix still dishonest: appending "may take a
+    little longer to show up in the app" after "saved successfully"
+    implies the app will eventually get it -- create_appointment has no
+    retry/queue, so on a real failure it never does. A genuine
+    attempted-and-failed sync must now use an honest, full replacement
+    message instead of appending a soft caveat to the success one."""
+    result = _submit_appointment(
+        tmp_path, monkeypatch, "session-sync-fail",
+        create_appointment_stub=lambda **k: None,
+        will_attempt_stub=lambda farmer_id: True,
+    )
+    assert "could not send it to the app" in result["response_text"], (
+        f"a genuine sync failure must show the honest message: {result['response_text']!r}"
+    )
+    assert "saved successfully" not in result["response_text"], (
+        f"the success sentence must not appear alongside the failure message: {result['response_text']!r}"
+    )
+
+
+def test_sync_not_attempted_stays_silent(tmp_path, monkeypatch):
+    """create_appointment also returns None when sync simply doesn't
+    apply (disabled, unconfigured, a local demo farmer_id) -- that is
+    NOT a failure, and must not trigger the honest-failure message.
+    Otherwise it would fire on every single booking in any environment
+    where sync isn't even turned on, which is misleading in the other
+    direction."""
+    result = _submit_appointment(
+        tmp_path, monkeypatch, "session-sync-not-applicable",
+        create_appointment_stub=lambda **k: None,
+        will_attempt_stub=lambda farmer_id: False,
+    )
+    assert "could not send it to the app" not in result["response_text"], (
+        f"sync not applying here must stay silent: {result['response_text']!r}"
+    )
+
+
+def test_successful_sync_stays_silent(tmp_path, monkeypatch):
+    result = _submit_appointment(
+        tmp_path, monkeypatch, "session-sync-ok",
+        create_appointment_stub=lambda **k: {"id": "appt-123"},
+        will_attempt_stub=lambda farmer_id: True,
+    )
+    assert "could not send it to the app" not in result["response_text"], (
+        f"a successful sync must not show the failure message: {result['response_text']!r}"
+    )
+    
