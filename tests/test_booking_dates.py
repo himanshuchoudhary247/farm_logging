@@ -151,3 +151,93 @@ def test_later_time_today_and_past_time_tomorrow_are_stored(tmp_path, monkeypatc
     tomorrow = _time_turns(tmp_path / "b", monkeypatch, [{"issue": "fever", "date": "2026-10-18", "time": "17:00"}])
     assert tomorrow["draft"].get("time") == "17:00"
 
+
+
+# ---- weekday names in the farmer's language -------------------------------
+# With only English weekday names in the calendar, Malayalam "വ്യാഴാഴ്ച"
+# (Thursday) kept coming back as Wednesday's date.
+
+def test_weekday_lookup_gives_the_first_date_after_today():
+    lookup = bedrock_adapter._weekday_lookup(date(2026, 10, 17))  # a Saturday
+    assert "Monday = 2026-10-19" in lookup
+    assert "Thursday = 2026-10-22" in lookup
+    assert "Sunday = 2026-10-18" in lookup
+    assert "Saturday = 2026-10-24" in lookup, "today's own weekday is next week's"
+
+
+def test_weekday_lookup_names_each_day_in_every_supported_script():
+    lookup = bedrock_adapter._weekday_lookup(date(2026, 10, 17))
+    thursday = lookup.split("Thursday = ")[1].split(";")[0]
+    for word in ("गुरुवार", "வியாழக்கிழமை", "గురువారం", "ಗುರುವಾರ", "വ്യാഴാഴ്ച"):
+        assert word in thursday
+    assert len(bedrock_adapter._WEEKDAY_WORDS) == 7
+
+
+def test_weekday_lookup_in_prompt_and_kill_switch(monkeypatch):
+    assert "Weekday dates (first date after today)" in bedrock_adapter.build_prompt("x")
+    monkeypatch.setenv("EXTRACTION_DATE_CALENDAR", "0")
+    assert bedrock_adapter._weekday_lookup(date(2026, 10, 17)) == ""
+    assert "Weekday dates" not in bedrock_adapter.build_prompt("x")
+
+
+
+# ---- backstop: farmer named a weekday, extraction returned another --------
+# Even with the weekday table, the model returned Wednesday's date for
+# Malayalam "വ്യാഴാഴ്ച" (Thursday) 6/6 times. Today below is a Sunday.
+
+_SUNDAY = date(2026, 10, 18)
+
+
+def test_wrong_weekday_date_is_moved_to_the_named_weekday():
+    out = bedrock_adapter._check_weekday_date(
+        "MOTI ക്ക് വയറിളക്കം, വ്യാഴാഴ്ച ഉച്ചയ്ക്ക് 2 മണിക്ക് ഡോക്ടറെ വേണം",
+        {"animal_name": "MOTI", "date": "2026-10-21", "time": "14:00"}, today=_SUNDAY)
+    assert out["date"] == "2026-10-22"
+    assert out["time"] == "14:00" and out["animal_name"] == "MOTI"
+
+
+def test_named_weekday_in_any_language_or_english_with_case_endings():
+    for text in ("गुरुवारी दुपारी 2 वाजता", "ಗುರುವಾರದಂದು ಬರಬೇಕು", "come on Thursday.", "வியாழக்கிழமை மதியம்"):
+        out = bedrock_adapter._check_weekday_date(text, {"date": "2026-10-23"}, today=_SUNDAY)
+        assert out["date"] == "2026-10-22", text
+
+
+def test_next_week_stays_next_week():
+    out = bedrock_adapter._check_weekday_date("अगले गुरुवार", {"date": "2026-10-28"}, today=_SUNDAY)
+    assert out["date"] == "2026-10-29"
+
+
+def test_left_alone_when_there_is_nothing_to_fix():
+    cases = [
+        ("గురువారం డాక్టర్ కావాలి", {"date": "2026-10-22"}),     # already right
+        ("గురువారం డాక్టర్ కావాలి", {"date": "2026-10-29"}),     # right weekday, next week
+        ("सोमवार या मंगलवार", {"date": "2026-10-21"}),            # two weekdays named
+        ("25 तारीख को", {"date": "2026-10-25"}),                  # no weekday named
+        ("गुरुवार", {"date": "tomorrow"}),                         # not an ISO date
+        ("गुरुवार", {"date": "2026-11-20"}),                       # more than two weeks out
+        ("गुरुवार", {"issue": "fever"}),                           # no date at all
+    ]
+    for text, entities in cases:
+        assert bedrock_adapter._check_weekday_date(text, entities, today=_SUNDAY) == entities, text
+
+
+def test_weekday_check_kill_switch(monkeypatch):
+    monkeypatch.setenv("EXTRACTION_WEEKDAY_CHECK", "0")
+    entities = {"date": "2026-10-21"}
+    assert bedrock_adapter._check_weekday_date("വ്യാഴാഴ്ച", entities, today=_SUNDAY) == entities
+
+
+def test_call_bedrock_returns_the_checked_date(monkeypatch):
+    # The real call_bedrock path, with the model's reply faked.
+    monkeypatch.setattr(bedrock_adapter, "_today_ist_date", lambda: _SUNDAY)
+    monkeypatch.setattr(
+        bedrock_adapter.BedrockTextAdapter, "__init__", lambda self, task=None: None)
+    monkeypatch.setattr(
+        bedrock_adapter.BedrockTextAdapter, "converse_with_tool",
+        lambda self, **kw: {"tool_input": {"intent": "CREATE_APPOINTMENT", "animal_name": "MOTI",
+                                           "date": "2026-10-21", "time": "14:00"}, "text": None})
+    out = bedrock_adapter.call_bedrock("MOTI ക്ക് വയറിളക്കം, വ്യാഴാഴ്ച ഉച്ചയ്ക്ക് 2 മണിക്ക്")
+    assert out["entities"]["date"] == "2026-10-22"
+    assert out["intent"] == "CREATE_APPOINTMENT"
+
+    

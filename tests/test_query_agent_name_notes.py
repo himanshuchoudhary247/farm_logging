@@ -65,4 +65,13 @@ def test_real_farm_data():
     # The real store and SQL (f-001, the demo farmer in data/).
     out = _with_name_notes("గోరి బ్రీడ్ ఏమిటి?", "f-001")
     assert "GAURI" in out
+
+
+
+def test_instruction_covers_local_words_in_english_letters():
+    # Roman-script Tamil "ennidam ethanai aadugal irukku" (how many goats)
+    # was answered with all 53 animals: the species filter was dropped.
+    assert "English letters" in _INSTRUCTION_TEMPLATE
+    assert "never count or list all animals without that species filter" in _INSTRUCTION_TEMPLATE
     
+       
