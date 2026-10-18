@@ -162,17 +162,20 @@ def _score(key: str, name_key: str) -> float:
     return max(score, 0.9) if ends_with_case else score
 
 
-def find_name_mentions(text: str, names: Iterable[str], cutoff: float = DEFAULT_CUTOFF) -> List[NameMention]:
+def find_name_mentions(text: str, names: Iterable[str], cutoff: float = DEFAULT_CUTOFF,
+                       include_exact: bool = False) -> List[NameMention]:
     """Words of `text` that most likely refer to one of `names`, best first,
     at most one per stored name. A word already equal to a stored name
-    (ignoring case) is skipped -- nothing to tell the model there."""
+    (ignoring case) is skipped -- nothing to tell the model there -- unless
+    include_exact is set (for callers that need every name mentioned, not
+    only the ones spelled differently)."""
     usable = [n for n in dict.fromkeys(names) if n and _usable(n)]
     if not usable:
         return []
     keys = {n: (sound_key(n), sound_key(n, fold_voicing=True)) for n in usable}
     best: dict = {}
     for word in _WORD.findall(text or ""):
-        if any(word.casefold() == n.casefold() for n in usable):
+        if not include_exact and any(word.casefold() == n.casefold() for n in usable):
             continue
         tamil = _is_tamil(word)
         key = sound_key(word, fold_voicing=tamil)

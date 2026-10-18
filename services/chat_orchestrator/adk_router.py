@@ -32,12 +32,14 @@ from google.genai import types
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
+from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 from services.llm_service.adk_model import build_adk_model
+from storage import animals_for_farmer
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
@@ -243,6 +245,51 @@ def _side_question_envelope(agent: str, intent: str, result: dict[str, Any], sid
     return _envelope(agent, intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
 
+# The animal the farmer was just talking about. "What breed is KAALI?" then
+# "she is limping, book a vet for her": the booking asked for the animal
+# again (seen live in en/hi). After a farm-data question that names exactly
+# one of the farmer's own stored animals (in the question or the answer, any
+# script or spelling), that name is kept for the NEXT turn only; a new
+# booking started on that turn uses it when it names no animal itself. Any
+# other turn clears it. Kill switch: CHAT_RECENT_ANIMAL=0.
+_RECENT_ANIMAL_ENV = "CHAT_RECENT_ANIMAL"
+
+
+def _recent_animal_on() -> bool:
+    return os.getenv(_RECENT_ANIMAL_ENV, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _recent_animal_key(farmer_id: str, session_id: str) -> str:
+    return f"{farmer_id}:{session_id}:recent_animal"
+
+
+def _take_recent_animal(farmer_id: str, session_id: str) -> Optional[str]:
+    """The animal kept by the previous turn, cleared on read so it lasts one turn."""
+    if not _recent_animal_on():
+        return None
+    key = _recent_animal_key(farmer_id, session_id)
+    name = get_session(key).get("name")
+    if name:
+        update_session(key, {"name": None})
+    return name or None
+
+
+def _remember_animal(farmer_id: str, session_id: str, *texts: str) -> None:
+    """Keep the one stored animal named in these texts, if exactly one is."""
+    if not _recent_animal_on():
+        return
+    try:
+        names = [a.tag_or_name for a in animals_for_farmer(farmer_id)]
+        found = {m.name for t in texts for m in find_name_mentions(t or "", names, include_exact=True)}
+    except Exception as exc:
+        _log.warning("adk_router recent animal lookup failed farmer=%s: %s", farmer_id, exc)
+        return
+    if len(found) == 1:
+        name = found.pop()
+        update_session(_recent_animal_key(farmer_id, session_id), {"name": name})
+        _log.info("adk_router recent animal farmer=%s session=%s animal=%s", farmer_id, session_id, name)
+
+
 def _side_question_reply(intent: str, result: dict[str, Any], farmer_id: str, session_id: str,
                          text: str, language: str, previous_asks: int = 0) -> str:
     """Answer text for a side question: the query agent's answer the open
@@ -347,6 +394,7 @@ def route_turn_adk(
         return label if label and _allowed(label) else None
 
     side_question = _side_question if _side_questions_on() else None
+    recent_animal = _take_recent_animal(farmer_id, session_id)
 
     for agent, flow_intent, supervisor, has_draft in (
         ("appointment_supervisor", "appointment", _appointment_supervisor, _has_active_booking_draft),
@@ -426,6 +474,9 @@ def route_turn_adk(
     # `query` for anything unrecognized -- matches _make_record_route_tool's
     # own "unknown -> query" guard, so one behavior in one place instead of
     # two places drifting.
+    if intent == "appointment" and recent_animal:
+        return _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent,
+                                     recent_animal=recent_animal)
     handler = _DISPATCH_TABLE.get(intent) or _DISPATCH_TABLE["query"]
     return handler(farmer_id, session_id, text, language, include_audio, intent)
 
@@ -438,8 +489,12 @@ def route_turn_adk(
 # functions so the dispatch table below is a plain literal a reader can
 # eyeball at a glance.
 
-def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent):
-    result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent, recent_animal=None):
+    if recent_animal:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio,
+                                              recent_animal=recent_animal)
+    else:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
     reply = _reply_text("appointment_supervisor", result)
     return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
@@ -464,6 +519,7 @@ def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent
         session_id=session_id, app_language=language,
     )
     reply = result.get("answer") or ""
+    _remember_animal(farmer_id, session_id, text, reply)
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
 
 
