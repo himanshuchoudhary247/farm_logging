@@ -73,5 +73,15 @@ def test_instruction_covers_local_words_in_english_letters():
     # was answered with all 53 animals: the species filter was dropped.
     assert "English letters" in _INSTRUCTION_TEMPLATE
     assert "never count or list all animals without that species filter" in _INSTRUCTION_TEMPLATE
+
+
+def test_instruction_covers_a_word_that_means_more_than_one_species():
+    # Roman Tamil "ennidam ethanai aadugal irukku": "aadu" alone covers goats
+    # and sheep; the agent picked sheep only (7) in 2 of 3 runs. It must give
+    # each species it can mean, and still filter when the kind is said.
+    assert "can mean more than one stored species" in _INSTRUCTION_TEMPLATE
+    assert "do not pick one species yourself" in _INSTRUCTION_TEMPLATE
+    assert "do not list the whole farm" in _INSTRUCTION_TEMPLATE
+    assert "filter on that one species only" in _INSTRUCTION_TEMPLATE
     
        
