@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from base64 import b64encode
 from typing import Any, Optional
 
@@ -195,6 +196,64 @@ def _looks_like_pin(text: str) -> bool:
 
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
+
+
+# Side questions during an open booking/registration. A farmer in the middle
+# of a booking asked "how many goats do I have?" or "what's the weather in
+# Pune today?" and the booking took the message: the question went
+# unanswered, and "today" became the booking date (seen live in en/hi/ta).
+# The open flow now asks the classifier (only on a turn that adds nothing to
+# it) and hands weather/query questions back here, untouched. Kill switch:
+# CHAT_SIDE_QUESTIONS=0 sends every sticky turn to the open flow as before.
+_SIDE_QUESTIONS_ENV = "CHAT_SIDE_QUESTIONS"
+
+
+def _side_questions_on() -> bool:
+    return os.getenv(_SIDE_QUESTIONS_ENV, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _side_question_label(text: str) -> Optional[str]:
+    """The classifier's intent when it names another agent that can answer
+    on its own (weather, query); None otherwise."""
+    intent = asyncio.run(_classify_intent_async(text))
+    _log.info("adk_router side-question check text=%r intent=%s", text[:200], intent)
+    return intent if intent in ("weather", "query") else None
+
+
+def _waiting_weather_pin(farmer_id: str, session_id: str, text: str) -> "int | None":
+    """Asks so far when this text is a bare PIN and the weather agent is
+    waiting for one (it asked during an open booking/registration), else
+    None. Without this the PIN went to the open flow, not to weather."""
+    if not _looks_like_pin(text):
+        return None
+    state = get_session(_weather_session_key(farmer_id, session_id))
+    return int(state.get("asks") or 1) if state.get("awaiting_location") else None
+
+
+def _side_question_envelope(agent: str, intent: str, result: dict[str, Any], side_reply: str,
+                            farmer_id: str, session_id: str, text: str,
+                            include_audio: bool, language: str) -> dict[str, Any]:
+    """The other agent's answer, then the open flow's reminder, as one
+    reply (shown and spoken). `agent` stays the open flow so the app keeps
+    showing that flow's state; `intent` says what was answered."""
+    reminder = str(result.get("reminder") or "")
+    reply = f"{side_reply}\n\n{reminder}".strip() if side_reply else reminder
+    result = dict(result)
+    result["response_text"] = reply
+    return _envelope(agent, intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+def _side_question_reply(intent: str, result: dict[str, Any], farmer_id: str, session_id: str,
+                         text: str, language: str, previous_asks: int = 0) -> str:
+    """Answer text for a side question: the query agent's answer the open
+    flow already got, or a fresh weather answer (which may ask for a PIN;
+    the next turn's PIN then reaches weather via _waiting_weather_pin)."""
+    if intent == "query":
+        return str(result.get("side_answer") or "")
+    weather = _run_weather(farmer_id, session_id, text, "weather", False, language, previous_asks=previous_asks)
+    return str(weather.get("reply_text") or "")
+
+
 # The weather and query agents pick their reply language from the text
 # itself, so a language-neutral message (a bare PIN like "411001", a tag
 # number) came back in English even when the farmer's app language is
@@ -283,19 +342,35 @@ def route_turn_adk(
     def _allowed(intent_name: str) -> bool:
         return allowed_intents is None or intent_name in allowed_intents
 
-    if _has_active_booking_draft(farmer_id, session_id):
-        if not _allowed("appointment"):
-            return _blocked_envelope("appointment", farmer_id, session_id, text, language)
-        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("appointment_supervisor", result)
-        return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
+    def _side_question(question: str) -> Optional[str]:
+        label = _side_question_label(question)
+        return label if label and _allowed(label) else None
 
-    if _has_active_registration_draft(farmer_id, session_id):
-        if not _allowed("add_animal"):
-            return _blocked_envelope("add_animal", farmer_id, session_id, text, language)
-        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("animal_registration", result)
-        return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
+    side_question = _side_question if _side_questions_on() else None
+
+    for agent, flow_intent, supervisor, has_draft in (
+        ("appointment_supervisor", "appointment", _appointment_supervisor, _has_active_booking_draft),
+        ("animal_registration", "add_animal", _animal_registration_supervisor, _has_active_registration_draft),
+    ):
+        if not has_draft(farmer_id, session_id):
+            continue
+        if not _allowed(flow_intent):
+            return _blocked_envelope(flow_intent, farmer_id, session_id, text, language)
+        if side_question is not None and _allowed("weather"):
+            asks = _waiting_weather_pin(farmer_id, session_id, text)
+            if asks is not None:
+                pinned = {"reminder": supervisor.reminder(farmer_id, session_id, language)}
+                side_reply = _side_question_reply("weather", pinned, farmer_id, session_id, text, language, previous_asks=asks)
+                return _side_question_envelope(agent, "weather", pinned, side_reply, farmer_id, session_id, text, include_audio, language)
+        if side_question is not None:
+            result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio, side_question=side_question)
+        else:
+            result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        if result.get("side_question"):
+            side_reply = _side_question_reply(result["side_question"], result, farmer_id, session_id, text, language)
+            return _side_question_envelope(agent, result["side_question"], result, side_reply, farmer_id, session_id, text, include_audio, language)
+        reply = _reply_text(agent, result)
+        return _envelope(agent, None, result, reply, farmer_id, session_id, text, include_audio, language)
 
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)

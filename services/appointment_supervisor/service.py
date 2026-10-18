@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from services.common import reply_words
 from services.common.draft_supervisor import (
@@ -17,7 +18,7 @@ from services.common.draft_supervisor import (
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
-from services.voice_agent.session_store import clear_session
+from services.voice_agent.session_store import clear_session, get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from storage import (
     append_ai_health_log,
@@ -165,6 +166,19 @@ _TEXT = {
         "missing_date": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ದಿನಾಂಕ",
         "missing_time": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಮಯ",
     },
+}
+
+# Said after answering a side question (a weather or farm-data question
+# asked while a booking is open), so the farmer knows the booking is still
+# waiting and what it needs next. See _side_question_response().
+_STILL_OPEN = {
+    "en": "Your appointment booking is still open: {summary}",
+    "hi": "आपकी अपॉइंटमेंट बुकिंग अभी खुली है: {summary}",
+    "mr": "तुमची अपॉइंटमेंट बुकिंग अजून सुरू आहे: {summary}",
+    "ta": "உங்கள் சந்திப்பு முன்பதிவு இன்னும் திறந்துள்ளது: {summary}",
+    "te": "మీ అపాయింట్‌మెంట్ బుకింగ్ ఇంకా తెరిచి ఉంది: {summary}",
+    "kn": "ನಿಮ್ಮ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬುಕಿಂಗ್ ಇನ್ನೂ ತೆರೆದಿದೆ: {summary}",
+    "ml": "നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് ബുക്കിംഗ് ഇപ്പോഴും തുറന്നിരിക്കുന്നു: {summary}",
 }
 
 _LABELS = {
@@ -601,6 +615,80 @@ class AppointmentSupervisor(DraftSupervisor):
             return True
         return False
 
+    @staticmethod
+    def _turn_adds_to_booking(draft: dict[str, Any], confirmation_signal: Optional[str], entities: dict[str, Any],
+                              names_new_animal: bool, answers_expected_field: bool) -> bool:
+        """True when this turn plainly belongs to the booking: a yes/no/
+        cancel/submit, an animal (a first one or a different one), an answer
+        to the field the bot asked for, a new issue or symptom, or a date or
+        time the booking is still missing. Entities repeated from the
+        session cache (same value as the draft) do not count. A changed
+        date or time on a booking that already has one is not counted here
+        -- it may be a real correction or a word like "today" inside a
+        question -- so that turn goes to the side-question check, and the
+        classifier keeps it in the booking when it is a correction."""
+        if confirmation_signal or names_new_animal or answers_expected_field:
+            return True
+        values = draft["draft"]
+        if not draft.get("animal_verified") and (
+            entities.get("animal_id") or entities.get("animal_tag") or entities.get("animal_name")
+        ):
+            return True
+        for field in ("issue", "symptoms", "duration", "severity"):
+            value = entities.get(field)
+            if value not in (None, "", []) and value != values.get(field):
+                return True
+        for field in ("date", "time"):
+            if entities.get(field) not in (None, "") and not values.get(field):
+                return True
+        return False
+
+    def _reminder(self, draft: dict[str, Any]) -> str:
+        """What the booking still needs, in the farmer's language: the
+        details so far plus the next question (or the welcome text when
+        nothing has been given yet)."""
+        language = draft["language"]
+        if not self._has_any_info(draft["draft"]):
+            return self._message(language, "welcome")
+        template = _STILL_OPEN.get(_lang(language)) or _STILL_OPEN["en"]
+        text = template.format(summary=self._summary(draft))
+        missing = self._missing(draft)
+        if missing:
+            field = self._message(language, f"missing_{missing[0]}")
+            text = f"{text} {self._message(language, 'yes_missing', field=field)}"
+        elif draft.get("state") == "READY_TO_SUBMIT":
+            text = f"{text} {self._message(language, 'ready')}"
+        return text
+
+    def reminder(self, farmer_id: str, session_id: str, language: str = "en-IN") -> str:
+        """Read-only: the reminder for this session's open booking. Used by
+        the router when a turn goes to another agent without coming through
+        turn() (a PIN answering the weather agent's question)."""
+        with self._session_lock(farmer_id, session_id):
+            return self._reminder(self._load(session_id, farmer_id, language))
+
+    def _side_question_response(self, draft: dict[str, Any], cache_key: str, cache_before: Optional[dict],
+                                side: str, answer: Optional[str], text: str, session_id: str) -> dict[str, Any]:
+        """Leave the booking exactly as it was and hand the turn back to the
+        router, which answers the question (weather) or uses `answer`
+        (query) and adds the reminder. The draft is saved only to keep the
+        transcript line; no field changes. No audio is made here: the router
+        speaks the combined reply, so the result carries no
+        response_audio_base64 key."""
+        clear_session(cache_key)
+        if cache_before:
+            update_session(cache_key, cache_before)
+        self._save(draft)
+        reminder = self._reminder(draft)
+        _log.info("appointment side question session=%s intent=%s state=%s", session_id, side, draft.get("state"))
+        resp = self._response(draft, reminder, input_transcript=text, include_audio=False)
+        resp.pop("response_audio_base64", None)
+        resp.pop("audio_error", None)
+        resp["side_question"] = side
+        resp["side_answer"] = answer
+        resp["reminder"] = reminder
+        return resp
+
     def _missing(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
         return [field for field in REQUIRED_FIELDS if not values.get(field)]
@@ -684,11 +772,21 @@ class AppointmentSupervisor(DraftSupervisor):
             resp["options"] = options
         return resp
 
-    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+             side_question: Optional[Callable[[str], Optional[str]]] = None) -> dict[str, Any]:
+        """side_question (optional): given the farmer's text, returns
+        "weather" or "query" when the text is a question for another agent,
+        else None. The chat router passes its intent classifier here so a
+        question asked in the middle of a booking can be answered without
+        touching the booking (see _side_question_response). It is only
+        called on a turn that adds nothing to the booking, so ordinary
+        booking turns cost no extra call. None (every other caller) keeps
+        the old behaviour exactly."""
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio, side_question)
 
-    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+                     side_question: Optional[Callable[[str], Optional[str]]] = None) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted") or draft.get("state") == "CANCELLED":
             # Prior booking on this session_id is either already saved
@@ -754,7 +852,13 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             pending = None
 
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        # The extraction call below also updates the session entity cache.
+        # A side question must leave no trace in it (or a "today" read from
+        # "what's the weather today" would come back as the booking date on
+        # the next turn), so keep a copy to put back.
+        cache_key = f"{farmer_id}:{session_id}"
+        cache_before = copy.deepcopy(get_session(cache_key)) if side_question is not None else None
+        result = process_text_input(text, session_id=cache_key, pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
@@ -816,6 +920,26 @@ class AppointmentSupervisor(DraftSupervisor):
                 "appointment correction in place session=%s new_animal=%s",
                 session_id, names_new_animal,
             )
+        # A question for another agent asked in the middle of a booking
+        # ("how many goats do I have?", "what's the weather in Pune today?").
+        # The extraction reads every message as part of the booking (seen
+        # live: intent CREATE_APPOINTMENT and no yes/no for such questions in
+        # en/hi/ta, and "today" from the weather question became the booking
+        # date), so it cannot spot these itself. Only a turn that adds
+        # nothing to the booking is checked, with the router's classifier.
+        if side_question is not None and not self._turn_adds_to_booking(
+            draft, confirmation_signal, turn_entities, names_new_animal, answers_expected_field,
+        ):
+            side = side_question(text)
+            answer = None
+            if side == "query":
+                probe = process_query(text, farmer_id)
+                # Only a real database answer counts; anything else carries on as a booking turn.
+                answer = probe.get("answer") if probe.get("sql") and probe.get("data") else None
+                side = side if answer else None
+            if side in ("weather", "query"):
+                return self._side_question_response(draft, cache_key, cache_before, side, answer, text, session_id)
+
         if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field and not corrects_in_place:
             probe = process_query(text, farmer_id)
             if probe.get("sql") and probe.get("data"):

@@ -37,7 +37,7 @@ from __future__ import annotations
 import logging
 from base64 import b64encode
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from services.common import reply_words
 from services.common.draft_supervisor import (
@@ -312,6 +312,29 @@ _LABELS = {
         "acquisition_date": "ലഭിച്ച തീയതി", "acquisition_source": "ലഭിച്ച സ്ഥലം",
     },
 }
+
+# Said after answering a side question (a weather or farm-data question
+# asked while a registration is open), before repeating what the
+# registration needs next. See _side_question_response().
+_STILL_OPEN = {
+    "en": "Your new animal registration is still open.",
+    "hi": "नए पशु का पंजीकरण अभी जारी है।",
+    "mr": "नवीन जनावराची नोंदणी अजून सुरू आहे.",
+    "ta": "புதிய விலங்கு பதிவு இன்னும் நடந்து கொண்டிருக்கிறது.",
+    "te": "కొత్త జంతువు నమోదు ఇంకా కొనసాగుతోంది.",
+    "kn": "ಹೊಸ ಪ್ರಾಣಿಯ ನೋಂದಣಿ ಇನ್ನೂ ನಡೆಯುತ್ತಿದೆ.",
+    "ml": "പുതിയ മൃഗത്തിന്റെ രജിസ്ട്രേഷൻ ഇപ്പോഴും തുടരുന്നു.",
+}
+
+
+def process_query(text: str, farmer_id: str) -> dict[str, Any]:
+    """Query agent call for a side question asked mid-registration. A
+    module-level function so tests can monkeypatch it; the import is
+    deferred for the same reason as appointment_supervisor.process_query
+    (adk_agent pulls in google.adk at import time)."""
+    from services.query_agent.adk_agent import process_query_adk
+    return process_query_adk(text, farmer_id)
+
 
 _TEXT = {
     "en": {
@@ -670,12 +693,17 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         return changed, breed_error
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
-              include_audio: bool = True) -> dict[str, Any]:
+              include_audio: bool = True,
+              side_question: Optional[Callable[[str], Optional[str]]] = None) -> dict[str, Any]:
+        """side_question: same contract as AppointmentSupervisor.turn --
+        the router's classifier, called only on a turn that adds nothing
+        to the registration. None keeps the old behaviour exactly."""
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio, side_question)
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str,
-                      include_audio: bool) -> dict[str, Any]:
+                      include_audio: bool,
+                      side_question: Optional[Callable[[str], Optional[str]]] = None) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted"):
             draft = self._fresh(session_id, farmer_id, language)
@@ -694,6 +722,20 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         if draft["state"] == "CONFIRMING" and conf_sig in {"yes", "no"}:
             self._save(draft)
             return self.confirm(farmer_id, session_id, conf_sig, include_audio=include_audio)
+
+        # A question for another agent asked mid-registration ("how many
+        # sheep do I have?"). Seen live: it was ignored and the same field
+        # was asked again. Checked only when the extraction found nothing
+        # for the registration, so ordinary answers cost no extra call.
+        if side_question is not None and not self._turn_adds_to_registration(draft, entities, conf_sig, text):
+            side = side_question(text)
+            answer = None
+            if side == "query":
+                probe = process_query(text, farmer_id)
+                answer = probe.get("answer") if probe.get("sql") and probe.get("data") else None
+                side = side if answer else None
+            if side in ("weather", "query"):
+                return self._side_question_response(draft, side, answer, text, session_id)
 
         changed, error = self._copy_entities(draft, entities)
 
@@ -790,6 +832,63 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         else:
             message = self._message(draft["language"], "ask_optional")
         return self._response(draft, message, input_transcript=text, include_audio=include_audio)
+
+    @staticmethod
+    def _turn_adds_to_registration(draft: dict[str, Any], entities: dict[str, Any],
+                                   conf_sig: Optional[str], text: str) -> bool:
+        """True when the turn carries anything for the registration: a
+        yes/no/cancel, any registration field, a "don't know" or "skip".
+        This extraction is per turn (no session cache), so any value counts."""
+        if conf_sig:
+            return True
+        if any(entities.get(f) not in (None, "", []) for f in REQUIRED_FIELDS + OPTIONAL_FIELDS):
+            return True
+        if entities.get("field_unknown") or entities.get("wants_to_skip_optional") or entities.get("corrects_identity"):
+            return True
+        language = draft["language"]
+        return bool(reply_words.is_dont_know(text, language) or reply_words.is_skip(text, language))
+
+    def _reminder(self, draft: dict[str, Any]) -> str:
+        """What the registration needs next, in the farmer's language --
+        the same question the normal flow would ask at this point."""
+        language = draft["language"]
+        if not draft["draft"]:
+            return self._message(language, "welcome")
+        missing = self._missing_required(draft)
+        if missing:
+            if missing[0] == "breed":
+                prompt = self._message(language, "ask_breed")
+            else:
+                field_label = _LABELS.get(_lang(language), _LABELS["en"]).get(missing[0], missing[0])
+                prompt = self._message(language, "ask_field", field=field_label)
+        elif draft["state"] == "CONFIRMING":
+            prompt = self._message(language, "correct", summary=self._summary(draft, localize_values=True))
+        else:
+            prompt = self._message(language, "ask_more")
+        still_open = _STILL_OPEN.get(_lang(language)) or _STILL_OPEN["en"]
+        return f"{still_open} {prompt}"
+
+    def reminder(self, farmer_id: str, session_id: str, language: str = "en-IN") -> str:
+        """Read-only reminder for this session's open registration (used by
+        the router for a PIN that goes to the weather agent)."""
+        with self._session_lock(farmer_id, session_id):
+            return self._reminder(self._load(session_id, farmer_id, language))
+
+    def _side_question_response(self, draft: dict[str, Any], side: str, answer: Optional[str],
+                                text: str, session_id: str) -> dict[str, Any]:
+        """Leave the registration as it was (only the transcript line is
+        saved) and hand the turn back to the router with the reminder. No
+        audio here: the router speaks the combined reply."""
+        self._save(draft)
+        reminder = self._reminder(draft)
+        _log.info("animal registration side question session=%s intent=%s state=%s", session_id, side, draft.get("state"))
+        resp = self._response(draft, reminder, input_transcript=text, include_audio=False)
+        resp.pop("response_audio_base64", None)
+        resp.pop("audio_error", None)
+        resp["side_question"] = side
+        resp["side_answer"] = answer
+        resp["reminder"] = reminder
+        return resp
 
     def confirm(self, farmer_id: str, session_id: str, response: str, include_audio: bool = True) -> dict[str, Any]:
         with self._session_lock(farmer_id, session_id):
