@@ -9,7 +9,7 @@ Later runs are compared with a saved baseline to catch regressions.
 | Layer | File | What it tests |
 |---|---|---|
 | 1 | `conversations/layer1_normal.json` | One clear intent: counts, breeds, names, weather, full booking and registration flows (77, 11 per language) |
-| 2 | `conversations/layer2_complex.json` | Harder versions: spelling slips, Roman letters, a misspelled name, a per-kind breakdown, a booking with no animal, a mid-flow animal change, weekday / next-weekday / in-3-days dates, a past date and a past time today (77, 11 per language) |
+| 2 | `conversations/layer2_complex.json` | Harder versions: spelling slips, Roman letters, a misspelled name, a per-kind breakdown, a booking with no animal, a mid-flow animal change, weekday / next-weekday / in-3-days dates, a past date, a past time today and a day of the month (84, 12 per language) |
 | 3 | `layer3_mixed.json` (coming) | Two things mixed in one conversation |
 | 4 | `layer4_twist.json` (coming) | The farmer changes the topic completely mid-flow |
 
@@ -106,6 +106,7 @@ from today in India, so a booking can check the date the bot understood
 after today (`mon`..`sun`, and `{next-mon+7}` the one after), `{this-thu}`
 is today when today is Thursday, else `{next-thu}`. `{past-time}` is HH:00
 two hours ago, a time today that has already passed. `--validate` flags any
+`{dom-25}` is the next 25th on or after today (1..28 only).
 other `{...}`.
 
 The expected facts come from `data/animals.json` for farmer f-001

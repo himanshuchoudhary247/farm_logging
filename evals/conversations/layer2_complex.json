@@ -1,9 +1,9 @@
 {
   "layer": 2,
   "name": "complex",
-  "description": "Harder versions of layer 1: spelling slips, Roman letters, a misspelled animal name, a per-kind breakdown, bookings with a missing animal, a mid-flow animal change, weekday / next-weekday / in-N-days dates, a past date and a past time today. 11 per language. Bookings never get the final 'yes', so nothing is saved.",
+  "description": "Harder versions of layer 1: spelling slips, Roman letters, a misspelled animal name, a per-kind breakdown, bookings with a missing animal, a mid-flow animal change, weekday / next-weekday / in-N-days dates, a past date, a past time today and a day of the month. 12 per language. Bookings never get the final 'yes', so nothing is saved.",
   "farmer_id": "f-001",
-  "facts_note": "Same farm as layer 1 (f-001): goat 14, buffalo 16, GAURI and MOTI = Sirohi goats. Dates and times use placeholders counted from now in IST: {date+N}, {next-mon}, {this-thu}, {past-time} (see evals/run.py).",
+  "facts_note": "Same farm as layer 1 (f-001): goat 14, buffalo 16, GAURI and MOTI = Sirohi goats. Dates and times use placeholders counted from now in IST: {date+N}, {next-mon}, {this-thu}, {past-time}, {dom-25} (see evals/run.py).",
   "conversations": [
     {
       "id": "L2-en-001",
@@ -207,6 +207,23 @@
             "agent": "appointment_supervisor",
             "reply_not_contains": [
               "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-en-012",
+      "language": "en-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI has fever, need a vet on the 25th at 11 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
             ]
           }
         }
@@ -421,6 +438,23 @@
       ]
     },
     {
+      "id": "L2-hi-012",
+      "language": "hi-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI को बुखार है, 25 तारीख को सुबह 11 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "L2-mr-001",
       "language": "mr-IN",
       "title": "Goat count with a spelling slip",
@@ -623,6 +657,23 @@
             "agent": "appointment_supervisor",
             "reply_not_contains": [
               "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-mr-012",
+      "language": "mr-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ला ताप आहे, 25 तारखेला सकाळी 11 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
             ]
           }
         }
@@ -839,6 +890,23 @@
       ]
     },
     {
+      "id": "L2-ta-012",
+      "language": "ta-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI க்கு காய்ச்சல், 25ஆம் தேதி காலை 11 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "L2-te-001",
       "language": "te-IN",
       "title": "Goat count with a spelling slip",
@@ -1042,6 +1110,23 @@
             "agent": "appointment_supervisor",
             "reply_not_contains": [
               "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-te-012",
+      "language": "te-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI కి జ్వరం, 25వ తేదీన ఉదయం 11 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
             ]
           }
         }
@@ -1257,6 +1342,23 @@
       ]
     },
     {
+      "id": "L2-kn-012",
+      "language": "kn-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ಗೆ ಜ್ವರ, 25ನೇ ತಾರೀಖು ಬೆಳಿಗ್ಗೆ 11 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "id": "L2-ml-001",
       "language": "ml-IN",
       "title": "Goat count with a spelling slip",
@@ -1459,6 +1561,23 @@
             "agent": "appointment_supervisor",
             "reply_not_contains": [
               "{past-time}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L2-ml-012",
+      "language": "ml-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ക്ക് പനി, 25-ാം തീയതി രാവിലെ 11 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{dom-25}"
             ]
           }
         }

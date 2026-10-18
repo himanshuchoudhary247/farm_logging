@@ -80,6 +80,19 @@ def test_weekday_placeholders():
     assert out == ["2026-10-19", "2026-10-26", "2026-10-22", "2026-10-24", "2026-10-17"]
 
 
+def test_day_of_month_placeholder():
+    from datetime import date
+    assert fill("{dom-25}", "x", today=date(2026, 10, 18)) == "2026-10-25"
+    assert fill("{dom-25}", "x", today=date(2026, 10, 25)) == "2026-10-25"
+    assert fill("{dom-25}", "x", today=date(2026, 10, 26)) == "2026-11-25"
+    assert fill("{dom-25}", "x", today=date(2026, 12, 30)) == "2027-01-25"
+    assert fill("{dom-28}", "x", today=date(2026, 1, 31)) == "2026-02-28"
+    good = [{"id": "G", "language": "en-IN", "turns": [{"user": "{dom-1} {dom-28}", "expect": {}}]}]
+    bad = [{"id": "B", "language": "en-IN", "turns": [{"user": "{dom-29} {dom-0}", "expect": {}}]}]
+    assert validate_conversations(good) == []
+    assert validate_conversations(bad) == ["B: unknown placeholder {dom-0}", "B: unknown placeholder {dom-29}"]
+    
+
 def test_past_time_is_always_earlier_today():
     from datetime import datetime
     assert fill("{past-time}", "x", now=datetime(2026, 10, 17, 13, 30)) == "11:00"
@@ -94,13 +107,13 @@ def test_validate_accepts_the_new_placeholders_only():
     assert validate_conversations(bad) == ["B: unknown placeholder {next-monday}", "B: unknown placeholder {past-hour}"]
 
 
-def test_layer2_has_the_same_11_cases_in_every_language():
+def test_layer2_has_the_same_12_cases_in_every_language():
     convs = [c for c in load_conversations() if c["layer"] == 2]
     langs = sorted({c["language"] for c in convs})
     assert langs == ["en-IN", "hi-IN", "kn-IN", "ml-IN", "mr-IN", "ta-IN", "te-IN"]
     titles = {lang: [c["title"] for c in convs if c["language"] == lang] for lang in langs}
-    assert all(len(t) == 11 for t in titles.values())
-    assert len({tuple(t) for t in titles.values()}) == 1, "every language must test the same 11 cases"
+    assert all(len(t) == 12 for t in titles.values())
+    assert len({tuple(t) for t in titles.values()}) == 1, "every language must test the same 12 cases"
     # Bookings never get the final "yes": nothing in layer 2 may save data.
     assert not any(c.get("data_checks") for c in convs)
     # "day after tomorrow" in each language must come back as today + 2.

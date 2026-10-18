@@ -89,7 +89,7 @@ def validate_conversations(convs: list[dict]) -> list[str]:
             problems.append(f"{cid}: has data_checks but mutates is false")
         for bad in sorted(set(_PLACEHOLDER.findall(json.dumps(c, ensure_ascii=False))) - {"tag", "past-time"}):
             token = "{" + bad + "}"
-            if not (_DATE_PLACEHOLDER.fullmatch(token) or _WEEKDAY_PLACEHOLDER.fullmatch(token)):
+            if not (_DATE_PLACEHOLDER.fullmatch(token) or _WEEKDAY_PLACEHOLDER.fullmatch(token) or _dom_ok(token)):
                 problems.append(f"{cid}: unknown placeholder {token}")
     return problems
 
@@ -119,6 +119,26 @@ def _date_for(match: re.Match, today) -> str:
     return (today + timedelta(days=-days if sign == "-" else days)).isoformat()
 
 
+# {dom-25}: the next 25th on or after today (this month's if it hasn't
+# passed yet, else next month's) -- the rule the extraction prompt states
+# for "the 25th" / "25 tarikh". Only 1..28, so every month has that day.
+_DOM_PLACEHOLDER = re.compile(r"\{dom-(\d{1,2})\}")
+_MAX_DOM = 28
+
+
+def _dom_ok(token: str) -> bool:
+    m = _DOM_PLACEHOLDER.fullmatch(token)
+    return bool(m) and 1 <= int(m.group(1)) <= _MAX_DOM
+
+
+def _dom_for(match: re.Match, today) -> str:
+    day = int(match.group(1))
+    if today.day <= day:
+        return today.replace(day=day).isoformat()
+    year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+    return today.replace(year=year, month=month, day=day).isoformat()
+
+
 def _weekday_for(match: re.Match, today) -> str:
     kind, name, extra = match.group(1), match.group(2), int(match.group(3) or 0)
     ahead = (_WEEKDAYS.index(name) - today.weekday()) % 7
@@ -140,6 +160,7 @@ def fill(value, tag: str, today=None, now=None):
         value = value.replace("{tag}", tag)
         value = value.replace("{past-time}", f"{max(now.hour - 2, 0):02d}:00")
         value = _WEEKDAY_PLACEHOLDER.sub(lambda m: _weekday_for(m, today), value)
+        value = _DOM_PLACEHOLDER.sub(lambda m: _dom_for(m, today), value)
         return _DATE_PLACEHOLDER.sub(lambda m: _date_for(m, today), value)
     if isinstance(value, list):
         return [fill(v, tag, today, now) for v in value]
