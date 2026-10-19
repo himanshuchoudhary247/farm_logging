@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from base64 import b64encode
 from typing import Any, Optional
 
@@ -31,12 +32,14 @@ from google.genai import types
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
+from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 from services.llm_service.adk_model import build_adk_model
+from storage import animals_for_farmer
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
@@ -195,6 +198,109 @@ def _looks_like_pin(text: str) -> bool:
 
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
+
+
+# Side questions during an open booking/registration. A farmer in the middle
+# of a booking asked "how many goats do I have?" or "what's the weather in
+# Pune today?" and the booking took the message: the question went
+# unanswered, and "today" became the booking date (seen live in en/hi/ta).
+# The open flow now asks the classifier (only on a turn that adds nothing to
+# it) and hands weather/query questions back here, untouched. Kill switch:
+# CHAT_SIDE_QUESTIONS=0 sends every sticky turn to the open flow as before.
+_SIDE_QUESTIONS_ENV = "CHAT_SIDE_QUESTIONS"
+
+
+def _side_questions_on() -> bool:
+    return os.getenv(_SIDE_QUESTIONS_ENV, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _side_question_label(text: str) -> Optional[str]:
+    """The classifier's intent when it names another agent that can answer
+    on its own (weather, query); None otherwise."""
+    intent = asyncio.run(_classify_intent_async(text))
+    _log.info("adk_router side-question check text=%r intent=%s", text[:200], intent)
+    return intent if intent in ("weather", "query") else None
+
+
+def _waiting_weather_pin(farmer_id: str, session_id: str, text: str) -> "int | None":
+    """Asks so far when this text is a bare PIN and the weather agent is
+    waiting for one (it asked during an open booking/registration), else
+    None. Without this the PIN went to the open flow, not to weather."""
+    if not _looks_like_pin(text):
+        return None
+    state = get_session(_weather_session_key(farmer_id, session_id))
+    return int(state.get("asks") or 1) if state.get("awaiting_location") else None
+
+
+def _side_question_envelope(agent: str, intent: str, result: dict[str, Any], side_reply: str,
+                            farmer_id: str, session_id: str, text: str,
+                            include_audio: bool, language: str) -> dict[str, Any]:
+    """The other agent's answer, then the open flow's reminder, as one
+    reply (shown and spoken). `agent` stays the open flow so the app keeps
+    showing that flow's state; `intent` says what was answered."""
+    reminder = str(result.get("reminder") or "")
+    reply = f"{side_reply}\n\n{reminder}".strip() if side_reply else reminder
+    result = dict(result)
+    result["response_text"] = reply
+    return _envelope(agent, intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
+# The animal the farmer was just talking about. "What breed is KAALI?" then
+# "she is limping, book a vet for her": the booking asked for the animal
+# again (seen live in en/hi). After a farm-data question that names exactly
+# one of the farmer's own stored animals (in the question or the answer, any
+# script or spelling), that name is kept for the NEXT turn only; a new
+# booking started on that turn uses it when it names no animal itself. Any
+# other turn clears it. Kill switch: CHAT_RECENT_ANIMAL=0.
+_RECENT_ANIMAL_ENV = "CHAT_RECENT_ANIMAL"
+
+
+def _recent_animal_on() -> bool:
+    return os.getenv(_RECENT_ANIMAL_ENV, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _recent_animal_key(farmer_id: str, session_id: str) -> str:
+    return f"{farmer_id}:{session_id}:recent_animal"
+
+
+def _take_recent_animal(farmer_id: str, session_id: str) -> Optional[str]:
+    """The animal kept by the previous turn, cleared on read so it lasts one turn."""
+    if not _recent_animal_on():
+        return None
+    key = _recent_animal_key(farmer_id, session_id)
+    name = get_session(key).get("name")
+    if name:
+        update_session(key, {"name": None})
+    return name or None
+
+
+def _remember_animal(farmer_id: str, session_id: str, *texts: str) -> None:
+    """Keep the one stored animal named in these texts, if exactly one is."""
+    if not _recent_animal_on():
+        return
+    try:
+        names = [a.tag_or_name for a in animals_for_farmer(farmer_id)]
+        found = {m.name for t in texts for m in find_name_mentions(t or "", names, include_exact=True)}
+    except Exception as exc:
+        _log.warning("adk_router recent animal lookup failed farmer=%s: %s", farmer_id, exc)
+        return
+    if len(found) == 1:
+        name = found.pop()
+        update_session(_recent_animal_key(farmer_id, session_id), {"name": name})
+        _log.info("adk_router recent animal farmer=%s session=%s animal=%s", farmer_id, session_id, name)
+
+
+def _side_question_reply(intent: str, result: dict[str, Any], farmer_id: str, session_id: str,
+                         text: str, language: str, previous_asks: int = 0) -> str:
+    """Answer text for a side question: the query agent's answer the open
+    flow already got, or a fresh weather answer (which may ask for a PIN;
+    the next turn's PIN then reaches weather via _waiting_weather_pin)."""
+    if intent == "query":
+        return str(result.get("side_answer") or "")
+    weather = _run_weather(farmer_id, session_id, text, "weather", False, language, previous_asks=previous_asks)
+    return str(weather.get("reply_text") or "")
+
+
 # The weather and query agents pick their reply language from the text
 # itself, so a language-neutral message (a bare PIN like "411001", a tag
 # number) came back in English even when the farmer's app language is
@@ -283,19 +389,36 @@ def route_turn_adk(
     def _allowed(intent_name: str) -> bool:
         return allowed_intents is None or intent_name in allowed_intents
 
-    if _has_active_booking_draft(farmer_id, session_id):
-        if not _allowed("appointment"):
-            return _blocked_envelope("appointment", farmer_id, session_id, text, language)
-        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("appointment_supervisor", result)
-        return _envelope("appointment_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
+    def _side_question(question: str) -> Optional[str]:
+        label = _side_question_label(question)
+        return label if label and _allowed(label) else None
 
-    if _has_active_registration_draft(farmer_id, session_id):
-        if not _allowed("add_animal"):
-            return _blocked_envelope("add_animal", farmer_id, session_id, text, language)
-        result = _animal_registration_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("animal_registration", result)
-        return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
+    side_question = _side_question if _side_questions_on() else None
+    recent_animal = _take_recent_animal(farmer_id, session_id)
+
+    for agent, flow_intent, supervisor, has_draft in (
+        ("appointment_supervisor", "appointment", _appointment_supervisor, _has_active_booking_draft),
+        ("animal_registration", "add_animal", _animal_registration_supervisor, _has_active_registration_draft),
+    ):
+        if not has_draft(farmer_id, session_id):
+            continue
+        if not _allowed(flow_intent):
+            return _blocked_envelope(flow_intent, farmer_id, session_id, text, language)
+        if side_question is not None and _allowed("weather"):
+            asks = _waiting_weather_pin(farmer_id, session_id, text)
+            if asks is not None:
+                pinned = {"reminder": supervisor.reminder(farmer_id, session_id, language)}
+                side_reply = _side_question_reply("weather", pinned, farmer_id, session_id, text, language, previous_asks=asks)
+                return _side_question_envelope(agent, "weather", pinned, side_reply, farmer_id, session_id, text, include_audio, language)
+        if side_question is not None:
+            result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio, side_question=side_question)
+        else:
+            result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        if result.get("side_question"):
+            side_reply = _side_question_reply(result["side_question"], result, farmer_id, session_id, text, language)
+            return _side_question_envelope(agent, result["side_question"], result, side_reply, farmer_id, session_id, text, include_audio, language)
+        reply = _reply_text(agent, result)
+        return _envelope(agent, None, result, reply, farmer_id, session_id, text, include_audio, language)
 
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)
@@ -351,6 +474,9 @@ def route_turn_adk(
     # `query` for anything unrecognized -- matches _make_record_route_tool's
     # own "unknown -> query" guard, so one behavior in one place instead of
     # two places drifting.
+    if intent == "appointment" and recent_animal:
+        return _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent,
+                                     recent_animal=recent_animal)
     handler = _DISPATCH_TABLE.get(intent) or _DISPATCH_TABLE["query"]
     return handler(farmer_id, session_id, text, language, include_audio, intent)
 
@@ -363,8 +489,12 @@ def route_turn_adk(
 # functions so the dispatch table below is a plain literal a reader can
 # eyeball at a glance.
 
-def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent):
-    result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent, recent_animal=None):
+    if recent_animal:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio,
+                                              recent_animal=recent_animal)
+    else:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
     reply = _reply_text("appointment_supervisor", result)
     return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
@@ -389,6 +519,7 @@ def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent
         session_id=session_id, app_language=language,
     )
     reply = result.get("answer") or ""
+    _remember_animal(farmer_id, session_id, text, reply)
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
 
 

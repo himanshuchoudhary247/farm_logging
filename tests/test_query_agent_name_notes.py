@@ -73,5 +73,33 @@ def test_instruction_covers_local_words_in_english_letters():
     # was answered with all 53 animals: the species filter was dropped.
     assert "English letters" in _INSTRUCTION_TEMPLATE
     assert "never count or list all animals without that species filter" in _INSTRUCTION_TEMPLATE
+
+
+def test_instruction_covers_a_word_that_means_more_than_one_species():
+    # Roman Tamil "ennidam ethanai aadugal irukku": "aadu" alone covers goats
+    # and sheep; the agent picked sheep only (7) in 2 of 3 runs. It must give
+    # each species it can mean, and still filter when the kind is said.
+    assert "can mean more than one stored species" in _INSTRUCTION_TEMPLATE
+    assert "do not pick one species yourself" in _INSTRUCTION_TEMPLATE
+    assert "do not list the whole farm" in _INSTRUCTION_TEMPLATE
+    assert "filter on that one species only" in _INSTRUCTION_TEMPLATE
     
-       
+
+
+def test_species_words_also_tell_the_model_what_the_farmer_means(monkeypatch):
+    """Roman Marathi "shelya" (goats) was counted as sheep: the farmer's own
+    species words must be given as the meaning of what the farmer types."""
+    from services.query_agent import adk_agent
+
+    def fake_hints(farmer_id, sql, limit):
+        return ["goat", "sheep"] if "species) FROM" in sql else []
+
+    monkeypatch.setattr(adk_agent, "_hint_values", fake_hints)
+    monkeypatch.delenv("QUERY_AGENT_VALUE_HINTS", raising=False)
+    block = adk_agent._farm_values_for_prompt("f-001", "mr")
+    assert "goat = शेळी" in block and "sheep = मेंढी" in block
+    assert "the farmer uses these same words" in block
+    assert "typed in English letters" in block
+    assert adk_agent._farm_values_for_prompt("f-001", "en").count("the farmer uses these same words") == 0
+    assert "never by an English word it happens to sound like" in adk_agent._INSTRUCTION_TEMPLATE
+     

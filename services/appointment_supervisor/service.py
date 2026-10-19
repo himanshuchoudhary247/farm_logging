@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from services.common import reply_words
 from services.common.draft_supervisor import (
@@ -17,13 +18,14 @@ from services.common.draft_supervisor import (
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
-from services.voice_agent.session_store import clear_session
+from services.voice_agent.session_store import clear_session, get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from storage import (
     append_ai_health_log,
     append_appointment,
     append_health_log,
     animals_for_farmer,
+    merge_app_animals,
 )
 
 
@@ -46,6 +48,7 @@ _TEXT = {
         "ready": "All required details are complete. Would you like to submit this appointment?",
         "submit_yes": "Please say submit when you are ready to save the appointment.",
         "submitted": "The appointment and animal health record were saved successfully.",
+        "submitted_sync_failed": "Your appointment is saved here, but I could not send it to the app right now. Please check the app later.",
         "animal_not_found": "I could not find an animal named or tagged '{identifier}' registered to you. Your registered animals are: {animals}. Please tell me the correct name, tag, or ID.",
         "no_animals_registered": "You do not have any animals registered yet, so I cannot match '{identifier}' to one. Please register an animal first, or ask a human vet directly.",
         "no": "What would you like to correct?",
@@ -63,6 +66,7 @@ _TEXT = {
         "ready": "सभी जरूरी जानकारी पूरी है। क्या आप अपॉइंटमेंट जमा करना चाहते हैं?",
         "submit_yes": "सेव करने के लिए कृपया सबमिट कहें।",
         "submitted": "अपॉइंटमेंट और पशु स्वास्थ्य रिकॉर्ड सफलतापूर्वक सेव हो गए हैं।",
+        "submitted_sync_failed": "आपका अपॉइंटमेंट यहाँ सेव है, लेकिन मैं इसे अभी ऐप में नहीं भेज सका। कृपया बाद में ऐप देखें।",
         "animal_not_found": "मुझे आपके नाम पर '{identifier}' नाम या टैग वाला कोई पशु नहीं मिला। आपके पंजीकृत पशु हैं: {animals}। कृपया सही नाम, टैग या आईडी बताएं।",
         "no_animals_registered": "आपके नाम पर अभी कोई पशु पंजीकृत नहीं है, इसलिए मैं '{identifier}' का मिलान नहीं कर सकता। कृपया पहले एक पशु पंजीकृत करें।",
         "no": "आप किस जानकारी को सुधारना चाहते हैं?",
@@ -80,6 +84,7 @@ _TEXT = {
         "ready": "सर्व आवश्यक माहिती पूर्ण आहे. तुम्हाला अपॉइंटमेंट सबमिट करायची आहे का?",
         "submit_yes": "सेव्ह करण्यासाठी कृपया सबमिट म्हणा.",
         "submitted": "अपॉइंटमेंट आणि जनावराचा आरोग्य रेकॉर्ड यशस्वीरित्या सेव्ह झाला आहे.",
+        "submitted_sync_failed": "तुमचे अपॉइंटमेंट येथे सेव्ह झाले आहे, पण मी ते आता अ‍ॅपमध्ये पाठवू शकलो नाही. कृपया नंतर अ‍ॅप तपासा.",
         "animal_not_found": "तुमच्या नावावर '{identifier}' नाव किंवा टॅग असलेले कोणतेही जनावर सापडले नाही. तुमची नोंदणीकृत जनावरे: {animals}. कृपया योग्य नाव, टॅग किंवा आयडी सांगा.",
         "no_animals_registered": "तुमच्या नावावर अजून कोणतेही जनावर नोंदणीकृत नाही, त्यामुळे मी '{identifier}' जुळवू शकत नाही. कृपया आधी एखादे जनावर नोंदणी करा.",
         "no": "तुम्हाला कोणती माहिती दुरुस्त करायची आहे?",
@@ -97,6 +102,7 @@ _TEXT = {
         "ready": "ആവശ്യമായ എല്ലാ വിവരങ്ങളും പൂർണ്ണമാണ്. ഈ അപ്പോയിന്റ്മെന്റ് സമർപ്പിക്കണോ?",
         "submit_yes": "സേവ് ചെയ്യാൻ തയ്യാറാകുമ്പോൾ 'സമർപ്പിക്കുക' എന്ന് പറയൂ.",
         "submitted": "അപ്പോയിന്റ്മെന്റും മൃഗത്തിന്റെ ആരോഗ്യ രേഖയും വിജയകരമായി സേവ് ചെയ്തു.",
+        "submitted_sync_failed": "നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് ഇവിടെ സേവ് ചെയ്തിട്ടുണ്ട്, പക്ഷേ ഇപ്പോൾ ആപ്പിലേക്ക് അയയ്ക്കാൻ കഴിഞ്ഞില്ല. ദയവായി പിന്നീട് ആപ്പ് പരിശോധിക്കൂ.",
         "animal_not_found": "നിങ്ങളുടെ പേരിൽ '{identifier}' എന്ന പേരോ ടാഗോ ഉള്ള മൃഗമില്ല. നിങ്ങൾ രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ: {animals}. ദയവായി ശരിയായ പേര്, ടാഗ് അല്ലെങ്കിൽ ഐഡി പറയൂ.",
         "no_animals_registered": "നിങ്ങളുടെ പേരിൽ ഇതുവരെ ഒരു മൃഗവും രജിസ്റ്റർ ചെയ്തിട്ടില്ല, അതിനാൽ '{identifier}' കണ്ടെത്താനായില്ല. ആദ്യം ഒരു മൃഗത്തെ രജിസ്റ്റർ ചെയ്യൂ.",
         "no": "ഏത് വിവരമാണ് തിരുത്തേണ്ടത്?",
@@ -114,6 +120,7 @@ _TEXT = {
         "ready": "தேவையான தகவல்கள் அனைத்தும் உள்ளன. இந்த சந்திப்பை சமர்ப்பிக்கவா?",
         "submit_yes": "சேமிக்க தயாரானதும் சமர்ப்பிக்கவும் என்று சொல்லுங்கள்.",
         "submitted": "சந்திப்பு மற்றும் விலங்கு சுகாதார பதிவு வெற்றிகரமாக சேமிக்கப்பட்டது.",
+        "submitted_sync_failed": "உங்கள் சந்திப்பு இங்கே சேமிக்கப்பட்டுள்ளது, ஆனால் இப்போது ஆப்பிற்கு அனுப்ப முடியவில்லை. தயவுசெய்து பின்னர் ஆப்பைப் பார்க்கவும்.",
         "animal_not_found": "'{identifier}' என்ற பெயர் அல்லது டேக் கொண்ட விலங்கு உங்கள் பெயரில் இல்லை. உங்கள் பதிவு செய்யப்பட்ட விலங்குகள்: {animals}. சரியான பெயர், டேக் அல்லது ஐடி தெரிவிக்கவும்.",
         "no_animals_registered": "உங்கள் பெயரில் இதுவரை எந்த விலங்கும் பதிவு செய்யப்படவில்லை, எனவே '{identifier}' ஐ பொருத்த முடியவில்லை. முதலில் ஒரு விலங்கைப் பதிவு செய்யவும்.",
         "no": "எந்த தகவலை திருத்த வேண்டும்?",
@@ -131,6 +138,7 @@ _TEXT = {
         "ready": "అవసరమైన వివరాలు పూర్తయ్యాయి. ఈ అపాయింట్‌మెంట్‌ను సమర్పించాలా?",
         "submit_yes": "సేవ్ చేయడానికి సిద్ధంగా ఉన్నప్పుడు సబ్మిట్ అని చెప్పండి.",
         "submitted": "అపాయింట్‌మెంట్ మరియు జంతు ఆరోగ్య రికార్డు విజయవంతంగా సేవ్ చేయబడ్డాయి.",
+        "submitted_sync_failed": "మీ అపాయింట్‌మెంట్ ఇక్కడ సేవ్ చేయబడింది, కానీ దీన్ని ఇప్పుడు యాప్‌కు పంపలేకపోయాను. దయచేసి తర్వాత యాప్‌ను చూడండి.",
         "animal_not_found": "'{identifier}' అనే పేరు లేదా ట్యాగ్ ఉన్న జంతువు మీ పేరు మీద కనిపించలేదు. మీ నమోదిత జంతువులు: {animals}. దయచేసి సరైన పేరు, ట్యాగ్ లేదా ఐడి చెప్పండి.",
         "no_animals_registered": "మీ పేరు మీద ఇంకా ఏ జంతువు నమోదు కాలేదు, కాబట్టి '{identifier}' సరిపోల్చలేను. దయచేసి ముందుగా ఒక జంతువును నమోదు చేయండి.",
         "no": "ఏ వివరాన్ని సరిచేయాలి?",
@@ -148,6 +156,7 @@ _TEXT = {
         "ready": "ಅಗತ್ಯ ವಿವರಗಳು ಪೂರ್ಣಗೊಂಡಿವೆ. ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಲ್ಲಿಸಬೇಕೇ?",
         "submit_yes": "ಉಳಿಸಲು ಸಿದ್ಧವಾದಾಗ ಸಬ್ಮಿಟ್ ಎಂದು ಹೇಳಿ.",
         "submitted": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಮತ್ತು ಪ್ರಾಣಿಯ ಆರೋಗ್ಯ ದಾಖಲೆ ಯಶಸ್ವಿಯಾಗಿ ಉಳಿಸಲಾಗಿದೆ.",
+        "submitted_sync_failed": "ನಿಮ್ಮ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಇಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ, ಆದರೆ ಇದನ್ನು ಈಗ ಅಪ್ಲಿಕೇಶನ್‌ಗೆ ಕಳುಹಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಅಪ್ಲಿಕೇಶನ್ ಪರಿಶೀಲಿಸಿ.",
         "animal_not_found": "'{identifier}' ಎಂಬ ಹೆಸರು ಅಥವಾ ಟ್ಯಾಗ್ ಇರುವ ಪ್ರಾಣಿ ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ. ನಿಮ್ಮ ನೋಂದಾಯಿತ ಪ್ರಾಣಿಗಳು: {animals}. ದಯವಿಟ್ಟು ಸರಿಯಾದ ಹೆಸರು, ಟ್ಯಾಗ್ ಅಥವಾ ಐಡಿ ತಿಳಿಸಿ.",
         "no_animals_registered": "ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಇನ್ನೂ ಯಾವುದೇ ಪ್ರಾಣಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ '{identifier}' ಅನ್ನು ಹೊಂದಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ಮೊದಲು ಒಂದು ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಿ.",
         "no": "ಯಾವ ವಿವರವನ್ನು ಸರಿಪಡಿಸಬೇಕು?",
@@ -157,6 +166,19 @@ _TEXT = {
         "missing_date": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ದಿನಾಂಕ",
         "missing_time": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಮಯ",
     },
+}
+
+# Said after answering a side question (a weather or farm-data question
+# asked while a booking is open), so the farmer knows the booking is still
+# waiting and what it needs next. See _side_question_response().
+_STILL_OPEN = {
+    "en": "Your appointment booking is still open: {summary}",
+    "hi": "आपकी अपॉइंटमेंट बुकिंग अभी खुली है: {summary}",
+    "mr": "तुमची अपॉइंटमेंट बुकिंग अजून सुरू आहे: {summary}",
+    "ta": "உங்கள் சந்திப்பு முன்பதிவு இன்னும் திறந்துள்ளது: {summary}",
+    "te": "మీ అపాయింట్‌మెంట్ బుకింగ్ ఇంకా తెరిచి ఉంది: {summary}",
+    "kn": "ನಿಮ್ಮ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬುಕಿಂಗ್ ಇನ್ನೂ ತೆರೆದಿದೆ: {summary}",
+    "ml": "നിങ്ങളുടെ അപ്പോയിന്റ്മെന്റ് ബുക്കിംഗ് ഇപ്പോഴും തുറന്നിരിക്കുന്നു: {summary}",
 }
 
 _LABELS = {
@@ -593,6 +615,80 @@ class AppointmentSupervisor(DraftSupervisor):
             return True
         return False
 
+    @staticmethod
+    def _turn_adds_to_booking(draft: dict[str, Any], confirmation_signal: Optional[str], entities: dict[str, Any],
+                              names_new_animal: bool, answers_expected_field: bool) -> bool:
+        """True when this turn plainly belongs to the booking: a yes/no/
+        cancel/submit, an animal (a first one or a different one), an answer
+        to the field the bot asked for, a new issue or symptom, or a date or
+        time the booking is still missing. Entities repeated from the
+        session cache (same value as the draft) do not count. A changed
+        date or time on a booking that already has one is not counted here
+        -- it may be a real correction or a word like "today" inside a
+        question -- so that turn goes to the side-question check, and the
+        classifier keeps it in the booking when it is a correction."""
+        if confirmation_signal or names_new_animal or answers_expected_field:
+            return True
+        values = draft["draft"]
+        if not draft.get("animal_verified") and (
+            entities.get("animal_id") or entities.get("animal_tag") or entities.get("animal_name")
+        ):
+            return True
+        for field in ("issue", "symptoms", "duration", "severity"):
+            value = entities.get(field)
+            if value not in (None, "", []) and value != values.get(field):
+                return True
+        for field in ("date", "time"):
+            if entities.get(field) not in (None, "") and not values.get(field):
+                return True
+        return False
+
+    def _reminder(self, draft: dict[str, Any]) -> str:
+        """What the booking still needs, in the farmer's language: the
+        details so far plus the next question (or the welcome text when
+        nothing has been given yet)."""
+        language = draft["language"]
+        if not self._has_any_info(draft["draft"]):
+            return self._message(language, "welcome")
+        template = _STILL_OPEN.get(_lang(language)) or _STILL_OPEN["en"]
+        text = template.format(summary=self._summary(draft))
+        missing = self._missing(draft)
+        if missing:
+            field = self._message(language, f"missing_{missing[0]}")
+            text = f"{text} {self._message(language, 'yes_missing', field=field)}"
+        elif draft.get("state") == "READY_TO_SUBMIT":
+            text = f"{text} {self._message(language, 'ready')}"
+        return text
+
+    def reminder(self, farmer_id: str, session_id: str, language: str = "en-IN") -> str:
+        """Read-only: the reminder for this session's open booking. Used by
+        the router when a turn goes to another agent without coming through
+        turn() (a PIN answering the weather agent's question)."""
+        with self._session_lock(farmer_id, session_id):
+            return self._reminder(self._load(session_id, farmer_id, language))
+
+    def _side_question_response(self, draft: dict[str, Any], cache_key: str, cache_before: Optional[dict],
+                                side: str, answer: Optional[str], text: str, session_id: str) -> dict[str, Any]:
+        """Leave the booking exactly as it was and hand the turn back to the
+        router, which answers the question (weather) or uses `answer`
+        (query) and adds the reminder. The draft is saved only to keep the
+        transcript line; no field changes. No audio is made here: the router
+        speaks the combined reply, so the result carries no
+        response_audio_base64 key."""
+        clear_session(cache_key)
+        if cache_before:
+            update_session(cache_key, cache_before)
+        self._save(draft)
+        reminder = self._reminder(draft)
+        _log.info("appointment side question session=%s intent=%s state=%s", session_id, side, draft.get("state"))
+        resp = self._response(draft, reminder, input_transcript=text, include_audio=False)
+        resp.pop("response_audio_base64", None)
+        resp.pop("audio_error", None)
+        resp["side_question"] = side
+        resp["side_answer"] = answer
+        resp["reminder"] = reminder
+        return resp
+
     def _missing(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
         return [field for field in REQUIRED_FIELDS if not values.get(field)]
@@ -676,11 +772,29 @@ class AppointmentSupervisor(DraftSupervisor):
             resp["options"] = options
         return resp
 
-    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
-        with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+             side_question: Optional[Callable[[str], Optional[str]]] = None,
+             recent_animal: Optional[str] = None) -> dict[str, Any]:
+        """side_question (optional): given the farmer's text, returns
+        "weather" or "query" when the text is a question for another agent,
+        else None. The chat router passes its intent classifier here so a
+        question asked in the middle of a booking can be answered without
+        touching the booking (see _side_question_response). It is only
+        called on a turn that adds nothing to the booking, so ordinary
+        booking turns cost no extra call. None (every other caller) keeps
+        the old behaviour exactly.
 
-    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+        recent_animal (optional): the one stored animal the farmer was
+        talking about in the turn just before ("what breed is KAALI?"), so
+        "book a vet for her" knows which animal. Used only when this turn
+        names no animal and the booking has none yet; the readback shows
+        it, so the farmer can still correct it. The router decides it."""
+        with self._session_lock(farmer_id, session_id):
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio, side_question, recent_animal)
+
+    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+                     side_question: Optional[Callable[[str], Optional[str]]] = None,
+                     recent_animal: Optional[str] = None) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted") or draft.get("state") == "CANCELLED":
             # Prior booking on this session_id is either already saved
@@ -746,9 +860,29 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             pending = None
 
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        # The extraction call below also updates the session entity cache.
+        # A side question must leave no trace in it (or a "today" read from
+        # "what's the weather today" would come back as the booking date on
+        # the next turn), so keep a copy to put back.
+        cache_key = f"{farmer_id}:{session_id}"
+        cache_before = copy.deepcopy(get_session(cache_key)) if side_question is not None else None
+        result = process_text_input(text, session_id=cache_key, pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
+
+        # "What breed is KAALI?" then "she is limping, book a vet for her":
+        # the extraction finds no animal in "her" (seen live in en/hi), and the
+        # bot asked for the animal again. Fill in the animal from the turn
+        # before, only when this turn names none and the booking has none.
+        if (
+            recent_animal
+            and not draft.get("animal_verified")
+            and not draft["draft"].get("animal_identifier")
+            and not (turn_entities.get("animal_id") or turn_entities.get("animal_tag") or turn_entities.get("animal_name"))
+        ):
+            turn_entities = {**turn_entities, "animal_name": recent_animal}
+            result = {**result, "entities": turn_entities}
+            _log.info("appointment animal taken from the previous turn session=%s animal=%s", session_id, recent_animal)
 
         # Real gap, found via live testing: a genuine off-topic question
         # mid-booking ("any animal with ram") got forced through this state
@@ -808,9 +942,35 @@ class AppointmentSupervisor(DraftSupervisor):
                 "appointment correction in place session=%s new_animal=%s",
                 session_id, names_new_animal,
             )
+        # A question for another agent asked in the middle of a booking
+        # ("how many goats do I have?", "what's the weather in Pune today?").
+        # The extraction reads every message as part of the booking (seen
+        # live: intent CREATE_APPOINTMENT and no yes/no for such questions in
+        # en/hi/ta, and "today" from the weather question became the booking
+        # date), so it cannot spot these itself. Only a turn that adds
+        # nothing to the booking is checked, with the router's classifier.
+        if side_question is not None and not self._turn_adds_to_booking(
+            draft, confirmation_signal, turn_entities, names_new_animal, answers_expected_field,
+        ):
+            side = side_question(text)
+            answer = None
+            if side == "query":
+                probe = process_query(text, farmer_id)
+                # Only a real database answer counts; anything else carries on as a booking turn.
+                answer = probe.get("answer") if probe.get("sql") and probe.get("data") else None
+                side = side if answer else None
+            if side in ("weather", "query"):
+                return self._side_question_response(draft, cache_key, cache_before, side, answer, text, session_id)
+
         if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field and not corrects_in_place:
             probe = process_query(text, farmer_id)
             if probe.get("sql") and probe.get("data"):
+                if side_question is not None:
+                    # From the chat router: answer plus the booking reminder, like any side
+                    # question. Seen live (te, ml): a breed question at the readback came back
+                    # as "no" and was answered with no word about the open booking.
+                    return self._side_question_response(draft, cache_key, cache_before, "query",
+                                                        probe.get("answer") or "", text, session_id)
                 self._save(draft)
                 return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
 
@@ -912,7 +1072,7 @@ class AppointmentSupervisor(DraftSupervisor):
         # once verified it's skipped for the rest of this booking.
         identifier = draft["draft"].get("animal_identifier")
         if identifier and not draft.get("animal_verified"):
-            animals = animals_for_farmer(farmer_id)
+            animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
             matched, candidates = _verify_animal(identifier, animals)
             if matched:
                 # What the farmer actually called the animal (any script or
@@ -1106,7 +1266,7 @@ class AppointmentSupervisor(DraftSupervisor):
             raise ValueError("The appointment requires final confirmation before submission")
         values = draft["draft"]
         animal_id = values.get("animal_id")
-        animals = animals_for_farmer(farmer_id)
+        animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
         if not animal_id:
             wanted = str(values.get("animal_identifier") or "").lower()
             matches = [a for a in animals if wanted in {a.id.lower(), a.tag_or_name.lower()}]
@@ -1224,7 +1384,7 @@ class AppointmentSupervisor(DraftSupervisor):
         # and swallowed inside flokiq_sync, never raised, never loses the
         # farmer's appointment.
         flokiq_health_log = flokiq_sync.create_health_log(
-            user_id=farmer_id,
+            farmer_id=farmer_id,
             pincode=str(values.get("weather_location") or ""),
             symptoms=values.get("symptoms") or [],
             animal_id=animal_id,
@@ -1246,13 +1406,24 @@ class AppointmentSupervisor(DraftSupervisor):
             "animal_name": getattr(resolved_animal, "tag_or_name", None) or values.get("animal_identifier"),
             "species": getattr(resolved_animal, "species", None) or values.get("species"),
         }
-        flokiq_sync.create_appointment(
+        # Real bug, found in whole-stack review: the result was never
+        # checked, so the farmer heard "saved successfully" even when the
+        # sync to main_backend genuinely failed (network error, main_backend
+        # rejected it, etc). create_appointment also returns None when sync
+        # simply doesn't apply here (disabled, unconfigured, a local demo
+        # farmer_id) -- will_attempt_appointment_sync distinguishes "sync
+        # wasn't attempted" from "sync was attempted and failed," so the
+        # caveat below only fires for a genuine failure, not every booking
+        # in an environment where sync isn't even turned on.
+        sync_was_attempted = flokiq_sync.will_attempt_appointment_sync(farmer_id)
+        sync_result = flokiq_sync.create_appointment(
             farmer_id=farmer_id,
             date=str(values.get("date")),
             time=str(values.get("time")),
             notes=flokiq_sync.build_appointment_notes(notes_values),
             health_log_id=(flokiq_health_log or {}).get("log_id"),
         )
+        sync_failed = sync_was_attempted and sync_result is None
 
         # Show the recommendation to the farmer -- spoken via TTS same as
         # every other response, plus returned as structured data for the
@@ -1270,7 +1441,16 @@ class AppointmentSupervisor(DraftSupervisor):
         # (UI, orchestrator envelope) read one consistent field regardless
         # of which state the conversation ended in, instead of needing a
         # separate branch just for the submit shape.
-        submitted_text = self._message(draft["language"], "submitted")
+        # Reviewer-found issue: appending a "may take a little longer to
+        # show up in the app" caveat after "saved successfully" was still
+        # dishonest -- create_appointment has no retry/queue, so a failed
+        # sync NEVER reaches the app, not just later. On a genuine failure
+        # this replaces the message entirely rather than appending to it,
+        # so the farmer is never told the booking succeeded when the part
+        # that mattered (reaching the vet's app) did not.
+        submitted_text = self._message(
+            draft["language"], "submitted_sync_failed" if sync_failed else "submitted"
+        )
         if recommendation.get("first_aid_advice"):
             submitted_text = f"{submitted_text} {recommendation['first_aid_advice']}"
         return {

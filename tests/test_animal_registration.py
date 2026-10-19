@@ -135,6 +135,27 @@ def test_duplicate_tag_rejected(tmp_path, monkeypatch):
     assert result["draft"].get("unique_animal_id") is None
 
 
+def test_duplicate_tag_rejected_against_an_app_added_animal(tmp_path, monkeypatch):
+    """Real gap, found in live-sync review: registering a new animal
+    through Chocolate must also check main_backend's animals (added via
+    the app, not through this chatbot), not just the local store --
+    otherwise a farmer could register a tag that's already taken in the
+    app, silently creating a mismatch between the two."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        "services.animal_registration.service.flokiq_sync.get_farm_animals",
+        lambda farmer_id: [{"id": "app-animal-1", "uniqueAnimalId": "EXISTING-1"}],
+    )
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    _mock_extract(sup, [{"unique_animal_id": "existing-1"}])  # different case, same tag
+
+    result = sup.turn("f-001", "s-app-dup", "ID is existing-1", include_audio=False)
+    assert "already registered" in result["response_text"]
+    assert result["draft"].get("unique_animal_id") is None
+
+
 def test_field_unknown_accepts_fallback_breed(tmp_path, monkeypatch):
     """Real bug found live (peer session testing the UI, 2026-09-22): a
     farmer who genuinely doesn't know their animal's breed had no way to
