@@ -520,6 +520,55 @@ def _check_weekday_date(text: str, entities: Dict[str, Any], today=None) -> Dict
     _log.warning("extraction date %s is a %s but the farmer said %s; using %s",
                  value, _WEEKDAYS[day.weekday()], _WEEKDAYS[named], fixed.isoformat())
     return {**entities, "date": fixed.isoformat()}
+
+
+# Backstop for "day after tomorrow". Found by the evals suite (layer 3):
+# Telugu "MOTI తినడం లేదు, ఎల్లుండి ఉదయం 11 గంటలకు డాక్టర్ బుక్ చేయండి" came
+# back as tomorrow 5 times out of 5, backstop on or off, while the same
+# word alone was right -- the calendar line says which date is the day after
+# tomorrow, and the model still misread it in that sentence. When the farmer
+# says "day after tomorrow" in any supported language and the extracted date
+# is tomorrow, the date is moved to the day after tomorrow. Nothing else is
+# touched: no other date, and not when a weekday is also named (the weekday
+# check above decides then). "Tomorrow" words are not listed on purpose --
+# Hindi कल also means yesterday. Logged. EXTRACTION_DAY_AFTER_TOMORROW_CHECK=0
+# turns it off.
+_DAY_AFTER_TOMORROW_ENV = "EXTRACTION_DAY_AFTER_TOMORROW_CHECK"
+_DAY_AFTER_TOMORROW_WORDS = (
+    "day after tomorrow", "परसों", "परवा", "நாளை மறுநாள்", "ఎల్లుండి", "ನಾಡಿದ್ದು", "മറ്റന്നാൾ",
+)
+
+
+def _says_day_after_tomorrow(text: str) -> bool:
+    """True when the text says "day after tomorrow" in any supported language.
+    Single words may carry a short case ending (परसों को, ನಾಡಿದ್ದು ರಂದು)."""
+    lowered = (text or "").lower()
+    tokens = [word.strip(".,!?;:()[]\"'") for word in lowered.split()]
+    for phrase in _DAY_AFTER_TOMORROW_WORDS:
+        if " " in phrase:
+            if phrase in lowered:
+                return True
+        elif any(token.startswith(phrase) and len(token) - len(phrase) <= 3 for token in tokens):
+            return True
+    return False
+
+
+def _check_day_after_tomorrow(text: str, entities: Dict[str, Any], today=None) -> Dict[str, Any]:
+    if os.getenv(_DAY_AFTER_TOMORROW_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return entities
+    value = entities.get("date")
+    if not isinstance(value, str):
+        return entities
+    from datetime import timedelta
+    today = today or _today_ist_date()
+    tomorrow = today + timedelta(days=1)
+    if value not in ("tomorrow", tomorrow.isoformat()):
+        return entities
+    if not _says_day_after_tomorrow(text) or _weekday_named(text) is not None:
+        return entities
+    fixed = (today + timedelta(days=2)).isoformat()
+    _log.warning("extraction date %s is tomorrow but the farmer said day after tomorrow; using %s", value, fixed)
+    return {**entities, "date": fixed}
 # already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
 # strategies, no _coerce_confidence/_coerce_list shims. Verified working on
 # DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
@@ -799,7 +848,7 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     confirmation_signal = tool_input.pop("confirmation_signal", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
-    entities = _check_weekday_date(text, tool_input)
+    entities = _check_day_after_tomorrow(text, _check_weekday_date(text, tool_input))
 
     return {
         "intent": intent,
