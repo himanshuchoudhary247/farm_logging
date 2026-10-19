@@ -965,6 +965,12 @@ class AppointmentSupervisor(DraftSupervisor):
         if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field and not corrects_in_place:
             probe = process_query(text, farmer_id)
             if probe.get("sql") and probe.get("data"):
+                if side_question is not None:
+                    # From the chat router: answer plus the booking reminder, like any side
+                    # question. Seen live (te, ml): a breed question at the readback came back
+                    # as "no" and was answered with no word about the open booking.
+                    return self._side_question_response(draft, cache_key, cache_before, "query",
+                                                        probe.get("answer") or "", text, session_id)
                 self._save(draft)
                 return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
 

@@ -242,4 +242,22 @@ def test_registration_without_a_classifier_is_unchanged(tmp_path, monkeypatch):
     result = sup.turn("f-001", "r-old", "how many sheep do I have?", include_audio=False)
     assert "side_question" not in result
     assert result["draft"] == {"species": "goat"}
-    
+
+
+
+def test_question_read_as_no_at_readback_also_gets_the_reminder(tmp_path, monkeypatch):
+    """Live (te, ml): "which breed is GAURI?" at the readback came back with
+    confirmation_signal="no"; the old probe answered it with no word about
+    the open booking. From the router it now gets the reminder too."""
+    supervisor = _booked(monkeypatch, tmp_path, "s-no-probe", {
+        "entities": dict(_BOOKING), "confirmation_signal": "no",
+    })
+    monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {
+        "answer": "GAURI is a Sirohi goat.", "sql": "SELECT 1", "data": [{"breed": "Sirohi"}],
+    })
+    result = supervisor.turn("f-001", "s-no-probe", "which breed is GAURI?", "en-IN",
+                             side_question=_classifier("query", []))
+    assert result["side_question"] == "query"
+    assert result["side_answer"] == "GAURI is a Sirohi goat."
+    assert "still open" in result["reminder"]
+    assert result["draft"]["date"] == "2026-08-22"
