@@ -1,0 +1,4715 @@
+{
+  "layer": 3,
+  "name": "mixed",
+  "description": "Several topics in one conversation: follow-up questions, a question for another agent asked in the middle of a booking or registration, a booking right after a question about one animal, cancel then ask, six topics in a row, and a change of script mid-conversation. 20 per language. Bookings and registrations never get the final 'yes', so nothing is saved.",
+  "farmer_id": "f-001",
+  "facts_note": "Same farm as layers 1-2 (f-001): goat 14, buffalo 16 (Mehsana 5, Nili-Ravi 5), sheep 7, chicken 7, cow 9 (Kankrej 3), total 53. GAURI and MOTI = Sirohi goats, KAALI = Jamunapari goat, LAKSHMI = Murrah buffalo, BIJLI = Nili-Ravi buffalo, RAJA = Kankrej cow. Dates use placeholders counted from now in IST (see evals/run.py).",
+  "conversations": [
+    {
+      "id": "L3-en-001",
+      "language": "en-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many goats do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and buffaloes?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "how many of them are Mehsana?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-002",
+      "language": "en-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "what breed is GAURI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        },
+        {
+          "user": "and MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        },
+        {
+          "user": "so both are goats, right?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "goat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-003",
+      "language": "en-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many animals do I have in total?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "how many chickens?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-004",
+      "language": "en-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "what breed is KAALI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari"
+            ]
+          }
+        },
+        {
+          "user": "she is limping, book a vet for her tomorrow at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-005",
+      "language": "en-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI has fever, need a vet tomorrow at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "by the way, how many goats do I have?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ok, what about my booking?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-006",
+      "language": "en-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI is not eating, book a vet day after tomorrow at 11 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "what's the weather in Pune today?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ok, continue the booking",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-007",
+      "language": "en-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I need a vet",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "she has fever",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "day after tomorrow at 11 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-008",
+      "language": "en-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI has fever, vet tomorrow at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "no, make it day after tomorrow",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "and the time 4 pm",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-009",
+      "language": "en-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI has fever, need a vet tomorrow at 9 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "cancel it",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "how many buffaloes do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-010",
+      "language": "en-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "what's the weather in Nashik today?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA is limping, book a vet tomorrow at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-011",
+      "language": "en-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "what breed is MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        },
+        {
+          "user": "GAURI has loose motions, need a vet tomorrow at 9 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-012",
+      "language": "en-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how is the weather today?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "PIN",
+              "pin code",
+              "pincode",
+              "place"
+            ]
+          }
+        },
+        {
+          "user": "first tell me, how many cows do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "weather for 411001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-013",
+      "language": "en-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I want to register a new animal",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "how many sheep do I have?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "ok, it's a goat, male",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-014",
+      "language": "en-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I want to register a new animal",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "leave it, cancel",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "what breed is GAURI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-015",
+      "language": "en-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many goats do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "what breed is GAURI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        },
+        {
+          "user": "what's the weather in Pune today?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "how many buffaloes do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "what breed is LAKSHMI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah"
+            ]
+          }
+        },
+        {
+          "user": "how many animals do I have in total?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-016",
+      "language": "en-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "how many goats do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "aur bhed kitni hain?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "and chickens?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-017",
+      "language": "en-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "what breed is GAURI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        },
+        {
+          "user": "sorry, I meant KAALI",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-018",
+      "language": "en-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI has loose motions, need a vet tomorrow at 10 am",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "which breed is GAURI?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ok, go ahead with the booking",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-019",
+      "language": "en-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "how many Nili-Ravi buffaloes do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI is one of them, she has fever, book a vet on Wednesday at 3 pm",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-en-020",
+      "language": "en-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "how many Kankrej cows do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "what animal is RAJA?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "cow",
+              "bull",
+              "Kankrej"
+            ]
+          }
+        },
+        {
+          "user": "book a vet for him on the 25th at 11 am, he is limping",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-001",
+      "language": "hi-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी बकरियाँ हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "और भैंसें?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "उनमें से Mehsana कितनी हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-002",
+      "language": "hi-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "और MOTI की?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "तो दोनों बकरियाँ हैं ना?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "बकरी",
+              "बकरियाँ",
+              "बकरियां"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-003",
+      "language": "hi-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कुल कितने पशु हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "मुर्गियाँ कितनी हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "और भेड़ें?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-004",
+      "language": "hi-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "जमुनापारी",
+              "जमनापारी"
+            ]
+          }
+        },
+        {
+          "user": "वो लंगड़ा रही है, उसके लिए कल सुबह 10 बजे डॉक्टर बुक करो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-005",
+      "language": "hi-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI को बुखार है, कल सुबह 10 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "वैसे, मेरे पास कितनी बकरियाँ हैं?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक है, मेरी बुकिंग का क्या हुआ?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-006",
+      "language": "hi-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI खाना नहीं खा रही, परसों सुबह 11 बजे डॉक्टर बुक करो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "आज पुणे में मौसम कैसा है?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक है, बुकिंग आगे बढ़ाओ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-007",
+      "language": "hi-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "उसे बुखार है",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "परसों सुबह 11 बजे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-008",
+      "language": "hi-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI को बुखार है, कल सुबह 10 बजे डॉक्टर",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "नहीं, परसों कर दो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "और टाइम शाम 4 बजे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-009",
+      "language": "hi-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI को बुखार है, कल सुबह 9 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "रद्द करो",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "मेरे पास कितनी भैंसें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-010",
+      "language": "hi-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आज नासिक में मौसम कैसा है?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA लंगड़ा रहा है, कल सुबह 10 बजे डॉक्टर बुक करो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-011",
+      "language": "hi-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "GAURI को दस्त हो रहे हैं, कल सुबह 9 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-012",
+      "language": "hi-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "आज मौसम कैसा है?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "पिन",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "पहले बताओ, मेरे पास कितनी गायें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 का मौसम बताओ",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-013",
+      "language": "hi-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मुझे नया पशु पंजीकृत करना है",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "मेरे पास कितनी भेड़ें हैं?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "ठीक है, बकरा है, नर",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-014",
+      "language": "hi-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मुझे नया पशु पंजीकृत करना है",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "रहने दो, रद्द करो",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-015",
+      "language": "hi-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी बकरियाँ हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "आज पुणे में मौसम कैसा है?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "मेरे पास कितनी भैंसें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "मुर्रा",
+              "मुरा",
+              "मुर्राह"
+            ]
+          }
+        },
+        {
+          "user": "मेरे पास कुल कितने पशु हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-016",
+      "language": "hi-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी बकरियाँ हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "aur murgiyan kitni hain?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-017",
+      "language": "hi-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "सॉरी, मेरा मतलब KAALI था",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "जमुनापारी",
+              "जमनापारी"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-018",
+      "language": "hi-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI को दस्त हो रहे हैं, कल सुबह 10 बजे डॉक्टर चाहिए",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI की नस्ल क्या है?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक है, बुकिंग आगे बढ़ाओ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-019",
+      "language": "hi-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी Nili-Ravi भैंसें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI उनमें से एक है, उसे बुखार है, बुधवार दोपहर 3 बजे डॉक्टर बुक करो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-hi-020",
+      "language": "hi-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी Kankrej गायें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA कौन सा जानवर है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "गाय",
+              "बैल",
+              "Kankrej",
+              "कांकरेज"
+            ]
+          }
+        },
+        {
+          "user": "उसके लिए 25 तारीख को सुबह 11 बजे डॉक्टर बुक करो, वो लंगड़ा रहा है",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-001",
+      "language": "mr-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती शेळ्या आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "आणि म्हशी?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "त्यापैकी Mehsana किती आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-002",
+      "language": "mr-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "आणि MOTI ची?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "म्हणजे दोघी शेळ्या आहेत ना?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "शेळी",
+              "शेळ्या",
+              "बकरी"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-003",
+      "language": "mr-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे एकूण किती जनावरे आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "कोंबड्या किती आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "आणि मेंढ्या?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-004",
+      "language": "mr-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "जमुनापारी",
+              "जमनापारी"
+            ]
+          }
+        },
+        {
+          "user": "ती लंगडत आहे, तिच्यासाठी उद्या सकाळी 10 वाजता डॉक्टर बुक करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-005",
+      "language": "mr-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ला ताप आहे, उद्या सकाळी 10 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "बरं, माझ्याकडे किती शेळ्या आहेत?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक आहे, माझ्या बुकिंगचं काय झालं?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-006",
+      "language": "mr-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI खात नाही, परवा सकाळी 11 वाजता डॉक्टर बुक करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "आज पुण्यात हवामान कसे आहे?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक आहे, बुकिंग पुढे चालू ठेवा",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-007",
+      "language": "mr-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "तिला ताप आहे",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "परवा सकाळी 11 वाजता",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-008",
+      "language": "mr-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ला ताप आहे, उद्या सकाळी 10 वाजता डॉक्टर",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "नाही, परवा करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "आणि वेळ संध्याकाळी 4 वाजता",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-009",
+      "language": "mr-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ला ताप आहे, उद्या सकाळी 9 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "रद्द करा",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "माझ्याकडे किती म्हशी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-010",
+      "language": "mr-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आज नाशिकमध्ये हवामान कसे आहे?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA लंगडत आहे, उद्या सकाळी 10 वाजता डॉक्टर बुक करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-011",
+      "language": "mr-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ला जुलाब होत आहेत, उद्या सकाळी 9 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-012",
+      "language": "mr-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "आजचे हवामान कसे आहे?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "पिन",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "आधी सांगा, माझ्याकडे किती गायी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 चे हवामान सांगा",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-013",
+      "language": "mr-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मला नवीन जनावर नोंदवायचे आहे",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "माझ्याकडे किती मेंढ्या आहेत?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "ठीक आहे, बोकड आहे, नर",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-014",
+      "language": "mr-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मला नवीन जनावर नोंदवायचे आहे",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "राहू द्या, रद्द करा",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-015",
+      "language": "mr-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती शेळ्या आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "आज पुण्यात हवामान कसे आहे?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "माझ्याकडे किती म्हशी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "मुर्रा",
+              "मुरा"
+            ]
+          }
+        },
+        {
+          "user": "माझ्याकडे एकूण किती जनावरे आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-016",
+      "language": "mr-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती शेळ्या आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "ani kombdya kiti ahet?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-017",
+      "language": "mr-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ]
+          }
+        },
+        {
+          "user": "सॉरी, मला KAALI म्हणायचे होते",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "जमुनापारी",
+              "जमनापारी"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-018",
+      "language": "mr-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ला जुलाब होत आहेत, उद्या सकाळी 10 वाजता डॉक्टर हवा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "सिरोही"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ठीक आहे, बुकिंग पुढे चालू ठेवा",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-019",
+      "language": "mr-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती Nili-Ravi म्हशी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI त्यापैकी एक आहे, तिला ताप आहे, बुधवारी दुपारी 3 वाजता डॉक्टर बुक करा",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-mr-020",
+      "language": "mr-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती Kankrej गायी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA कोणता प्राणी आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "गाय",
+              "बैल",
+              "Kankrej",
+              "कांकरेज"
+            ]
+          }
+        },
+        {
+          "user": "त्याच्यासाठी 25 तारखेला सकाळी 11 वाजता डॉक्टर बुक करा, तो लंगडत आहे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-001",
+      "language": "ta-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை வெள்ளாடுகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "மற்றும் எருமைகள்?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "அவற்றில் Mehsana எத்தனை?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-002",
+      "language": "ta-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        },
+        {
+          "user": "மற்றும் MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        },
+        {
+          "user": "அப்போ இரண்டும் வெள்ளாடுகள் தானே?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ஆடு",
+              "வெள்ளாடு"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-003",
+      "language": "ta-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் மொத்தம் எத்தனை விலங்குகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "கோழிகள் எத்தனை?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "மற்றும் செம்மறி ஆடுகள்?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-004",
+      "language": "ta-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ஜமுனாபாரி",
+              "ஜமுனாபரி"
+            ]
+          }
+        },
+        {
+          "user": "அது நொண்டுகிறது, அதற்கு நாளை காலை 10 மணிக்கு டாக்டர் புக் செய்யுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-005",
+      "language": "ta-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI க்கு காய்ச்சல், நாளை காலை 10 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "சரி, என்னிடம் எத்தனை வெள்ளாடுகள் உள்ளன?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "சரி, என் புக்கிங் என்ன ஆனது?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-006",
+      "language": "ta-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI சாப்பிடவில்லை, நாளை மறுநாள் காலை 11 மணிக்கு டாக்டர் புக் செய்யுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "இன்று புனேவில் வானிலை எப்படி?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "சரி, புக்கிங்கை தொடருங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-007",
+      "language": "ta-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "அதற்கு காய்ச்சல்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "நாளை மறுநாள் காலை 11 மணிக்கு",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-008",
+      "language": "ta-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI க்கு காய்ச்சல், நாளை காலை 10 மணிக்கு டாக்டர்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "இல்லை, நாளை மறுநாள் வையுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "நேரம் மாலை 4 மணி",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-009",
+      "language": "ta-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI க்கு காய்ச்சல், நாளை காலை 9 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ரத்து செய்யுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "என்னிடம் எத்தனை எருமைகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-010",
+      "language": "ta-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "இன்று நாசிக்கில் வானிலை எப்படி?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA நொண்டுகிறது, நாளை காலை 10 மணிக்கு டாக்டர் புக் செய்யுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-011",
+      "language": "ta-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        },
+        {
+          "user": "GAURI க்கு வயிற்றுப்போக்கு, நாளை காலை 9 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-012",
+      "language": "ta-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "இன்றைய வானிலை எப்படி இருக்கிறது?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "பின்",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "முதலில் சொல்லுங்கள், என்னிடம் எத்தனை பசுக்கள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 க்கு வானிலை சொல்லுங்கள்",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-013",
+      "language": "ta-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "நான் ஒரு புதிய விலங்கை பதிவு செய்ய விரும்புகிறேன்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "என்னிடம் எத்தனை செம்மறி ஆடுகள் உள்ளன?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "சரி, அது வெள்ளாடு, ஆண்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-014",
+      "language": "ta-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "நான் ஒரு புதிய விலங்கை பதிவு செய்ய விரும்புகிறேன்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "வேண்டாம், ரத்து செய்யுங்கள்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-015",
+      "language": "ta-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை வெள்ளாடுகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        },
+        {
+          "user": "இன்று புனேவில் வானிலை எப்படி?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "என்னிடம் எத்தனை எருமைகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "முர்ரா",
+              "முரா"
+            ]
+          }
+        },
+        {
+          "user": "என்னிடம் மொத்தம் எத்தனை விலங்குகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-016",
+      "language": "ta-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை வெள்ளாடுகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "kozhigal ethanai irukku?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-017",
+      "language": "ta-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI என்ன இனம்?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        },
+        {
+          "user": "மன்னிக்கவும், நான் KAALI என்று சொல்ல வந்தேன்",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ஜமுனாபாரி",
+              "ஜமுனாபரி"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-018",
+      "language": "ta-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI க்கு வயிற்றுப்போக்கு, நாளை காலை 10 மணிக்கு டாக்டர் வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI என்ன இனம்?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "சரி, புக்கிங்கை தொடருங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-019",
+      "language": "ta-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை Nili-Ravi எருமைகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI அவற்றில் ஒன்று, அதற்கு காய்ச்சல், புதன்கிழமை மதியம் 3 மணிக்கு டாக்டர் புக் செய்யுங்கள்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ta-020",
+      "language": "ta-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை Kankrej பசுக்கள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA எந்த விலங்கு?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "பசு",
+              "மாடு",
+              "காளை",
+              "Kankrej"
+            ]
+          }
+        },
+        {
+          "user": "அதற்கு 25ஆம் தேதி காலை 11 மணிக்கு டாக்டர் புக் செய்யுங்கள், அது நொண்டுகிறது",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-001",
+      "language": "te-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని మేకలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "మరి గేదెలు?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "వాటిలో Mehsana ఎన్ని?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-002",
+      "language": "te-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        },
+        {
+          "user": "మరి MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        },
+        {
+          "user": "అంటే రెండూ మేకలే కదా?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "మేక"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-003",
+      "language": "te-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర మొత్తం ఎన్ని జంతువులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "కోళ్లు ఎన్ని?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "మరి గొర్రెలు?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-004",
+      "language": "te-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "జమునాపారి",
+              "జమునాపరి"
+            ]
+          }
+        },
+        {
+          "user": "అది కుంటుతోంది, దానికి రేపు ఉదయం 10 గంటలకు డాక్టర్ బుక్ చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-005",
+      "language": "te-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI కి జ్వరం, రేపు ఉదయం 10 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "అన్నట్టు, నా దగ్గర ఎన్ని మేకలు ఉన్నాయి?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "సరే, నా బుకింగ్ ఏమైంది?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-006",
+      "language": "te-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI తినడం లేదు, ఎల్లుండి ఉదయం 11 గంటలకు డాక్టర్ బుక్ చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "ఈరోజు పుణెలో వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "సరే, బుకింగ్ కొనసాగించండి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-007",
+      "language": "te-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "దానికి జ్వరం ఉంది",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ఎల్లుండి ఉదయం 11 గంటలకు",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-008",
+      "language": "te-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI కి జ్వరం, రేపు ఉదయం 10 గంటలకు డాక్టర్",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "కాదు, ఎల్లుండి చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "సమయం సాయంత్రం 4 గంటలకు",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-009",
+      "language": "te-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI కి జ్వరం, రేపు ఉదయం 9 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "రద్దు చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "నా దగ్గర ఎన్ని గేదెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-010",
+      "language": "te-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ఈరోజు నాసిక్‌లో వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA కుంటుతోంది, రేపు ఉదయం 10 గంటలకు డాక్టర్ బుక్ చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-011",
+      "language": "te-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        },
+        {
+          "user": "GAURI కి విరేచనాలు, రేపు ఉదయం 9 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-012",
+      "language": "te-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ఈరోజు వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "పిన్",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "ముందు చెప్పండి, నా దగ్గర ఎన్ని ఆవులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 వాతావరణం చెప్పండి",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-013",
+      "language": "te-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నేను కొత్త జంతువును నమోదు చేయాలనుకుంటున్నాను",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "నా దగ్గర ఎన్ని గొర్రెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "సరే, అది మేక, మగ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-014",
+      "language": "te-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నేను కొత్త జంతువును నమోదు చేయాలనుకుంటున్నాను",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "వద్దు, రద్దు చేయండి",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-015",
+      "language": "te-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని మేకలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        },
+        {
+          "user": "ఈరోజు పుణెలో వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "నా దగ్గర ఎన్ని గేదెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "ముర్రా",
+              "ముర్రాహ్"
+            ]
+          }
+        },
+        {
+          "user": "నా దగ్గర మొత్తం ఎన్ని జంతువులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-016",
+      "language": "te-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని మేకలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "kodilu enni unnayi?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-017",
+      "language": "te-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ఏ జాతి?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        },
+        {
+          "user": "క్షమించండి, నేను KAALI అని అడగాలనుకున్నాను",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "జమునాపారి",
+              "జమునాపరి"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-018",
+      "language": "te-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI కి విరేచనాలు, రేపు ఉదయం 10 గంటలకు డాక్టర్ కావాలి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ఏ జాతి?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "సరే, బుకింగ్ కొనసాగించండి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-019",
+      "language": "te-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని Nili-Ravi గేదెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI వాటిలో ఒకటి, దానికి జ్వరం, బుధవారం మధ్యాహ్నం 3 గంటలకు డాక్టర్ బుక్ చేయండి",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-te-020",
+      "language": "te-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని Kankrej ఆవులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA ఏ జంతువు?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ఆవు",
+              "ఎద్దు",
+              "Kankrej"
+            ]
+          }
+        },
+        {
+          "user": "దానికి 25వ తేదీన ఉదయం 11 గంటలకు డాక్టర్ బుక్ చేయండి, అది కుంటుతోంది",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-001",
+      "language": "kn-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಮೇಕೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "ಮತ್ತೆ ಎಮ್ಮೆಗಳು?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "ಅವುಗಳಲ್ಲಿ Mehsana ಎಷ್ಟು?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-002",
+      "language": "kn-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        },
+        {
+          "user": "ಮತ್ತೆ MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        },
+        {
+          "user": "ಅಂದರೆ ಎರಡೂ ಮೇಕೆಗಳೇ ಅಲ್ವಾ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ಮೇಕೆ",
+              "ಆಡು"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-003",
+      "language": "kn-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಒಟ್ಟು ಎಷ್ಟು ಪ್ರಾಣಿಗಳಿವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "ಕೋಳಿಗಳು ಎಷ್ಟು?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "ಮತ್ತೆ ಕುರಿಗಳು?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-004",
+      "language": "kn-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ಜಮುನಾಪಾರಿ",
+              "ಜಮುನಾಪರಿ"
+            ]
+          }
+        },
+        {
+          "user": "ಅದು ಕುಂಟುತ್ತಿದೆ, ಅದಕ್ಕೆ ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬುಕ್ ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-005",
+      "language": "kn-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ಗೆ ಜ್ವರ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "ಅಂದಹಾಗೆ, ನನ್ನ ಬಳಿ ಎಷ್ಟು ಮೇಕೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ಸರಿ, ನನ್ನ ಬುಕಿಂಗ್ ಏನಾಯಿತು?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-006",
+      "language": "kn-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ತಿನ್ನುತ್ತಿಲ್ಲ, ನಾಡಿದ್ದು ಬೆಳಿಗ್ಗೆ 11 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬುಕ್ ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "ಇಂದು ಪುಣೆಯಲ್ಲಿ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ಸರಿ, ಬುಕಿಂಗ್ ಮುಂದುವರಿಸಿ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-007",
+      "language": "kn-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "ಅದಕ್ಕೆ ಜ್ವರ ಇದೆ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ನಾಡಿದ್ದು ಬೆಳಿಗ್ಗೆ 11 ಗಂಟೆಗೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-008",
+      "language": "kn-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ಗೆ ಜ್ವರ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ಇಲ್ಲ, ನಾಡಿದ್ದು ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ಸಮಯ ಸಂಜೆ 4 ಗಂಟೆಗೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-009",
+      "language": "kn-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ಗೆ ಜ್ವರ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 9 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ರದ್ದು ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಎಮ್ಮೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-010",
+      "language": "kn-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ಇಂದು ನಾಸಿಕ್‌ನಲ್ಲಿ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA ಕುಂಟುತ್ತಿದೆ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬುಕ್ ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-011",
+      "language": "kn-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ಗೆ ಭೇದಿ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 9 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-012",
+      "language": "kn-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ಇಂದಿನ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "ಪಿನ್",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "ಮೊದಲು ಹೇಳಿ, ನನ್ನ ಬಳಿ ಎಷ್ಟು ಹಸುಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 ರ ಹವಾಮಾನ ಹೇಳಿ",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-013",
+      "language": "kn-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನಾನು ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಲು ಬಯಸುತ್ತೇನೆ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಕುರಿಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "ಸರಿ, ಅದು ಮೇಕೆ, ಗಂಡು",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-014",
+      "language": "kn-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನಾನು ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಲು ಬಯಸುತ್ತೇನೆ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ಬೇಡ, ರದ್ದು ಮಾಡಿ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-015",
+      "language": "kn-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಮೇಕೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        },
+        {
+          "user": "ಇಂದು ಪುಣೆಯಲ್ಲಿ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಎಮ್ಮೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "ಮುರ್ರಾ",
+              "ಮುರಾ"
+            ]
+          }
+        },
+        {
+          "user": "ನನ್ನ ಬಳಿ ಒಟ್ಟು ಎಷ್ಟು ಪ್ರಾಣಿಗಳಿವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-016",
+      "language": "kn-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಮೇಕೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "koligalu eshtu ive?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-017",
+      "language": "kn-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ]
+          }
+        },
+        {
+          "user": "ಕ್ಷಮಿಸಿ, ನಾನು KAALI ಬಗ್ಗೆ ಕೇಳಬೇಕಿತ್ತು",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ಜಮುನಾಪಾರಿ",
+              "ಜಮುನಾಪರಿ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-018",
+      "language": "kn-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ಗೆ ಭೇದಿ, ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "ಸಿರೋಹಿ",
+              "ಸಿರೋಹೀ"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ಸರಿ, ಬುಕಿಂಗ್ ಮುಂದುವರಿಸಿ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-019",
+      "language": "kn-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು Nili-Ravi ಎಮ್ಮೆಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI ಅವುಗಳಲ್ಲಿ ಒಂದು, ಅದಕ್ಕೆ ಜ್ವರ, ಬುಧವಾರ ಮಧ್ಯಾಹ್ನ 3 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬುಕ್ ಮಾಡಿ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-kn-020",
+      "language": "kn-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು Kankrej ಹಸುಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA ಯಾವ ಪ್ರಾಣಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ಹಸು",
+              "ದನ",
+              "ಎತ್ತು",
+              "ಗೂಳಿ",
+              "Kankrej"
+            ]
+          }
+        },
+        {
+          "user": "ಅದಕ್ಕೆ 25ನೇ ತಾರೀಖು ಬೆಳಿಗ್ಗೆ 11 ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಬುಕ್ ಮಾಡಿ, ಅದು ಕುಂಟುತ್ತಿದೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-001",
+      "language": "ml-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ആടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "എരുമകളോ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "അതിൽ Mehsana എത്ര?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-002",
+      "language": "ml-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        },
+        {
+          "user": "MOTI യോ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        },
+        {
+          "user": "അപ്പോൾ രണ്ടും ആടുകളാണല്ലേ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ആട"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-003",
+      "language": "ml-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ ആകെ എത്ര മൃഗങ്ങൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        },
+        {
+          "user": "കോഴികൾ എത്ര?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "ചെമ്മരിയാടുകളോ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-004",
+      "language": "ml-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "KAALI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ജമുനാപാരി",
+              "ജമുനാപരി"
+            ]
+          }
+        },
+        {
+          "user": "അത് മുടന്തുന്നു, അതിന് നാളെ രാവിലെ 10 മണിക്ക് ഡോക്ടറെ ബുക്ക് ചെയ്യൂ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "KAALI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-005",
+      "language": "ml-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ക്ക് പനി, നാളെ രാവിലെ 10 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "അതിനിടെ, എന്റെ കയ്യിൽ എത്ര ആടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "number": 14,
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ശരി, എന്റെ ബുക്കിംഗ് എന്തായി?",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-006",
+      "language": "ml-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI തിന്നുന്നില്ല, മറ്റന്നാൾ രാവിലെ 11 മണിക്ക് ഡോക്ടറെ ബുക്ക് ചെയ്യൂ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "MOTI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        },
+        {
+          "user": "ഇന്ന് പൂനെയിൽ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "has_number": true,
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ശരി, ബുക്കിംഗ് തുടരൂ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-007",
+      "language": "ml-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "LAKSHMI",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI"
+            ]
+          }
+        },
+        {
+          "user": "അതിന് പനിയുണ്ട്",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "മറ്റന്നാൾ രാവിലെ 11 മണിക്ക്",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "LAKSHMI",
+              "{date+2}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-008",
+      "language": "ml-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "BIJLI ക്ക് പനി, നാളെ രാവിലെ 10 മണിക്ക് ഡോക്ടർ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "അല്ല, മറ്റന്നാൾ ആക്കൂ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "സമയം വൈകുന്നേരം 4 മണി",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "{date+2}",
+              "16:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-009",
+      "language": "ml-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "CHINNI ക്ക് പനി, നാളെ രാവിലെ 9 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "CHINNI",
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "റദ്ദാക്കൂ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര എരുമകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-010",
+      "language": "ml-IN",
+      "title": "Weather first, then a booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ഇന്ന് നാസിക്കിൽ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "RAJA മുടന്തുന്നു, നാളെ രാവിലെ 10 മണിക്ക് ഡോക്ടറെ ബുക്ക് ചെയ്യൂ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-011",
+      "language": "ml-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "MOTI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ക്ക് വയറിളക്കം, നാളെ രാവിലെ 9 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "09:00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-012",
+      "language": "ml-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ഇന്നത്തെ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "പിന്",
+              "പിൻ",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "ആദ്യം പറയൂ, എന്റെ കയ്യിൽ എത്ര പശുക്കൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        },
+        {
+          "user": "411001 ലെ കാലാവസ്ഥ പറയൂ",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-013",
+      "language": "ml-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എനിക്ക് പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യണം",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ചെമ്മരിയാടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "animal_registration",
+            "number": 7
+          }
+        },
+        {
+          "user": "ശരി, അത് ആട്, ആൺ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-014",
+      "language": "ml-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എനിക്ക് പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യണം",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "വേണ്ട, റദ്ദാക്കൂ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "GAURI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-015",
+      "language": "ml-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ആടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "GAURI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        },
+        {
+          "user": "ഇന്ന് പൂനെയിൽ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        },
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര എരുമകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        },
+        {
+          "user": "LAKSHMI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "മുറ",
+              "മുർറ"
+            ]
+          }
+        },
+        {
+          "user": "എന്റെ കയ്യിൽ ആകെ എത്ര മൃഗങ്ങൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-016",
+      "language": "ml-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ആടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        },
+        {
+          "user": "and sheep?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        },
+        {
+          "user": "kozhikal ethra undu?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-017",
+      "language": "ml-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "GAURI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ]
+          }
+        },
+        {
+          "user": "ക്ഷമിക്കണം, ഞാൻ KAALI യെക്കുറിച്ചാണ് ചോദിച്ചത്",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "ജമുനാപാരി",
+              "ജമുനാപരി"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-018",
+      "language": "ml-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "GAURI ക്ക് വയറിളക്കം, നാളെ രാവിലെ 10 മണിക്ക് ഡോക്ടറെ വേണം",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "GAURI",
+              "{date+1}",
+              "10:00"
+            ]
+          }
+        },
+        {
+          "user": "GAURI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "Sirohi",
+              "സിരോഹി",
+              "സിറോഹി"
+            ],
+            "reply_contains_all": [
+              "{date+1}"
+            ]
+          }
+        },
+        {
+          "user": "ശരി, ബുക്കിംഗ് തുടരൂ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-019",
+      "language": "ml-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര Nili-Ravi എരുമകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        },
+        {
+          "user": "BIJLI അതിൽ ഒന്നാണ്, അതിന് പനി, ബുധനാഴ്ച ഉച്ചയ്ക്ക് 3 മണിക്ക് ഡോക്ടറെ ബുക്ക് ചെയ്യൂ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "BIJLI",
+              "15:00"
+            ],
+            "reply_contains_any": [
+              "{this-wed}",
+              "{next-wed}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L3-ml-020",
+      "language": "ml-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര Kankrej പശുക്കൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        },
+        {
+          "user": "RAJA ഏത് മൃഗമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "പശു",
+              "കാള",
+              "Kankrej"
+            ]
+          }
+        },
+        {
+          "user": "അതിന് 25-ാം തീയതി രാവിലെ 11 മണിക്ക് ഡോക്ടറെ ബുക്ക് ചെയ്യൂ, അത് മുടന്തുന്നു",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_all": [
+              "RAJA",
+              "{dom-25}",
+              "11:00"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
