@@ -520,7 +520,8 @@
           "user": "aur bhed kitni hain?",
           "expect": {
             "agent": "query_agent",
-            "number": 7
+            "number": 7,
+            "script": false
           }
         },
         {
