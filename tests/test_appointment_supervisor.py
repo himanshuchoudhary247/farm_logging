@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime as _dt
+
 import pytest
 
 from services.appointment_supervisor import service
@@ -20,6 +22,16 @@ def _no_real_query_agent_calls(monkeypatch):
     wants to exercise the probe succeeding can still override this locally
     with its own monkeypatch.setattr(service, "process_query", ...)."""
     monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {"answer": None, "sql": None, "data": None})
+
+
+@pytest.fixture(autouse=True)
+def _fixed_today(monkeypatch):
+    """These tests book fixed dates (2026-08-25, 2026-09-20), and
+    _valid_appointment_date rejects a booking date before today. Pin
+    "today" to a day before them, so the tests don't all break once the
+    real calendar passes those dates. A test that needs another "today"
+    can override it with its own monkeypatch.setattr(service, "_today_ist", ...)."""
+    monkeypatch.setattr(service, "_today_ist", lambda: _dt.date(2026, 8, 20))
 
 
 def test_turn_confirm_and_submit_state_machine(tmp_path, monkeypatch):

@@ -16,6 +16,7 @@ LLM-driven tool call with).
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 import uuid
@@ -32,6 +33,8 @@ from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
 from services.llm_service.adk_model import build_adk_model
+
+logger = logging.getLogger(__name__)
 
 # Native digits per language. Kept in step with SUPPORTED_LANGUAGES
 # (appointment_supervisor, animal_registration), which now has all 7
@@ -243,7 +246,9 @@ Rules:
 - The query MUST be a single SQLite SELECT statement.
 - Use COUNT(*) when counting; GROUP BY when the farmer wants a breakdown by category; ORDER BY for listing/sorting.
 - Use LOWER() for case-insensitive text filtering.
-- The database stores species/breed/status and other enum-like values in English only (e.g. 'goat', 'sheep', 'active'). Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
+- The database stores species/breed/status and other enum-like values in English only. Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
+- The section "Values in this farmer's records" below lists the exact species, breeds and animal names stored for this farmer. Map the farmer's words (in any language or script) to one of those exact values before writing SQL: a local-language species word to its English species value, a breed name to the listed breed spelling, and an animal name written in another script or spelling to the listed name as stored (names are usually stored in Latin capitals). Do not filter on a value that is not in that list; if nothing in the list matches, run a query to check before saying it does not exist.
+- When your answer names an animal's species, translate the English database value faithfully into the farmer's language (a buffalo is never a cow, a goat is never a sheep).
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
 - If asking for a single total/count, give just the number in your answer.
 - If asking for a breakdown by category, show EACH group with its count -- never summarize or say "ranging from"/"most are" when specific data was requested.
@@ -252,11 +257,126 @@ Rules:
 - A bare greeting ("hi", "hello", "hey") with NO real question attached gets a plain greeting back, under 10 words, e.g. "Hi! What would you like to know about your farm?" -- do NOT list your capabilities (animal counts, health records, appointments, etc.) unless the farmer's message actually asked what you can do.
 - If the farmer's message contains a greeting word ("hello", "namaste", "hi") ALONGSIDE a real question (e.g. "hello, how many animals do I have"), answer the question directly -- do NOT prepend a greeting/"hello"/"namaste" to the answer. One farmer message, one direct answer; the greeting word was just how they opened their sentence, not a separate thing to reply to.
 - Never open an answer with "thank you"/"धन्यवाद" or similar courtesy filler either -- go straight to the answer.
-- You are a farm/livestock assistant ONLY -- not a general-purpose chatbot. If the farmer's message has nothing to do with their farm, animals, or records (general knowledge, world facts, other topics entirely), do NOT answer it from your own knowledge even if you know the answer. Say plainly that you can only help with questions about their farm, and ask what they'd like to know about it instead. This applies however confidently you could answer -- being able to answer something is not the same as it being in scope.
+- You are a farm/livestock assistant ONLY -- not a general-purpose chatbot. If the farmer's message has nothing to do with their farm, animals, or records (general knowledge, world facts, other topics entirely), do NOT answer it from your own knowledge even if you know the answer. Say plainly that you can only help with questions about their farm, and ask what they'd like to know about it instead. This applies however confidently you could answer -- being able to answer something is not the same as it being in scope. BUT before deciding a message is off-topic, check the animal names listed under "Values in this farmer's records": if the message mentions one of them (in any script or spelling), it IS a question about the farmer's own animal, even when that name is also an everyday word (a name meaning "king" or "pearl" is still the farmer's animal) -- look it up and answer.
 
 Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can be as detailed as the question needs (full breakdowns, full lists). The spoken version must always be short, since a farmer listening doesn't want a list of 5+ numbers read out loud one by one.
 
-So: after your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly summary of the same answer -- one sentence, no itemized lists, no reading out every number in a breakdown (say "you have 53 animals across 5 species" instead of naming each species and count). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line, even for a greeting."""
+So: after your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly summary of the same answer -- one sentence, no itemized lists, no reading out every number in a breakdown (say "you have 53 animals across 5 species" instead of naming each species and count). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line, even for a greeting.
+{farm_values}"""
+
+
+# Values block for the prompt (see "Values in this farmer's records" in the
+# instruction). Real bugs found by the evals suite (evals/, layer 1): the
+# model never saw which values are actually stored, only column names and
+# the example "'goat', 'sheep'". So it guessed: Kannada "how many chickens"
+# came back "you only have goats and sheep" (3/3 runs), Marathi "how many
+# buffaloes" came back 2 or 9 instead of 16, Telugu "గౌరి" never matched the
+# stored 'GAURI', and "RAJA कौन सा जानवर है?" was refused as general
+# knowledge because nothing told the model RAJA is one of the farmer's own
+# animals. Built from the farmer's own rows on every turn (no hardcoded word
+# lists), capped so a very large farm can't blow up the prompt, and fully
+# skippable via QUERY_AGENT_VALUE_HINTS=0 as a kill switch. The block sits
+# at the very END of the instruction, so the long schema + rules part stays
+# an identical prefix for every farmer (prompt caching, see the note in
+# bedrock_adapter.py, can only reuse an identical prefix).
+_VALUE_HINTS_ENV = "QUERY_AGENT_VALUE_HINTS"
+_MAX_HINT_NAMES = 150
+_MAX_HINT_BREEDS = 60
+
+# The farmer's word for each stored species, given to the model so it names
+# the species correctly in its answer. Real bug found by the evals suite:
+# asked "LAKSHMI ഏത് മൃഗമാണ്?" the model read species 'buffalo' from the
+# database and still answered "...പശുവാണ്" ("is a cow") in 10 of 10 runs; a
+# rule saying "translate faithfully" was not enough. Same idea as
+# _COLUMN_LABELS above: a fixed catalog keyed by the English database value,
+# not an LLM guess. Only used to word the answer -- never to match or filter
+# what the farmer typed. A species missing here simply gets no hint (the
+# model translates it itself, as before), and English needs none.
+_SPECIES_WORDS = {
+    "hi": {"goat": "बकरी", "sheep": "भेड़", "buffalo": "भैंस", "cow": "गाय", "chicken": "मुर्गी"},
+    "mr": {"goat": "शेळी", "sheep": "मेंढी", "buffalo": "म्हैस", "cow": "गाय", "chicken": "कोंबडी"},
+    "ta": {"goat": "வெள்ளாடு", "sheep": "செம்மறி ஆடு", "buffalo": "எருமை", "cow": "பசு", "chicken": "கோழி"},
+    "te": {"goat": "మేక", "sheep": "గొర్రె", "buffalo": "గేదె", "cow": "ఆవు", "chicken": "కోడి"},
+    "kn": {"goat": "ಮೇಕೆ", "sheep": "ಕುರಿ", "buffalo": "ಎಮ್ಮೆ", "cow": "ಹಸು", "chicken": "ಕೋಳಿ"},
+    "ml": {"goat": "ആട്", "sheep": "ചെമ്മരിയാട്", "buffalo": "എരുമ", "cow": "പശു", "chicken": "കോഴി"},
+}
+
+
+def _reply_language(script_lang: str, labels_lang: str) -> str:
+    """Language the answer will be written in, for the species words. The
+    model answers in the language the farmer typed, so the query's script
+    wins; the app's language only decides when the script can't (Roman
+    letters look like English, and Devanagari can be Hindi or Marathi)."""
+    if script_lang == "en":
+        return labels_lang
+    if script_lang == "hi" and labels_lang == "mr":
+        return "mr"
+    return script_lang
+
+
+def _hint_values(farmer_id: str, sql: str, limit: int) -> "list[str]":
+    """Distinct non-empty values from one SELECT, as strings. Any failure
+    returns [] so the prompt just loses the hint instead of the turn failing."""
+    try:
+        result = execute_query(sql, farmer_id)
+    except Exception as exc:
+        logger.warning("query_agent value hints skipped farmer=%s: %s", farmer_id, exc)
+        return []
+    if not result.get("success"):
+        logger.warning("query_agent value hints skipped farmer=%s: %s", farmer_id, result.get("error"))
+        return []
+    out: "list[str]" = []
+    for row in result.get("rows") or []:
+        if not row or row[0] is None:
+            continue
+        # ADK treats {name} in an instruction as a session-state variable, so
+        # a stray brace in stored data must never reach the instruction text.
+        value = str(row[0]).strip().replace("{", "").replace("}", "")
+        if value and value not in out:
+            out.append(value)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _farm_values_for_prompt(farmer_id: str, language: "str | None" = None) -> str:
+    """'Values in this farmer's records' section of the instruction, or ''
+    when disabled or when nothing could be read. `language` (a key of
+    _SPECIES_WORDS) adds the farmer's word for each stored species."""
+    if os.getenv(_VALUE_HINTS_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    species = _hint_values(
+        farmer_id, "SELECT DISTINCT LOWER(species) FROM animals ORDER BY 1", 30)
+    breeds = _hint_values(
+        farmer_id,
+        "SELECT DISTINCT LOWER(species) || ': ' || breed FROM animals "
+        "WHERE breed IS NOT NULL AND breed != '' ORDER BY 1",
+        _MAX_HINT_BREEDS)
+    names = _hint_values(
+        farmer_id,
+        "SELECT tag_or_name FROM animals WHERE tag_or_name IS NOT NULL "
+        f"AND tag_or_name != '' ORDER BY 1 LIMIT {_MAX_HINT_NAMES + 1}",
+        _MAX_HINT_NAMES + 1)
+    if not (species or breeds or names):
+        return ""
+    lines = ["", "Values in this farmer's records (exact stored spellings):"]
+    if species:
+        lines.append("- species: " + ", ".join(species))
+        words = _SPECIES_WORDS.get(language or "", {})
+        pairs = [f"{s} = {words[s]}" for s in species if s in words]
+        if pairs:
+            lines.append(
+                "- when your answer names a species, use exactly these words for it "
+                "(for a male animal, the male word if the language has one): "
+                + "; ".join(pairs))
+    if breeds:
+        lines.append("- breeds (species: breed): " + "; ".join(breeds))
+    if names:
+        more = len(names) > _MAX_HINT_NAMES
+        shown = names[:_MAX_HINT_NAMES]
+        lines.append("- animal names/tags: " + ", ".join(shown)
+                     + (" (more exist; query to check others)" if more else ""))
+    return "\n".join(lines) + "\n"
 
 
 def _make_run_sql_query_tool(farmer_id: str):
@@ -279,10 +399,11 @@ def _make_run_sql_query_tool(farmer_id: str):
     return run_sql_query
 
 
-def build_query_agent(farmer_id: str) -> LlmAgent:
+def build_query_agent(farmer_id: str, language: "str | None" = None) -> LlmAgent:
     """One Agent per farmer_id -- farmer_id is baked into the tool closure
     above, not passed through the model, so no prompt can ever redirect a
-    query at a different farmer's data."""
+    query at a different farmer's data. `language` is the answer's language
+    (see _reply_language); it only adds the species words to the prompt."""
     model_spec = model_for_task(TaskTier.GENERATION)
     schema = generate_schema_for_prompt()
 
@@ -297,7 +418,8 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
             "about the farmer's own animals or records."
         ),
         model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
-        instruction=_INSTRUCTION_TEMPLATE.format(schema=schema),
+        instruction=_INSTRUCTION_TEMPLATE.format(
+            schema=schema, farm_values=_farm_values_for_prompt(farmer_id, language)),
         tools=[_make_run_sql_query_tool(farmer_id)],
         # Saves the final answer into the session state, so the next turn
         # (and later, other agents) can read what was last answered.
@@ -428,7 +550,9 @@ async def _run_query_async(
     session_id: str | None = None,
     app_language: str | None = None,
 ) -> dict[str, Any]:
-    agent = build_query_agent(farmer_id)
+    lang = detect_language(query)
+    labels_lang = _labels_language(lang, app_language)
+    agent = build_query_agent(farmer_id, _reply_language(lang, labels_lang))
     service = _session_service()
     runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
@@ -457,8 +581,6 @@ async def _run_query_async(
 
     text_answer, speech_text = _split_text_and_speech(answer_text)
 
-    lang = detect_language(query)
-    labels_lang = _labels_language(lang, app_language)
     text_answer, speech_text = _localize_answer_digits(text_answer, speech_text, labels_lang)
 
     if last_successful_result is None:

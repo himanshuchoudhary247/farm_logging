@@ -195,22 +195,50 @@ def process_query(text: str, farmer_id: str) -> dict[str, Any]:
     return process_query_adk(text, farmer_id)
 
 
+# Furthest ahead a booking may be. A date outside today..today+365 is
+# treated as "not provided" and re-asked (see _valid_appointment_date).
+_MAX_APPOINTMENT_DAYS_AHEAD = 365
+
+
+def _today_ist():
+    """Today's date in India -- the same "today" the extraction prompt's
+    calendar is built from (bedrock_adapter.build_prompt)."""
+    from datetime import timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=5, minutes=30))).date()
+
+
 def _valid_appointment_date(value: Any) -> bool:
     """Real bug, found live: the extraction schema now instructs the model
     not to guess a date from ambiguous input, but a prompt instruction is
     not a guarantee -- this is the deterministic backstop. Rejects
     anything that isn't 'today'/'tomorrow'/'yesterday' or a real
     YYYY-MM-DD calendar date, so a bad guess gets treated as "not
-    provided" (re-asked) instead of silently stored."""
+    provided" (re-asked) instead of silently stored.
+
+    Also rejects a booking date before today or more than
+    _MAX_APPOINTMENT_DAYS_AHEAD days ahead (IST). A visit can't be booked
+    in the past, and "fever since yesterday" must not become the booking
+    date. Only bookings use this check -- health logs and birth dates
+    keep accepting past dates."""
     if not isinstance(value, str):
         return False
-    if value in ("today", "tomorrow", "yesterday"):
-        return True
-    try:
-        datetime.strptime(value, "%Y-%m-%d")
-        return True
-    except ValueError:
+    from datetime import timedelta
+    today = _today_ist()
+    relative = {"today": 0, "tomorrow": 1, "yesterday": -1}
+    if value in relative:
+        day = today + timedelta(days=relative[value])
+    else:
+        try:
+            day = datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            return False
+    if day < today or day > today + timedelta(days=_MAX_APPOINTMENT_DAYS_AHEAD):
+        import logging
+        logging.getLogger(__name__).warning(
+            "appointment date rejected (outside today..+%d days): %s",
+            _MAX_APPOINTMENT_DAYS_AHEAD, value)
         return False
+    return True
 
 
 def _valid_appointment_time(value: Any) -> bool:
