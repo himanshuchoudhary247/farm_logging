@@ -84,4 +84,22 @@ def test_instruction_covers_a_word_that_means_more_than_one_species():
     assert "do not list the whole farm" in _INSTRUCTION_TEMPLATE
     assert "filter on that one species only" in _INSTRUCTION_TEMPLATE
     
-       
+
+
+def test_species_words_also_tell_the_model_what_the_farmer_means(monkeypatch):
+    """Roman Marathi "shelya" (goats) was counted as sheep: the farmer's own
+    species words must be given as the meaning of what the farmer types."""
+    from services.query_agent import adk_agent
+
+    def fake_hints(farmer_id, sql, limit):
+        return ["goat", "sheep"] if "species) FROM" in sql else []
+
+    monkeypatch.setattr(adk_agent, "_hint_values", fake_hints)
+    monkeypatch.delenv("QUERY_AGENT_VALUE_HINTS", raising=False)
+    block = adk_agent._farm_values_for_prompt("f-001", "mr")
+    assert "goat = शेळी" in block and "sheep = मेंढी" in block
+    assert "the farmer uses these same words" in block
+    assert "typed in English letters" in block
+    assert adk_agent._farm_values_for_prompt("f-001", "en").count("the farmer uses these same words") == 0
+    assert "never by an English word it happens to sound like" in adk_agent._INSTRUCTION_TEMPLATE
+     

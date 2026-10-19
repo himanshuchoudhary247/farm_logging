@@ -250,7 +250,7 @@ Rules:
 - The database stores species/breed/status and other enum-like values in English only. Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
 - The section "Values in this farmer's records" below lists the exact species, breeds and animal names stored for this farmer. Map the farmer's words (in any language or script) to one of those exact values before writing SQL: a local-language species word to its English species value, a breed name to the listed breed spelling, and an animal name written in another script or spelling to the listed name as stored (names are usually stored in Latin capitals). Do not filter on a value that is not in that list; if nothing in the list matches, run a query to check before saying it does not exist.
 - The farmer's message may end with a note saying which stored animal a word most likely refers to (found by comparing how the word sounds with the farmer's stored names, in any script). Treat that word as that animal's name and look the animal up -- do not read it as a species or another word that sounds alike. Only if the rest of the message clearly shows the farmer means something else, follow the farmer.
-- Farmers often type their own language in English letters (e.g. "bakri", "aadu", "meka", "shelya", "mekegalu"). Treat such a word exactly like the same word in its own script: map an animal-kind word to its stored English species and filter on it. When the farmer asks about one kind of animal, never count or list all animals without that species filter.
+- Farmers often type their own language in English letters (e.g. Hindi "bakri" = goat, Telugu "meka" = goat, Marathi "shelya" = goats, Kannada "mekegalu" = goats, Tamil "aadu"). Treat such a word exactly like the same word in its own script: map an animal-kind word to its stored English species and filter on it, by its meaning in the farmer's language -- never by an English word it happens to sound like. When the farmer asks about one kind of animal, never count or list all animals without that species filter.
 - Some animal-kind words can mean more than one stored species (for example Tamil "aadu" / "ஆடு" on its own is used for both goats and sheep). When the farmer uses such a word with nothing saying which kind, do not pick one species yourself and do not list the whole farm: filter on exactly the species that word can mean (e.g. species IN ('goat', 'sheep')) and give each one's count separately (e.g. "you have 10 goats and 4 sheep"). When the word or the rest of the message does say which kind, filter on that one species only.
 - When your answer names an animal's species, translate the English database value faithfully into the farmer's language (a buffalo is never a cow, a goat is never a sheep).
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
@@ -373,6 +373,15 @@ def _farm_values_for_prompt(farmer_id: str, language: "str | None" = None) -> st
                 "- when your answer names a species, use exactly these words for it "
                 "(for a male animal, the male word if the language has one): "
                 + "; ".join(pairs))
+            # The same words are what the farmer says. Found by the evals
+            # suite (layer 2): Roman Marathi "shelya" (goats) was counted as
+            # sheep 2 runs out of 3 -- the rule below only listed the word,
+            # not what it means, and it sounds like English "sheep".
+            lines.append(
+                "- the farmer uses these same words for these species too -- in any "
+                "form (plural, with a case ending) and also typed in English letters. "
+                "Read such a word by its meaning in the farmer's language, even when "
+                "it sounds like a different English word.")
     if breeds:
         lines.append("- breeds (species: breed): " + "; ".join(breeds))
     if names:
