@@ -415,6 +415,36 @@ _TEXT = {
 }
 
 
+# Every field _copy_entities() actually applies to the draft -- used to
+# detect "this turn carried no new registration data at all", the same
+# signal appointment_supervisor's corrects_other_field check uses, just
+# generalized to this module's own field set.
+_ENTITY_FIELD_KEYS = (
+    "species", "breed", "sex", "status", "official_tag_type", "unique_animal_id",
+    "sire_id", "dam_id", "initial_weight_kg", "current_location",
+    "official_tag_number", "acquisition_source", "birth_date", "acquisition_date",
+)
+
+
+def _has_new_field_data(entities: dict[str, Any]) -> bool:
+    return any(entities.get(key) not in (None, "", []) for key in _ENTITY_FIELD_KEYS)
+
+
+def _try_mid_draft_escape(text: str, farmer_id: str, session_id: str, language: str) -> Optional[dict[str, Any]]:
+    """Thin wrapper around mid_draft_escape.try_switch -- the off-topic
+    probe turn() calls whenever a turn fails to advance the registration
+    draft (nothing new extracted for whatever is currently pending). A
+    real module-level function, not a re-exported name, so tests can
+    monkeypatch service._try_mid_draft_escape, same seam as
+    appointment_supervisor's. The import is deferred to call time:
+    mid_draft_escape.py pulls in query_agent/weather_alert's adk_agent
+    modules, which need google.adk at module load (Python 3.10+), and
+    this file must stay importable under an older interpreter for every
+    other code path that never reaches this probe."""
+    from services.chat_orchestrator.mid_draft_escape import try_switch
+    return try_switch(text, farmer_id, session_id, language)
+
+
 def _match_breed(breed_text: str, species: str) -> Optional[str]:
     """Deterministic validation, not an LLM call -- the model already
     extracted the farmer's free-text breed guess (_ANIMAL_REGISTRATION_TOOL_SPEC's
@@ -691,6 +721,25 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
+        # A "no" at the confirm summary is ambiguous the same way it is in
+        # appointment_supervisor: it could be a genuine rejection, or it
+        # could be the model unable to confidently classify a vague
+        # off-topic question ("how many animals do I have") into any of
+        # this schema's fields, defaulting confirmation_signal to "no".
+        # Only treat it as a real rejection once a genuine topic switch
+        # has been ruled out -- no new field data this turn and no
+        # explicit identity correction.
+        if (
+            draft["state"] == "CONFIRMING" and conf_sig == "no"
+            and not _has_new_field_data(entities) and not entities.get("corrects_identity")
+        ):
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
+                self._save(draft)
+                pending_prompt = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
+                reply = f"{escape['answer']} {pending_prompt}".strip()
+                return self._response(draft, reply, input_transcript=text, include_audio=include_audio)
+
         if draft["state"] == "CONFIRMING" and conf_sig in {"yes", "no"}:
             self._save(draft)
             return self.confirm(farmer_id, session_id, conf_sig, include_audio=include_audio)
@@ -747,6 +796,17 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 message = self._message(draft["language"], "ask_field", field=field_label)
             else:
                 message = self._message(draft["language"], "welcome")
+            # General version of the CONFIRMING-only off-topic probe above:
+            # nothing changed this turn while a required field is still
+            # pending is the same "didn't advance the draft" signal,
+            # mid-COLLECTING. Re-states the same `message` it was about to
+            # send anyway as the pending-question reminder (Q4), so the
+            # registration isn't silently dropped after the farmer's real
+            # question is answered.
+            if not changed:
+                escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+                if escape:
+                    message = f"{escape['answer']} {message}".strip()
             return self._response(draft, message, input_transcript=text, include_audio=include_audio)
 
         if (

@@ -191,16 +191,21 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def process_query(text: str, farmer_id: str) -> dict[str, Any]:
-    """Thin wrapper around query_agent.adk_agent.process_query_adk (the
-    off-topic-probe call in turn(), below). A real module-level function --
-    not a re-exported name -- so tests can monkeypatch service.process_query
-    the same way they always have. The import is deferred to call time:
-    adk_agent.py pulls in google.adk at module load (needs Python 3.10+),
-    and this file must stay importable under an older interpreter for
-    every other code path that never reaches this probe."""
-    from services.query_agent.adk_agent import process_query_adk
-    return process_query_adk(text, farmer_id)
+def _try_mid_draft_escape(text: str, farmer_id: str, session_id: str, language: str) -> Optional[dict[str, Any]]:
+    """Thin wrapper around mid_draft_escape.try_switch -- the off-topic
+    probe turn() calls whenever a turn fails to advance the draft (nothing
+    new extracted for whatever is currently pending). A real module-level
+    function, not a re-exported name, so tests can monkeypatch
+    service._try_mid_draft_escape the same way they always patched
+    service.process_query before this was generalized to every COLLECTING
+    turn (previously: CONFIRMING-only) and to weather (previously: query
+    only). The import is deferred to call time: mid_draft_escape.py pulls
+    in query_agent/weather_alert's adk_agent modules, which need
+    google.adk at module load (Python 3.10+), and this file must stay
+    importable under an older interpreter for every other code path that
+    never reaches this probe."""
+    from services.chat_orchestrator.mid_draft_escape import try_switch
+    return try_switch(text, farmer_id, session_id, language)
 
 
 def _valid_appointment_date(value: Any) -> bool:
@@ -680,10 +685,12 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             answers_expected_field = bool(expected_field) and bool(turn_entities.get(expected_field))
         if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field:
-            probe = process_query(text, farmer_id)
-            if probe.get("sql") and probe.get("data"):
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
                 self._save(draft)
-                return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
+                pending_prompt = self._message(draft["language"], "correct", summary=self._summary(draft))
+                reply = f"{escape['answer']} {pending_prompt}".strip()
+                return self._response(draft, reply, input_transcript=text, include_audio=include_audio)
 
         # "cancel" must be honored regardless of state -- same bug class as
         # every other confirmation_signal check in this method: it was only
@@ -842,6 +849,18 @@ class AppointmentSupervisor(DraftSupervisor):
             else:
                 message = self._message(draft["language"], "welcome")
                 options = None
+            # General version of the CONFIRMING-only off-topic probe above:
+            # "nothing new extracted while a field is still pending" is the
+            # same signal here, mid-COLLECTING, that confirmation_signal=="no"
+            # was there -- a turn that doesn't advance the draft at all is
+            # exactly the shape of a farmer asking something unrelated
+            # ("how many animals do I have") instead of answering. Re-state
+            # the same `message` it was about to send anyway as the
+            # pending-question reminder (Q4), so the booking isn't silently
+            # dropped after the farmer's real question is answered.
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
+                message = f"{escape['answer']} {message}".strip()
             self._save(draft)
             return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options)
 

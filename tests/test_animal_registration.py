@@ -12,6 +12,20 @@ import pytest
 from services.animal_registration.service import AnimalRegistrationSupervisor
 
 
+@pytest.fixture(autouse=True)
+def _no_real_mid_draft_escape_calls(monkeypatch):
+    """_try_mid_draft_escape (the off-topic probe turn() calls when a turn
+    fails to advance the draft -- see test_appointment_supervisor.py's
+    identical fixture) would otherwise make a real classify+dispatch call
+    on any test turn shaped like "nothing changed, something's pending" or
+    "CONFIRMING + ambiguous no". Default every test here to "not a genuine
+    topic switch"; a test exercising the escape overrides this locally."""
+    monkeypatch.setattr(
+        "services.animal_registration.service._try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: None,
+    )
+
+
 def _mock_extract(sup, entities_by_call):
     """entities_by_call: list of dicts, one per turn, returned in order."""
     calls = iter(entities_by_call)
@@ -355,3 +369,56 @@ def test_extract_tells_model_when_confirming(tmp_path, monkeypatch):
 
     sup._extract(draft, "there's no problem, go ahead")
     assert "PHASE: confirming" in captured["context"]
+
+
+def test_off_topic_question_mid_collecting_is_answered_and_registration_resumes(tmp_path, monkeypatch):
+    """Generalizes appointment_supervisor's equivalent fix to this module:
+    mid-registration, a turn that extracts nothing new while a required
+    field is still pending must answer a genuine off-topic question
+    instead of just looping the same re-ask forever."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s-off-topic", "f-001", "en-IN")
+    draft["draft"] = {"unique_animal_id": "C-9", "species": "goat"}
+    sup._save(draft)
+
+    _mock_extract(sup, [{}])
+    monkeypatch.setattr(
+        "services.animal_registration.service._try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    result = sup.turn("f-001", "s-off-topic", "how many animals do I have", include_audio=False)
+    assert "You have 12 animals registered." in result["response_text"]
+    # The registration must not be dropped: still COLLECTING, still
+    # remembers what was already captured, and the pending-field question
+    # is still asked in the same reply (explicit re-prompt after an escape).
+    assert result["state"] == "COLLECTING"
+    assert result["draft"]["unique_animal_id"] == "C-9"
+    assert result["response_text"] != "You have 12 animals registered."
+
+
+def test_off_topic_question_mid_confirming_no_is_answered(tmp_path, monkeypatch):
+    """Generalizes the ambiguous-"no"-at-CONFIRMING escape to this module
+    -- previously animal_registration had no escape hatch at all here, so
+    an off-topic question misread as confirmation_signal=="no" silently
+    reset the draft to CORRECTING."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s-off-topic-confirm", "f-001", "en-IN")
+    draft["state"] = "CONFIRMING"
+    draft["draft"] = {"unique_animal_id": "C-9", "species": "goat", "breed": "Jamunapari", "sex": "male"}
+    sup._save(draft)
+
+    _mock_extract(sup, [{"confirmation_signal": "no"}])
+    monkeypatch.setattr(
+        "services.animal_registration.service._try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "weather", "answer": "Expect light rain tomorrow."},
+    )
+    result = sup.turn("f-001", "s-off-topic-confirm", "will it rain tomorrow", include_audio=False)
+    assert "Expect light rain tomorrow." in result["response_text"]
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["unique_animal_id"] == "C-9"
