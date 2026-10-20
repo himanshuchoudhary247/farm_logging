@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
@@ -32,6 +33,22 @@ from storage import (
 _log = logging.getLogger("appointment_supervisor")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
+
+# Farmers change their mind in the middle of a booking (found by the evals
+# suite, layer 4). Each behaviour below has its own kill switch; "0" brings
+# back the old behaviour.
+# - A "yes"/"no" that also carries a new value ("no wait, tomorrow was
+#   right") is a correction: the value is applied and read back. Before, the
+#   "yes" won and the booking went to "submit?" with the old date.
+_CORRECTION_WITH_YES_ENV = "APPOINTMENT_CORRECTION_WITH_YES"
+# - A question that names another animal ("which breed is KAALI?") is
+#   checked with the router's classifier before it is taken as a new animal
+#   for the booking. Before, it silently replaced the booked animal.
+_OTHER_ANIMAL_QUESTION_ENV = "APPOINTMENT_OTHER_ANIMAL_QUESTION_CHECK"
+
+
+def _switch_on(name: str) -> bool:
+    return os.getenv(name, "1").strip().lower() not in ("0", "false", "no", "off")
     _log.setLevel(logging.INFO)
 
 # SUPPORTED_LANGUAGES / _UNSET / _lang re-exported from services.common.draft_supervisor
@@ -774,7 +791,7 @@ class AppointmentSupervisor(DraftSupervisor):
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
              side_question: Optional[Callable[[str], Optional[str]]] = None,
-             recent_animal: Optional[str] = None) -> dict[str, Any]:
+             recent_animal: Optional[str] = None, fresh_start: bool = False) -> dict[str, Any]:
         """side_question (optional): given the farmer's text, returns
         "weather" or "query" when the text is a question for another agent,
         else None. The chat router passes its intent classifier here so a
@@ -788,13 +805,19 @@ class AppointmentSupervisor(DraftSupervisor):
         talking about in the turn just before ("what breed is KAALI?"), so
         "book a vet for her" knows which animal. Used only when this turn
         names no animal and the booking has none yet; the readback shows
-        it, so the farmer can still correct it. The router decides it."""
+        it, so the farmer can still correct it. The router decides it.
+
+        fresh_start (optional): the router is starting a new booking from a
+        message that also cancelled the previous one ("forget this, MOTI is
+        limping, vet tomorrow"). The cancel in that message is already done,
+        so it is not applied a second time to the new booking."""
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio, side_question, recent_animal)
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio, side_question, recent_animal,
+                                     fresh_start)
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
                      side_question: Optional[Callable[[str], Optional[str]]] = None,
-                     recent_animal: Optional[str] = None) -> dict[str, Any]:
+                     recent_animal: Optional[str] = None, fresh_start: bool = False) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted") or draft.get("state") == "CANCELLED":
             # Prior booking on this session_id is either already saved
@@ -866,8 +889,14 @@ class AppointmentSupervisor(DraftSupervisor):
         # the next turn), so keep a copy to put back.
         cache_key = f"{farmer_id}:{session_id}"
         cache_before = copy.deepcopy(get_session(cache_key)) if side_question is not None else None
+        # What the session cache held before this turn: process_text_input
+        # returns the cache merged with this turn's values, so a value that
+        # was already there is not something the farmer said just now.
+        cached_entities = dict((cache_before or get_session(cache_key) or {}).get("entities") or {})
         result = process_text_input(text, session_id=cache_key, pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
+        if fresh_start and confirmation_signal == "cancel":
+            confirmation_signal = None
         turn_entities = result.get("entities") or {}
 
         # "What breed is KAALI?" then "she is limping, book a vet for her":
@@ -932,15 +961,26 @@ class AppointmentSupervisor(DraftSupervisor):
         # which re-verifies a new animal and reads the booking back again.
         # A bare "no" and an off-topic question behave as before.
         names_new_animal = self._names_new_animal(draft, turn_entities)
+        # Only values the farmer gave in THIS message count as a change (see
+        # cached_entities). Without this, a plain "yes" could be read as a
+        # change because of a cached value written differently from the draft,
+        # and the booking would be read back again and again.
+        said_now = {k: v for k, v in turn_entities.items() if cached_entities.get(k) != v}
+        gives_new_value = names_new_animal or self._changes_a_booking_field(draft, said_now)
+        # A "yes" can carry a correction too ("no wait, tomorrow was right" came
+        # back as "yes" in English and went to "submit?" with the old date).
+        # Same at "would you like to submit?": a changed value must never be
+        # submitted unseen -- it is applied and read back first.
+        correction_signals = {"yes", "no", "submit"} if _switch_on(_CORRECTION_WITH_YES_ENV) else {"no"}
         corrects_in_place = (
-            awaiting_confirmation
-            and confirmation_signal == "no"
-            and (names_new_animal or self._changes_a_booking_field(draft, turn_entities))
+            (awaiting_confirmation or (state == "READY_TO_SUBMIT" and _switch_on(_CORRECTION_WITH_YES_ENV)))
+            and confirmation_signal in correction_signals
+            and gives_new_value
         )
         if corrects_in_place:
             _log.info(
-                "appointment correction in place session=%s new_animal=%s",
-                session_id, names_new_animal,
+                "appointment correction in place session=%s signal=%s new_animal=%s state=%s",
+                session_id, confirmation_signal, names_new_animal, state,
             )
         # A question for another agent asked in the middle of a booking
         # ("how many goats do I have?", "what's the weather in Pune today?").
@@ -949,10 +989,27 @@ class AppointmentSupervisor(DraftSupervisor):
         # en/hi/ta, and "today" from the weather question became the booking
         # date), so it cannot spot these itself. Only a turn that adds
         # nothing to the booking is checked, with the router's classifier.
-        if side_question is not None and not self._turn_adds_to_booking(
+        # A turn whose only new thing is a different animal's name may be a
+        # question about that animal ("which breed is KAALI?") rather than a
+        # change of animal: the classifier decides, like any side question.
+        # A real change ("not GAURI, it's MOTI") is classified as the booking
+        # and carries on below exactly as before.
+        only_other_animal = (
+            names_new_animal
+            and not confirmation_signal
+            and not answers_expected_field
+            and not self._changes_a_booking_field(draft, said_now)
+            and _switch_on(_OTHER_ANIMAL_QUESTION_ENV)
+        )
+        if side_question is not None and (only_other_animal or not self._turn_adds_to_booking(
             draft, confirmation_signal, turn_entities, names_new_animal, answers_expected_field,
-        ):
+        )):
             side = side_question(text)
+            if side == "add_animal":
+                # The farmer wants to register an animal instead. Nothing is
+                # changed here; the router closes this booking and starts the
+                # registration with the same message.
+                return self._side_question_response(draft, cache_key, cache_before, side, None, text, session_id)
             answer = None
             if side == "query":
                 probe = process_query(text, farmer_id)
@@ -983,12 +1040,20 @@ class AppointmentSupervisor(DraftSupervisor):
         # next field forever.
         if confirmation_signal == "cancel":
             self._save(draft)
-            return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+            resp = self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+            # "Forget this, start again: MOTI is limping, vet tomorrow 11 am"
+            # cancels AND brings a new booking. The router starts the new one
+            # from the same message (after this lock is released) when this
+            # message itself carried booking details.
+            resp["cancel_with_details"] = bool(gives_new_value)
+            if gives_new_value:
+                _log.info("appointment cancelled with new details session=%s", session_id)
+            return resp
 
         if awaiting_confirmation and confirmation_signal in {"yes", "no"} and not corrects_in_place:
             self._save(draft)
             return self.confirm(farmer_id, session_id, confirmation_signal, include_audio=include_audio)
-        if state == "READY_TO_SUBMIT" and confirmation_signal in {"yes", "submit"}:
+        if state == "READY_TO_SUBMIT" and confirmation_signal in {"yes", "submit"} and not corrects_in_place:
             # "yes" is the natural way to affirmatively answer "would you
             # like to submit?" -- the model correctly reports the farmer's
             # literal word (confirmation_signal="yes"), not the enum value
@@ -999,7 +1064,7 @@ class AppointmentSupervisor(DraftSupervisor):
             # own "yes" handling -- never once reaching submit().
             self._save(draft)
             return self.submit(farmer_id, session_id, include_audio=include_audio)
-        if state == "READY_TO_SUBMIT" and confirmation_signal == "no":
+        if state == "READY_TO_SUBMIT" and confirmation_signal == "no" and not corrects_in_place:
             # Real bug: a bare "no" answering "would you like to submit?"
             # had no dedicated branch, so it fell through to the generic
             # animal-verified-reset check further down -- which ALWAYS

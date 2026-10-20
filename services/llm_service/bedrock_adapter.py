@@ -745,7 +745,15 @@ _EXTRACTION_TOOL_SPEC = {
                         "different animal, the weather, anything not about confirming THESE "
                         "details) is not a rejection -- set confirmation_signal to 'none' in "
                         "that case, and classify the real intent normally instead so the "
-                        "question can actually be answered, not misread as 'no'."
+                        "question can actually be answered, not misread as 'no'. "
+                        "'cancel' means the farmer clearly wants to stop or drop this "
+                        "request (e.g. 'cancel it', 'forget the vet', 'leave it, don't "
+                        "book'). Pausing or hesitating ('wait', 'one minute', 'hmm'), "
+                        "complaining or being annoyed ('this is slow', 'you are useless'), "
+                        "thanks and greetings are NOT 'cancel' -- use 'none'. 'yes' means "
+                        "agreeing to the details exactly as shown; when the reply gives a "
+                        "different value (another date, time or animal, or going back to an "
+                        "earlier one), extract that value in its field."
                     ),
                 },
             },

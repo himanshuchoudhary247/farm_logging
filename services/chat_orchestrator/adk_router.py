@@ -216,10 +216,81 @@ def _side_questions_on() -> bool:
 
 def _side_question_label(text: str) -> Optional[str]:
     """The classifier's intent when it names another agent that can answer
-    on its own (weather, query); None otherwise."""
+    on its own (weather, query), or the other flow (appointment, add_animal)
+    when switching between flows is on; None otherwise. Each flow ignores
+    its own intent and acts only on the others."""
     intent = asyncio.run(_classify_intent_async(text))
     _log.info("adk_router side-question check text=%r intent=%s", text[:200], intent)
-    return intent if intent in ("weather", "query") else None
+    if intent in ("weather", "query"):
+        return intent
+    if intent in _FLOW_AGENTS and _switch_on(_FLOW_SWITCH_ENV):
+        return intent
+    return None
+
+
+# Farmers change their mind in the middle of a flow (found by the evals
+# suite, layer 4, in all 7 languages). Kill switches, "0" = old behaviour:
+# CHAT_FLOW_SWITCH -- a booking request while a registration is open (or a
+#   registration request while a booking is open) closes the open draft
+#   unsaved and starts the other flow with the same message. Before, the
+#   open flow just asked its own question again.
+# CHAT_CANCEL_THEN_ROUTE -- "cancel the booking and tell me how many cows I
+#   have" / "forget the vet, I want to register a goat" / "forget this, MOTI
+#   is limping, vet tomorrow 11 am": after the cancel, the same message goes
+#   to the agent it is meant for, and both replies are shown. Before, only
+#   "cancelled" came back and the rest of the message was lost.
+_FLOW_SWITCH_ENV = "CHAT_FLOW_SWITCH"
+_CANCEL_THEN_ROUTE_ENV = "CHAT_CANCEL_THEN_ROUTE"
+_FLOW_AGENTS = {"appointment": "appointment_supervisor", "add_animal": "animal_registration"}
+
+
+def _switch_on(name: str) -> bool:
+    return os.getenv(name, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _then(first_text: str, follow: dict[str, Any], farmer_id: str, session_id: str, text: str,
+          include_audio: bool, language: str) -> dict[str, Any]:
+    """The closed flow's message, then the next agent's reply, as one reply
+    (shown and spoken). `follow` is that agent's envelope, built without
+    audio; the agent and intent are the follow-up's, so the app shows the
+    flow that is open now."""
+    result = dict(follow.get("result") or {})
+    result.pop("response_audio_base64", None)
+    result.pop("audio_error", None)
+    follow_reply = str(follow.get("reply_text") or "")
+    reply = f"{first_text}\n\n{follow_reply}".strip() if first_text else follow_reply
+    result["response_text"] = reply
+    speech = result.get("speech_text")
+    speech = f"{first_text} {speech}".strip() if speech else None
+    return _envelope(follow.get("agent"), follow.get("intent"), result, reply, farmer_id, session_id, text,
+                     include_audio, language, speech)
+
+
+def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], farmer_id: str, session_id: str,
+                        text: str, language: str, allowed) -> "dict[str, Any] | None":
+    """The envelope for what the rest of a cancelling message asks for, or
+    None when it asks for nothing else (a plain "cancel it"). Runs after the
+    cancelled flow's own turn has finished, so its lock is free."""
+    if result.get("cancel_with_details") and agent == "appointment_supervisor" and allowed("appointment"):
+        _log.info("adk_router cancel then new booking farmer=%s session=%s", farmer_id, session_id)
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=False,
+                                              fresh_start=True)
+        return _envelope("appointment_supervisor", "appointment", result, _reply_text("appointment_supervisor", result),
+                         farmer_id, session_id, text, False, language)
+    try:
+        intent = asyncio.run(_classify_intent_async(text))
+    except Exception as exc:  # the cancel itself is done; never fail the turn over the extra check
+        _log.warning("adk_router after-cancel check skipped farmer=%s session=%s: %s", farmer_id, session_id, exc)
+        return None
+    _log.info("adk_router after-cancel check farmer=%s session=%s text=%r intent=%s",
+              farmer_id, session_id, text[:200], intent)
+    if intent == flow_intent or intent not in _DISPATCH_TABLE or not allowed(intent):
+        return None
+    if intent == "query":
+        follow = _dispatch_query(farmer_id, session_id, text, language, False, "query")
+        # Only a real database answer counts ("cancel it" alone is no question).
+        return follow if follow["result"].get("sql") and follow["result"].get("data") else None
+    return _DISPATCH_TABLE[intent](farmer_id, session_id, text, language, False, intent)
 
 
 def _waiting_weather_pin(farmer_id: str, session_id: str, text: str) -> "int | None":
@@ -414,9 +485,19 @@ def route_turn_adk(
             result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio, side_question=side_question)
         else:
             result = supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        if result.get("side_question"):
-            side_reply = _side_question_reply(result["side_question"], result, farmer_id, session_id, text, language)
-            return _side_question_envelope(agent, result["side_question"], result, side_reply, farmer_id, session_id, text, include_audio, language)
+        side = result.get("side_question")
+        if side in _FLOW_AGENTS and side != flow_intent:
+            closed = supervisor.confirm(farmer_id, session_id, "cancel", include_audio=False)
+            _log.info("adk_router flow switch farmer=%s session=%s from=%s to=%s", farmer_id, session_id, flow_intent, side)
+            follow = _DISPATCH_TABLE[side](farmer_id, session_id, text, language, False, side)
+            return _then(str(closed.get("response_text") or ""), follow, farmer_id, session_id, text, include_audio, language)
+        if side:
+            side_reply = _side_question_reply(side, result, farmer_id, session_id, text, language)
+            return _side_question_envelope(agent, side, result, side_reply, farmer_id, session_id, text, include_audio, language)
+        if result.get("state") == "CANCELLED" and _switch_on(_CANCEL_THEN_ROUTE_ENV):
+            follow = _route_after_cancel(agent, flow_intent, result, farmer_id, session_id, text, language, _allowed)
+            if follow is not None:
+                return _then(_reply_text(agent, result), follow, farmer_id, session_id, text, include_audio, language)
         reply = _reply_text(agent, result)
         return _envelope(agent, None, result, reply, farmer_id, session_id, text, include_audio, language)
 
