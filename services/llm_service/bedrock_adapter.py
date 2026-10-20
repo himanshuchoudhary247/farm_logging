@@ -569,6 +569,42 @@ def _check_day_after_tomorrow(text: str, entities: Dict[str, Any], today=None) -
     fixed = (today + timedelta(days=2)).isoformat()
     _log.warning("extraction date %s is tomorrow but the farmer said day after tomorrow; using %s", value, fixed)
     return {**entities, "date": fixed}
+
+
+# Backstop for a "tomorrow" the model left out. Found by the evals suite
+# (layer 4): Telugu "CHINNI కి జ్వరం, రేపు డాక్టర్ కావాలి" sometimes came back
+# with no date at all, so the bot asked for the date again -- or a later
+# "today" (from a weather question) became the booking date. When the
+# farmer says "tomorrow" in a supported language and the extraction has NO
+# date, tomorrow's date is filled in. A date the model did give is never
+# changed. Not applied when "day after tomorrow" or a weekday is also said
+# (the checks above decide then). Hindi कल is not listed on purpose -- it
+# also means yesterday. Logged. EXTRACTION_TOMORROW_CHECK=0 turns it off.
+_TOMORROW_ENV = "EXTRACTION_TOMORROW_CHECK"
+_TOMORROW_WORDS = ("tomorrow", "उद्या", "நாளை", "రేపు", "రేపటి", "ನಾಳೆ", "നാളെ")
+
+
+def _says_tomorrow(text: str) -> bool:
+    """True when the text says "tomorrow" in a supported language (a short
+    case ending is allowed, as in _says_day_after_tomorrow)."""
+    tokens = [word.strip(".,!?;:()[]\"'") for word in (text or "").lower().split()]
+    return any(
+        token.startswith(word) and len(token) - len(word) <= 3
+        for word in _TOMORROW_WORDS for token in tokens
+    )
+
+
+def _fill_missing_tomorrow(text: str, entities: Dict[str, Any], today=None) -> Dict[str, Any]:
+    if os.getenv(_TOMORROW_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return entities
+    if entities.get("date") not in (None, ""):
+        return entities
+    if not _says_tomorrow(text) or _says_day_after_tomorrow(text) or _weekday_named(text) is not None:
+        return entities
+    from datetime import timedelta
+    fixed = ((today or _today_ist_date()) + timedelta(days=1)).isoformat()
+    _log.warning("extraction gave no date but the farmer said tomorrow; using %s", fixed)
+    return {**entities, "date": fixed}
 # already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
 # strategies, no _coerce_confidence/_coerce_list shims. Verified working on
 # DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
@@ -856,7 +892,7 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     confirmation_signal = tool_input.pop("confirmation_signal", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
-    entities = _check_day_after_tomorrow(text, _check_weekday_date(text, tool_input))
+    entities = _fill_missing_tomorrow(text, _check_day_after_tomorrow(text, _check_weekday_date(text, tool_input)))
 
     return {
         "intent": intent,

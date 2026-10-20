@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 from base64 import b64encode
 from typing import Any, Optional
 
@@ -35,7 +36,8 @@ from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instru
 from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
-from services.voice_agent.session_store import get_session, update_session
+from services.voice_agent.orchestrator import process_text_input
+from services.voice_agent.session_store import clear_session, get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 from services.llm_service.adk_model import build_adk_model
@@ -284,13 +286,49 @@ def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], fa
         return None
     _log.info("adk_router after-cancel check farmer=%s session=%s text=%r intent=%s",
               farmer_id, session_id, text[:200], intent)
-    if intent == flow_intent or intent not in _DISPATCH_TABLE or not allowed(intent):
+    if intent == flow_intent:
+        # The classifier often names the cancelled booking itself when the
+        # message also asks a question ("cancel the booking and tell me how
+        # many cows I have" -- seen in hi/ta/te). Ask the query agent anyway.
+        # Only a real database answer that is NOT about appointments counts:
+        # for a plain "cancel my booking" the query agent may list the
+        # farmer's appointments, which is the cancel itself, not a question.
+        if agent != "appointment_supervisor" or not allowed("query"):
+            return None
+        follow = _dispatch_query(farmer_id, session_id, text, language, False, "query")
+        sql = str(follow["result"].get("sql") or "").lower()
+        if sql and follow["result"].get("data") and "appointment" not in sql:
+            return follow
+        return None
+    if intent not in _DISPATCH_TABLE or not allowed(intent):
         return None
     if intent == "query":
         follow = _dispatch_query(farmer_id, session_id, text, language, False, "query")
         # Only a real database answer counts ("cancel it" alone is no question).
         return follow if follow["result"].get("sql") and follow["result"].get("data") else None
+    if intent == "appointment" and not _has_booking_details(text):
+        # Seen live (Tamil): "no, cancel it" ending a registration was
+        # classified as a booking, and a new booking was started from it.
+        return None
     return _DISPATCH_TABLE[intent](farmer_id, session_id, text, language, False, intent)
+
+
+_BOOKING_FIELDS = ("animal_id", "animal_tag", "animal_name", "issue", "symptoms", "date", "time")
+
+
+def _has_booking_details(text: str) -> bool:
+    """True when the booking extraction finds an animal, a problem, a date
+    or a time in `text`. Run on a throwaway session so no real cache is
+    touched; any failure counts as "no details"."""
+    key = f"cancel-probe:{uuid.uuid4().hex}"
+    try:
+        entities = process_text_input(text, session_id=key).get("entities") or {}
+    except Exception as exc:
+        _log.warning("adk_router booking-details check skipped: %s", exc)
+        return False
+    finally:
+        clear_session(key)
+    return any(entities.get(field) not in (None, "", []) for field in _BOOKING_FIELDS)
 
 
 def _waiting_weather_pin(farmer_id: str, session_id: str, text: str) -> "int | None":

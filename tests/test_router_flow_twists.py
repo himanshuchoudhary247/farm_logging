@@ -63,7 +63,8 @@ def test_cancel_and_a_count_in_one_message_answers_both(monkeypatch, booking_ope
 def test_plain_cancel_gives_only_the_cancel(monkeypatch, booking_open):
     _booking_turns(monkeypatch, dict(_CANCELLED))
     _classifier(monkeypatch, "appointment")
-    monkeypatch.setattr(adk_router, "process_query_adk", lambda *a, **k: pytest.fail("no query for a plain cancel"))
+    monkeypatch.setattr(adk_router, "process_query_adk", lambda query, farmer_id, session_id=None, app_language=None: {
+        "answer": "What would you like to know?", "sql": None, "data": None})
     result = adk_router.route_turn_adk("f-001", "s-1", "cancel it", "en-IN")
     assert result["agent"] == "appointment_supervisor"
     assert result["reply_text"] == "The appointment draft was cancelled."
@@ -130,3 +131,55 @@ def test_flow_switch_kill_switch_keeps_other_flow_labels_away(monkeypatch, booki
     assert adk_router._side_question_label("I want to register a goat") is None
     monkeypatch.delenv("CHAT_FLOW_SWITCH")
     assert adk_router._side_question_label("I want to register a goat") == "add_animal"
+
+
+
+def test_cancel_classified_as_the_booking_still_answers_a_real_question(monkeypatch, booking_open):
+    """hi/ta/te: the classifier called "cancel the booking and tell me how
+    many cows I have" a booking message, and the count was lost."""
+    _booking_turns(monkeypatch, dict(_CANCELLED))
+    _classifier(monkeypatch, "appointment")
+    monkeypatch.setattr(adk_router, "process_query_adk", lambda query, farmer_id, session_id=None, app_language=None: {
+        "answer": "You have 9 cows.", "sql": "SELECT COUNT(*) FROM animals WHERE species = 'cow'", "data": [{"n": 9}]})
+    result = adk_router.route_turn_adk("f-001", "s-1", "booking cancel karo aur batao kitni gaay hain", "hi-IN")
+    assert result["reply_text"] == "The appointment draft was cancelled.\n\nYou have 9 cows."
+
+
+def test_cancel_my_booking_does_not_list_appointments(monkeypatch, booking_open):
+    _booking_turns(monkeypatch, dict(_CANCELLED))
+    _classifier(monkeypatch, "appointment")
+    monkeypatch.setattr(adk_router, "process_query_adk", lambda query, farmer_id, session_id=None, app_language=None: {
+        "answer": "You have 2 pending appointments.", "sql": "SELECT * FROM appointments", "data": [{"id": 1}]})
+    result = adk_router.route_turn_adk("f-001", "s-1", "cancel my booking", "en-IN")
+    assert result["reply_text"] == "The appointment draft was cancelled."
+
+
+
+def _registration_open_then_cancelled(monkeypatch):
+    monkeypatch.setattr(adk_router, "_has_active_booking_draft", lambda farmer_id, session_id: False)
+    monkeypatch.setattr(adk_router, "_has_active_registration_draft", lambda farmer_id, session_id: True)
+    monkeypatch.setattr(adk_router._animal_registration_supervisor, "turn",
+                        lambda farmer_id, session_id, text, language, include_audio=True, side_question=None:
+                        {"state": "CANCELLED", "response_text": "Registration cancelled.", "response_audio_base64": None})
+    monkeypatch.setattr(adk_router, "clear_session", lambda key: None)
+
+
+def test_plain_cancel_of_a_registration_does_not_start_a_booking(monkeypatch, booking_open):
+    """Tamil "no, cancel it" was classified as a booking and a booking started."""
+    _registration_open_then_cancelled(monkeypatch)
+    _classifier(monkeypatch, "appointment")
+    monkeypatch.setattr(adk_router, "process_text_input", lambda text, session_id: {"entities": {}})
+    monkeypatch.setattr(adk_router._appointment_supervisor, "turn", lambda *a, **k: pytest.fail("no booking"))
+    result = adk_router.route_turn_adk("f-001", "s-3", "no, cancel it", "ta-IN")
+    assert result["reply_text"] == "Registration cancelled."
+
+
+def test_cancel_of_a_registration_with_booking_details_starts_the_booking(monkeypatch, booking_open):
+    _registration_open_then_cancelled(monkeypatch)
+    _classifier(monkeypatch, "appointment")
+    monkeypatch.setattr(adk_router, "process_text_input", lambda text, session_id: {"entities": {"animal_name": "GAURI"}})
+    _booking_turns(monkeypatch, {"state": "COLLECTING", "response_text": "I understood: animal: GAURI",
+                                 "response_audio_base64": None})
+    result = adk_router.route_turn_adk("f-001", "s-3", "cancel that, GAURI needs a vet", "en-IN")
+    assert result["reply_text"] == "Registration cancelled.\n\nI understood: animal: GAURI"
+    
