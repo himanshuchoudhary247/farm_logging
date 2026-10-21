@@ -462,14 +462,22 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
     elif any(a["level"] == "medium" for a in alerts):
         top_level = "medium"
 
+    # summary_code is a fixed, language-free key for the same summary, so the
+    # app can show the advisory in the farmer's language (the English summary
+    # stays for older clients and as a fallback).
+    summary_code = "no_significant_risk"
     summary = "No significant weather risk in next days."
     if any(a.get("heat_stress_level") == "high" for a in alerts):
+        summary_code = "heat_stress_high"
         summary = "Severe heat stress expected. Provide shade, electrolytes, and restrict afternoon grazing."
     elif any(a.get("heat_stress_level") == "medium" for a in alerts):
+        summary_code = "heat_stress_medium"
         summary = "Heat stress likely. Increase water availability and observe breathing rate in sheds."
     elif top_level == "high":
+        summary_code = "weather_risk_high"
         summary = "High weather risk detected. Take protective action for livestock and fodder."
     elif top_level == "medium":
+        summary_code = "weather_risk_medium"
         summary = "Moderate weather risk detected. Monitor animals and shelter arrangements."
 
     return {
@@ -482,6 +490,7 @@ def get_weather_alert(location_or_pin: str, country_code: str = "in", days: int 
         },
         "risk_level": top_level,
         "summary": summary,
+        "summary_code": summary_code,
         "advisories": _advisories_for_level(top_level),
         "alerts": alerts,
         "forecast_days": days_payload,
