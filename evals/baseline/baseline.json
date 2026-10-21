@@ -1,11 +1,11 @@
 {
-  "created_at": "2026-10-16T23:19:32",
+  "created_at": "2026-10-21T12:11:53",
   "git_commits": [
-    "3980a2a-dirty"
+    "7c927b7"
   ],
   "run_count": 1,
   "source_runs": [
-    "20261016-225834.json"
+    "20261021-083047.json"
   ],
   "conversations": {
     "L1-en-001": {
@@ -89,12 +89,12 @@
       "rate": 1.0
     },
     "L1-en-011": {
-      "passes": 2,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "en-IN",
       "title": "Register a new female Nellore sheep (full flow)",
-      "rate": 0.667
+      "rate": 1.0
     },
     "L1-hi-001": {
       "passes": 3,
@@ -137,12 +137,12 @@
       "rate": 1.0
     },
     "L1-hi-006": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "hi-IN",
       "title": "Animal type of a name that is also a common word",
-      "rate": 0.0
+      "rate": 1.0
     },
     "L1-hi-007": {
       "passes": 3,
@@ -185,12 +185,12 @@
       "rate": 1.0
     },
     "L1-kn-001": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "kn-IN",
       "title": "Chicken count",
-      "rate": 0.0
+      "rate": 1.0
     },
     "L1-kn-002": {
       "passes": 3,
@@ -249,12 +249,12 @@
       "rate": 1.0
     },
     "L1-kn-009": {
-      "passes": 2,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "kn-IN",
       "title": "Book vet appointment for GAURI (full flow)",
-      "rate": 0.667
+      "rate": 1.0
     },
     "L1-kn-010": {
       "passes": 3,
@@ -313,12 +313,12 @@
       "rate": 1.0
     },
     "L1-ml-006": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "ml-IN",
       "title": "Animal type of a name that is also a common word",
-      "rate": 0.0
+      "rate": 1.0
     },
     "L1-ml-007": {
       "passes": 3,
@@ -361,12 +361,12 @@
       "rate": 1.0
     },
     "L1-mr-001": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "mr-IN",
       "title": "Buffalo count",
-      "rate": 0.0
+      "rate": 1.0
     },
     "L1-mr-002": {
       "passes": 3,
@@ -521,12 +521,12 @@
       "rate": 1.0
     },
     "L1-ta-010": {
-      "passes": 2,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "ta-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
-      "rate": 0.667
+      "rate": 1.0
     },
     "L1-ta-011": {
       "passes": 3,
@@ -569,12 +569,12 @@
       "rate": 1.0
     },
     "L1-te-005": {
-      "passes": 0,
+      "passes": 3,
       "runs": 3,
       "layer": 1,
       "language": "te-IN",
       "title": "Breed of GAURI",
-      "rate": 0.0
+      "rate": 1.0
     },
     "L1-te-006": {
       "passes": 3,
@@ -623,28 +623,3500 @@
       "language": "te-IN",
       "title": "Register a new male Osmanabadi goat (full flow)",
       "rate": 1.0
+    },
+    "L2-en-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-en-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-en-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-en-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-en-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-en-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-en-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-en-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-en-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-en-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-en-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-en-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "en-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-hi-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-hi-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-hi-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-hi-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-hi-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-hi-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-hi-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-hi-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-hi-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-hi-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-hi-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-hi-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "hi-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-kn-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-kn-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-kn-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-kn-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-kn-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-kn-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-kn-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-kn-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-kn-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-kn-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-kn-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-kn-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "kn-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-ml-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-ml-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-ml-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-ml-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-ml-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-ml-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-ml-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-ml-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-ml-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-ml-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-ml-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-ml-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ml-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-mr-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-mr-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-mr-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-mr-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-mr-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-mr-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-mr-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-mr-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-mr-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-mr-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-mr-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-mr-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "mr-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-ta-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-ta-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-ta-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-ta-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-ta-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-ta-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-ta-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-ta-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-ta-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-ta-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-ta-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-ta-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "ta-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L2-te-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Goat count with a spelling slip",
+      "rate": 1.0
+    },
+    "L2-te-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Count typed in Roman letters / informal",
+      "rate": 1.0
+    },
+    "L2-te-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Breed of GAURI, name misspelled as GORI",
+      "rate": 1.0
+    },
+    "L2-te-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Count of each kind of animal",
+      "rate": 1.0
+    },
+    "L2-te-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking with no animal named: bot must ask which animal",
+      "rate": 1.0
+    },
+    "L2-te-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking, farmer changes the animal mid-flow: booking keeps the date, animal becomes MOTI",
+      "rate": 1.0
+    },
+    "L2-te-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking on a weekday (Thursday): first Thursday from today",
+      "rate": 1.0
+    },
+    "L2-te-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking 'next Monday': coming Monday or the one after",
+      "rate": 1.0
+    },
+    "L2-te-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking in 3 days",
+      "rate": 1.0
+    },
+    "L2-te-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking for a past date: date must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-te-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking today at a time that has passed: time must be re-asked, not stored",
+      "rate": 1.0
+    },
+    "L2-te-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 2,
+      "language": "te-IN",
+      "title": "Booking on a day of the month (the 25th): the next 25th from today",
+      "rate": 1.0
+    },
+    "L3-en-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-en-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-en-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-en-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-en-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-en-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-en-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-en-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-en-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-en-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-en-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-en-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-en-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-en-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-en-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-en-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-en-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-en-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-en-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-en-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "en-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-hi-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-hi-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-hi-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-hi-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-hi-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-hi-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-hi-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-hi-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-hi-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-hi-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-hi-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-hi-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-hi-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-hi-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-hi-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-hi-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-hi-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-hi-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-hi-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-hi-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "hi-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-kn-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-kn-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-kn-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-kn-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-kn-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-kn-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-kn-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-kn-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-kn-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-kn-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-kn-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-kn-012": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 0.333
+    },
+    "L3-kn-013": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 0.667
+    },
+    "L3-kn-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-kn-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-kn-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-kn-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-kn-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-kn-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-kn-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "kn-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-ml-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-ml-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-ml-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-ml-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-ml-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-ml-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-ml-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-ml-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-ml-009": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 0.667
+    },
+    "L3-ml-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-ml-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-ml-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-ml-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-ml-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-ml-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-ml-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-ml-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-ml-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-ml-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-ml-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ml-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-mr-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-mr-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-mr-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-mr-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-mr-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-mr-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-mr-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-mr-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-mr-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-mr-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-mr-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-mr-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-mr-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-mr-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-mr-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-mr-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-mr-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-mr-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-mr-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-mr-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "mr-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-ta-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-ta-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-ta-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-ta-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-ta-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-ta-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-ta-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-ta-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-ta-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-ta-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-ta-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-ta-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-ta-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-ta-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-ta-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 1.0
+    },
+    "L3-ta-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-ta-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-ta-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-ta-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-ta-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "ta-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L3-te-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Follow-up counts: goats, then 'and buffaloes?', then 'how many of them are Mehsana?'",
+      "rate": 1.0
+    },
+    "L3-te-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Follow-up breeds: GAURI, then 'and MOTI?', then 'so both are goats?'",
+      "rate": 1.0
+    },
+    "L3-te-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Follow-up counts: total, chickens, then 'and sheep?'",
+      "rate": 1.0
+    },
+    "L3-te-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Breed of KAALI, then 'book a vet for her': the booking takes KAALI",
+      "rate": 1.0
+    },
+    "L3-te-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Count question in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L3-te-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Weather question in the middle of a booking: weather answered, booking date not changed",
+      "rate": 1.0
+    },
+    "L3-te-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Booking given one detail per turn: animal, issue, then date and time",
+      "rate": 1.0
+    },
+    "L3-te-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Booking, then the date changed, then the time changed",
+      "rate": 1.0
+    },
+    "L3-te-009": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Booking cancelled, then a count question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-te-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Weather first, then a booking",
+      "rate": 1.0
+    },
+    "L3-te-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Question about MOTI, then a booking for GAURI: the booking stays GAURI",
+      "rate": 1.0
+    },
+    "L3-te-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Weather asks for a PIN, farmer asks a count first, then gives the PIN",
+      "rate": 1.0
+    },
+    "L3-te-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Count question in the middle of a registration: answered, registration continues",
+      "rate": 1.0
+    },
+    "L3-te-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Registration cancelled, then a breed question goes to the query agent",
+      "rate": 1.0
+    },
+    "L3-te-015": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Six topics in a row: count, breed, weather, count, breed, total",
+      "rate": 0.333
+    },
+    "L3-te-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Script changes mid-conversation: own language, English or Hindi in Roman letters, Roman letters",
+      "rate": 1.0
+    },
+    "L3-te-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Breed of GAURI, then 'sorry, I meant KAALI'",
+      "rate": 1.0
+    },
+    "L3-te-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Breed question about the booked animal in the middle of its booking",
+      "rate": 1.0
+    },
+    "L3-te-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Count of Nili-Ravi buffaloes, then a Wednesday booking for one of them",
+      "rate": 1.0
+    },
+    "L3-te-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 3,
+      "language": "te-IN",
+      "title": "Kankrej count, what animal RAJA is, then 'book a vet for him on the 25th'",
+      "rate": 1.0
+    },
+    "L4-en-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-en-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-en-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-en-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-en-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-en-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-en-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-en-008": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 0.667
+    },
+    "L4-en-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-en-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-en-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-en-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 1.0
+    },
+    "L4-en-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-en-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 1.0
+    },
+    "L4-en-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-en-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-en-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-en-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-en-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-en-020": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 0.667
+    },
+    "L4-en-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-en-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-en-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-en-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-en-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-en-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-en-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-en-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-en-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-en-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "en-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-hi-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-hi-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-hi-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-hi-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-hi-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-hi-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-hi-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-hi-008": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 0.333
+    },
+    "L4-hi-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-hi-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-hi-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-hi-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 1.0
+    },
+    "L4-hi-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-hi-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 1.0
+    },
+    "L4-hi-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-hi-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-hi-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-hi-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-hi-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-hi-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-hi-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-hi-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-hi-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-hi-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-hi-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-hi-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-hi-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-hi-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-hi-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-hi-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "hi-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-kn-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-kn-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-kn-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-kn-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-kn-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-kn-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-kn-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-kn-008": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 0.333
+    },
+    "L4-kn-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-kn-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-kn-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-kn-012": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 0.0
+    },
+    "L4-kn-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-kn-014": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 0.667
+    },
+    "L4-kn-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-kn-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-kn-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-kn-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-kn-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-kn-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-kn-021": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 0.333
+    },
+    "L4-kn-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-kn-023": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 0.333
+    },
+    "L4-kn-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-kn-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-kn-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-kn-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-kn-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-kn-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-kn-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "kn-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-ml-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-ml-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-ml-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-ml-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-ml-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-ml-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-ml-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-ml-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-ml-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-ml-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-ml-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-ml-012": {
+      "passes": 1,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 0.333
+    },
+    "L4-ml-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-ml-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 1.0
+    },
+    "L4-ml-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-ml-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-ml-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-ml-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-ml-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-ml-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-ml-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-ml-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-ml-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-ml-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-ml-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-ml-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-ml-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-ml-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-ml-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-ml-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ml-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-mr-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-mr-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-mr-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-mr-004": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 0.667
+    },
+    "L4-mr-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-mr-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-mr-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-mr-008": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-mr-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-mr-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-mr-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-mr-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 1.0
+    },
+    "L4-mr-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-mr-014": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 0.667
+    },
+    "L4-mr-015": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 0.667
+    },
+    "L4-mr-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-mr-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-mr-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-mr-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-mr-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-mr-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-mr-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-mr-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-mr-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-mr-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-mr-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-mr-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-mr-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-mr-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-mr-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "mr-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-ta-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-ta-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-ta-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-ta-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-ta-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-ta-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-ta-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-ta-008": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 0.667
+    },
+    "L4-ta-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-ta-010": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 1.0
+    },
+    "L4-ta-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-ta-012": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 1.0
+    },
+    "L4-ta-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-ta-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 1.0
+    },
+    "L4-ta-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-ta-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-ta-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-ta-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-ta-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-ta-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-ta-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-ta-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-ta-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-ta-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-ta-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-ta-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-ta-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-ta-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-ta-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-ta-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "ta-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
+    },
+    "L4-te-001": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Mid-booking switch to registration: the registration starts and the booking does not come back",
+      "rate": 1.0
+    },
+    "L4-te-002": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Mid-registration switch to booking: the booking starts with the right animal",
+      "rate": 1.0
+    },
+    "L4-te-003": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Animal and problem both changed in one message: GAURI is fine, MOTI is sick",
+      "rate": 1.0
+    },
+    "L4-te-004": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Booking at the readback, then two farm questions (the second one short), then 'what about my booking?'",
+      "rate": 1.0
+    },
+    "L4-te-005": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "General-knowledge questions in the middle of a booking: not answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-te-006": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Hello, thanks and 'ok' in the middle of a booking: nothing is cancelled or confirmed",
+      "rate": 1.0
+    },
+    "L4-te-007": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A 'yes' right after a side answer while the time is still missing: no booking is made, the time is still asked",
+      "rate": 1.0
+    },
+    "L4-te-008": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Cancel the booking and ask a count in the same message, then a count goes to the query agent",
+      "rate": 0.667
+    },
+    "L4-te-009": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "One long message: a booking for GAURI and a buffalo count together",
+      "rate": 0.0
+    },
+    "L4-te-010": {
+      "passes": 2,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Language switch in the middle of a booking: details kept, the reply follows what the farmer typed",
+      "rate": 0.667
+    },
+    "L4-te-011": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Date changed after the readback, then the time, then back to the first date",
+      "rate": 1.0
+    },
+    "L4-te-012": {
+      "passes": 0,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Back to an open booking after three other topics",
+      "rate": 0.0
+    },
+    "L4-te-013": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Farmer corrects the bot: 'no, I asked about buffaloes, not cows'",
+      "rate": 1.0
+    },
+    "L4-te-014": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Registration of BHOORI dropped halfway, then a breed question about BHOORI: no such animal",
+      "rate": 1.0
+    },
+    "L4-te-015": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Very short replies in the middle of a booking ('hmm', '?', 'wait'): the booking is kept and asked again",
+      "rate": 1.0
+    },
+    "L4-te-016": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Weather asks for a PIN, the farmer registers an animal instead: registration takes over",
+      "rate": 1.0
+    },
+    "L4-te-017": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Weather question with no place in a booking: the PIN is asked, the farmer ignores it and gives the time",
+      "rate": 1.0
+    },
+    "L4-te-018": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Booking cancelled, then a new booking for another animal with another time",
+      "rate": 1.0
+    },
+    "L4-te-019": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Registration cancelled, then straight into a booking",
+      "rate": 1.0
+    },
+    "L4-te-020": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A bare 'no' at the readback (not a cancel), then a new time",
+      "rate": 1.0
+    },
+    "L4-te-021": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Question about the booking itself: which animal is it for?",
+      "rate": 1.0
+    },
+    "L4-te-022": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "'Sorry, what did you say?' in the middle of a booking: the question is asked again",
+      "rate": 1.0
+    },
+    "L4-te-023": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A farmer who is annoyed in the middle of a booking: polite reply, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-te-024": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A thumbs-up emoji and a nonsense word in the middle of a booking: nothing is confirmed, the booking is kept",
+      "rate": 1.0
+    },
+    "L4-te-025": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "'Are you a real person?' in the middle of a booking: answered, booking kept",
+      "rate": 1.0
+    },
+    "L4-te-026": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "'Forget all this, start again' with a new animal and a new time",
+      "rate": 1.0
+    },
+    "L4-te-027": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "Registration: the farmer changes the species ('it is a sheep, not a goat'), the registration goes on",
+      "rate": 1.0
+    },
+    "L4-te-028": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A greeting as the very first message, then a booking",
+      "rate": 1.0
+    },
+    "L4-te-029": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "A long story with the booking request hidden in it",
+      "rate": 1.0
+    },
+    "L4-te-030": {
+      "passes": 3,
+      "runs": 3,
+      "layer": 4,
+      "language": "te-IN",
+      "title": "'Never mind' (not the word cancel): the booking is dropped and the next count goes to the query agent",
+      "rate": 1.0
     }
   },
   "latency_ms": {
     "animal_registration": {
-      "n": 245,
-      "p50": 422,
-      "p90": 1424
+      "n": 609,
+      "p50": 1091,
+      "p90": 2689
     },
     "appointment_supervisor": {
-      "n": 105,
-      "p50": 968,
-      "p90": 3368
+      "n": 2317,
+      "p50": 1659,
+      "p90": 3546
     },
     "query_agent": {
-      "n": 126,
-      "p50": 2478,
-      "p90": 3916
+      "n": 938,
+      "p50": 2096,
+      "p90": 3019
     },
     "weather_alert": {
-      "n": 63,
-      "p50": 1985,
-      "p90": 2856
+      "n": 168,
+      "p50": 2268,
+      "p90": 3828
     }
   }
 }

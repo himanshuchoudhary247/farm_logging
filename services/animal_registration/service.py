@@ -736,6 +736,13 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 side = side if answer else None
             if side in ("weather", "query"):
                 return self._side_question_response(draft, side, answer, text, session_id)
+            if side == "appointment":
+                # The farmer wants a vet booking instead ("leave that, GAURI has
+                # fever, I need a vet"). Seen live (evals layer 4, all 7
+                # languages): the registration just asked its first question
+                # again. Nothing is changed here; the router closes this
+                # registration and starts the booking with the same message.
+                return self._side_question_response(draft, side, None, text, session_id)
 
         changed, error = self._copy_entities(draft, entities)
 
