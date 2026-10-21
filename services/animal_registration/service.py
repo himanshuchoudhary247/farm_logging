@@ -721,16 +721,21 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
-        # A "no" at the confirm summary is ambiguous the same way it is in
-        # appointment_supervisor: it could be a genuine rejection, or it
-        # could be the model unable to confidently classify a vague
-        # off-topic question ("how many animals do I have") into any of
-        # this schema's fields, defaulting confirmation_signal to "no".
-        # Only treat it as a real rejection once a genuine topic switch
-        # has been ruled out -- no new field data this turn and no
-        # explicit identity correction.
+        # A non-"yes" at the confirm summary is ambiguous the same way it
+        # is in appointment_supervisor: it could be a genuine rejection
+        # ("no"), or it could be the model unable to confidently classify
+        # a vague off-topic question ("how many animals do I have", "will
+        # it rain tomorrow") into any of this schema's fields, returning
+        # confirmation_signal=="no" OR no signal at all (verified live:
+        # a genuinely off-topic weather question came back with neither
+        # yes nor no -- gating on =="no" alone missed it, and with no
+        # signal this fell all the way through to silently resetting
+        # CONFIRMING to COLLECTING_OPTIONAL). Only treat it as a real
+        # rejection/non-answer once a genuine topic switch has been ruled
+        # out -- no new field data this turn and no explicit identity
+        # correction.
         if (
-            draft["state"] == "CONFIRMING" and conf_sig == "no"
+            draft["state"] == "CONFIRMING" and conf_sig != "yes"
             and not _has_new_field_data(entities) and not entities.get("corrects_identity")
         ):
             escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])

@@ -684,7 +684,19 @@ class AppointmentSupervisor(DraftSupervisor):
             )
         else:
             answers_expected_field = bool(expected_field) and bool(turn_entities.get(expected_field))
-        if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field:
+        # Real gap, found live testing this exact fix: gating on
+        # confirmation_signal=="no" specifically missed a genuinely
+        # off-topic question that the model didn't confidently call "no"
+        # either -- "will it rain tomorrow?" at CONFIRMING came back with
+        # no signal at all (neither yes nor no), so the escape never ran
+        # and the farmer just got the same summary echoed back. Broadened
+        # to anything short of an explicit "yes": a real correction turn
+        # still reaches the model classifying it as "appointment" (not
+        # query/weather), try_switch correctly returns None for that, and
+        # control falls through to the normal correction handling below
+        # exactly as before -- this only adds a probe, never changes the
+        # outcome for a genuine correction.
+        if awaiting_confirmation and confirmation_signal != "yes" and not answers_expected_field:
             escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
             if escape:
                 self._save(draft)
