@@ -327,8 +327,9 @@ def _probe_query(farmer_id: str, text: str, language: str) -> dict[str, Any]:
     # message may ask nothing, and drop the answer when it says so.
     question = (f"{text}\n\n(Note: the farmer has just cancelled something with this message. "
                 f"Ignore the cancel part. If the rest of the message asks a question about the "
-                f"farm, answer that question normally. Only if there is no farm question at all, "
-                f"reply with exactly: {_NO_QUESTION})")
+                f"farm, answer it exactly as usual: look it up with the run_sql_query tool, never "
+                f"from a guess. Only if there is no farm question at all, reply with exactly: "
+                f"{_NO_QUESTION})")
     result = process_query_adk(_with_reply_language(question, language), farmer_id,
                                session_id=None, app_language=language)
     if _NO_QUESTION in str(result.get("answer") or ""):
