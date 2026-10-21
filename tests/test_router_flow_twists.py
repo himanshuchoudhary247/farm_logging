@@ -182,4 +182,15 @@ def test_cancel_of_a_registration_with_booking_details_starts_the_booking(monkey
                                  "response_audio_base64": None})
     result = adk_router.route_turn_adk("f-001", "s-3", "cancel that, GAURI needs a vet", "en-IN")
     assert result["reply_text"] == "Registration cancelled.\n\nI understood: animal: GAURI"
+
+
+
+def test_plain_cancel_is_not_answered_with_a_made_up_count(monkeypatch, booking_open):
+    """ml: a plain "cancel" came back with "you have 53 animals"."""
+    _booking_turns(monkeypatch, dict(_CANCELLED))
+    _classifier(monkeypatch, "query")
+    monkeypatch.setattr(adk_router, "process_query_adk", lambda query, farmer_id, session_id=None, app_language=None: {
+        "answer": "NO_QUESTION", "sql": "SELECT COUNT(*) FROM animals", "data": [{"n": 53}]})
+    result = adk_router.route_turn_adk("f-001", "s-1", "cancel", "ml-IN")
+    assert result["reply_text"] == "The appointment draft was cancelled."
     

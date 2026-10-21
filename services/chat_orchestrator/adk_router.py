@@ -313,14 +313,27 @@ def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], fa
     return _DISPATCH_TABLE[intent](farmer_id, session_id, text, language, False, intent)
 
 
+_NO_QUESTION = "NO_QUESTION"
+
+
 def _probe_query(farmer_id: str, text: str, language: str) -> dict[str, Any]:
     """Query agent answer for the rest of a cancelling message, WITHOUT the
     chat's query session. Seen live (te, mr): with the session, the cancel
     text went into the query agent's memory and the next question about an
     animal was answered with the wrong species. Same as the booking's own
     side-question probe, which never uses the chat session either."""
-    result = process_query_adk(_with_reply_language(text, language), farmer_id,
+    # Seen live (ml): a plain "cancel" was answered with "you have 53
+    # animals" -- the query agent made up a question. Tell it that this
+    # message may ask nothing, and drop the answer when it says so.
+    question = (f"{text}\n\n(Note: the farmer has just cancelled something with this message. "
+                f"Ignore the cancel part. If the rest of the message asks a question about the "
+                f"farm, answer that question normally. Only if there is no farm question at all, "
+                f"reply with exactly: {_NO_QUESTION})")
+    result = process_query_adk(_with_reply_language(question, language), farmer_id,
                                session_id=None, app_language=language)
+    if _NO_QUESTION in str(result.get("answer") or ""):
+        _log.info("adk_router after-cancel probe found no question farmer=%s", farmer_id)
+        result = {**result, "answer": "", "sql": None, "data": None}
     return _envelope("query_agent", "query", result, result.get("answer") or "", farmer_id, "",
                      text, False, language, result.get("speech_text"))
 
