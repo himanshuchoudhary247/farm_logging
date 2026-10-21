@@ -295,7 +295,7 @@ def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], fa
         # farmer's appointments, which is the cancel itself, not a question.
         if agent != "appointment_supervisor" or not allowed("query"):
             return None
-        follow = _dispatch_query(farmer_id, session_id, text, language, False, "query")
+        follow = _probe_query(farmer_id, text, language)
         sql = str(follow["result"].get("sql") or "").lower()
         if sql and follow["result"].get("data") and "appointment" not in sql:
             return follow
@@ -303,7 +303,7 @@ def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], fa
     if intent not in _DISPATCH_TABLE or not allowed(intent):
         return None
     if intent == "query":
-        follow = _dispatch_query(farmer_id, session_id, text, language, False, "query")
+        follow = _probe_query(farmer_id, text, language)
         # Only a real database answer counts ("cancel it" alone is no question).
         return follow if follow["result"].get("sql") and follow["result"].get("data") else None
     if intent == "appointment" and not _has_booking_details(text):
@@ -311,6 +311,18 @@ def _route_after_cancel(agent: str, flow_intent: str, result: dict[str, Any], fa
         # classified as a booking, and a new booking was started from it.
         return None
     return _DISPATCH_TABLE[intent](farmer_id, session_id, text, language, False, intent)
+
+
+def _probe_query(farmer_id: str, text: str, language: str) -> dict[str, Any]:
+    """Query agent answer for the rest of a cancelling message, WITHOUT the
+    chat's query session. Seen live (te, mr): with the session, the cancel
+    text went into the query agent's memory and the next question about an
+    animal was answered with the wrong species. Same as the booking's own
+    side-question probe, which never uses the chat session either."""
+    result = process_query_adk(_with_reply_language(text, language), farmer_id,
+                               session_id=None, app_language=language)
+    return _envelope("query_agent", "query", result, result.get("answer") or "", farmer_id, "",
+                     text, False, language, result.get("speech_text"))
 
 
 _BOOKING_FIELDS = ("animal_id", "animal_tag", "animal_name", "issue", "symptoms", "date", "time")
