@@ -178,3 +178,36 @@ def test_booking_request_during_a_registration_is_handed_to_the_router(tmp_path,
     result = supervisor.turn("f-001", "r-1", "leave that, GAURI has fever, I need a vet tomorrow", "en-IN",
                              side_question=_classifier("appointment", []))
     assert result["side_question"] == "appointment"
+
+
+
+def test_question_about_another_animal_read_as_no_keeps_the_booked_animal(tmp_path, monkeypatch):
+    """te/kn: "which breed is KAALI?" at the readback came back as signal "no"."""
+    calls = []
+    supervisor = _readback(monkeypatch, tmp_path, "s-qno", ({"animal_name": "KAALI"}, "no"))
+    monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {
+        "answer": "KAALI is a Jamunapari goat.", "sql": "SELECT ...", "data": [{"breed": "Jamunapari"}]})
+    result = supervisor.turn("f-001", "s-qno", "KAALI ఏ జాతి?", "te-IN", side_question=_classifier("query", calls))
+    assert calls == ["KAALI ఏ జాతి?"]
+    assert result["side_question"] == "query"
+    assert supervisor._load("s-qno", "f-001", "te-IN")["draft"]["animal_identifier"] == "GAURI"
+
+
+def test_no_with_another_animal_is_still_a_correction(tmp_path, monkeypatch):
+    supervisor = _readback(monkeypatch, tmp_path, "s-nocor", ({"animal_name": "KAALI"}, "no"))
+    result = supervisor.turn("f-001", "s-nocor", "no, not GAURI, KAALI", "en-IN",
+                             side_question=_classifier("appointment", []))
+    assert result["draft"]["animal_identifier"] == "KAALI"
+
+
+
+def test_no_naming_the_booked_animal_is_a_correction_without_asking(tmp_path, monkeypatch):
+    """te/kn "no no, not GAURI, MOTI" must change the animal even if the
+    classifier would call it a question about MOTI."""
+    calls = []
+    supervisor = _readback(monkeypatch, tmp_path, "s-nocor2", ({"animal_name": "MOTI"}, "no"))
+    result = supervisor.turn("f-001", "s-nocor2", "కాదు కాదు, GAURI కాదు, MOTI కి", "te-IN",
+                             side_question=_classifier("query", calls))
+    assert calls == []
+    assert result["draft"]["animal_identifier"] == "MOTI"
+     

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from services.common import reply_words
+from services.common.name_match import find_name_mentions
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -609,6 +610,13 @@ class AppointmentSupervisor(DraftSupervisor):
         return str(ref).strip().casefold() not in known
 
     @staticmethod
+    def _names_booked_animal(draft: dict[str, Any], text: str) -> bool:
+        """True when `text` names the animal already in the booking (stored
+        name or what the farmer first called it, any script or spelling)."""
+        names = [n for n in (draft["draft"].get("animal_identifier"), draft.get("animal_said")) if n]
+        return bool(names) and bool(find_name_mentions(text or "", names, include_exact=True))
+
+    @staticmethod
     def _changes_a_booking_field(draft: dict[str, Any], entities: dict[str, Any]) -> bool:
         """True when this turn's extraction carries a usable value for
         issue/symptoms/duration/severity/date/time that differs from what
@@ -994,9 +1002,15 @@ class AppointmentSupervisor(DraftSupervisor):
         # change of animal: the classifier decides, like any side question.
         # A real change ("not GAURI, it's MOTI") is classified as the booking
         # and carries on below exactly as before.
+        # A bare "no" counts too: at the readback, a question about another
+        # animal ("which breed is KAALI?") came back as "no" in te/kn and the
+        # booked animal was replaced. But a "no" that also names the booked
+        # animal ("no, not GAURI, MOTI") is a correction and is applied as
+        # before -- the classifier could read it as a question about MOTI.
         only_other_animal = (
             names_new_animal
-            and not confirmation_signal
+            and (not confirmation_signal
+                 or (confirmation_signal == "no" and not self._names_booked_animal(draft, text)))
             and not answers_expected_field
             and not self._changes_a_booking_field(draft, said_now)
             and _switch_on(_OTHER_ANIMAL_QUESTION_ENV)
