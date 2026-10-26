@@ -58,6 +58,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.advisory.llm_advisory import generate_llm_advisory, summarize_livestock
+from services.farm_summary import build_farm_summary
 from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
@@ -938,6 +939,26 @@ def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> d
         "personalized": personalized,
         "advisory": advisory,
     }
+
+
+@app.get("/farmers/{farmer_id}/summary")
+def farm_summary(
+    farmer_id: str,
+    language: str = Query(default="en"),
+    include_audio: bool = Query(default=False),
+    _auth: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """Farm Summary card: weather, active animal count, pending vaccinations,
+    AI suggestion in the farmer's language, optional audio. Each part fails
+    on its own (named in "errors"); see services/farm_summary/service.py."""
+    result = build_farm_summary(
+        farmer_id,
+        language=language,
+        include_audio=include_audio,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Farmer not found")
+    return result
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")
