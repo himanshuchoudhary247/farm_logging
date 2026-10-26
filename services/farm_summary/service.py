@@ -69,6 +69,8 @@ def normalize_language(language: Optional[str]) -> str:
 @dataclass
 class FarmData:
     farmer: Any
+    # False when this service has no record of the farmer yet (see load_farm_data).
+    known_locally: bool
     animals: list
     farms: list
     vaccinations: list
@@ -76,9 +78,16 @@ class FarmData:
     appointments: list
 
 
-def load_farm_data(farmer_id: str) -> Optional[FarmData]:
-    """All reads for the summary. None if the farmer doesn't exist.
-    The only function to change when the data moves to main_backend."""
+def load_farm_data(farmer_id: str) -> FarmData:
+    """All reads for the summary. The only function to change when the data
+    moves to main_backend.
+
+    The app sends main_backend's farmer id, which this service may not have a
+    record of yet (a farmer who has never registered an animal through the
+    chatbot). /chat/turn serves any farmer id the same way, so instead of a
+    404 such a farmer gets an empty local record: zero animals and
+    vaccinations here, and the weather still found through the main_backend
+    farm PIN (resolve_location)."""
     from storage import (
         animals_for_farmer,
         appointments_for_farmer,
@@ -88,11 +97,17 @@ def load_farm_data(farmer_id: str) -> Optional[FarmData]:
         vaccination_records_for_farmer,
     )
 
+    from models import Farmer
+
     farmer = get_farmer_by_id(farmer_id)
+    known = farmer is not None
     if farmer is None:
-        return None
+        # Never saved: only lets the shared helpers below read .id/.name/
+        # .weather_location without a special case.
+        farmer = Farmer(id=farmer_id, name="", login_username="", password_hash="")
     return FarmData(
         farmer=farmer,
+        known_locally=known,
         animals=animals_for_farmer(farmer_id),
         farms=farms_for_farmer(farmer_id),
         vaccinations=vaccination_records_for_farmer(farmer_id),
@@ -292,15 +307,13 @@ def build_farm_summary(
     language: str = "en",
     include_audio: bool = False,
     today: Optional[date] = None,
-) -> Optional[dict[str, Any]]:
-    """The full card. None if the farmer doesn't exist."""
+) -> dict[str, Any]:
+    """The full card, for any farmer id (see load_farm_data)."""
     t0 = time.time()
     lang = normalize_language(language)
     today = today or date.today()
 
     data = load_farm_data(farmer_id)
-    if data is None:
-        return None
 
     errors: list[str] = []
     animals = count_animals(data.animals)
@@ -351,8 +364,8 @@ def build_farm_summary(
                 errors.append("audio")
 
     _log.info(
-        "LATENCY farm_summary farmer=%s lang=%s ms=%.0f animals=%d pending_vacc=%d errors=%s",
-        farmer_id, lang, (time.time() - t0) * 1000, animals["total"], vaccinations["pending_count"],
+        "LATENCY farm_summary farmer=%s known_locally=%s lang=%s ms=%.0f animals=%d pending_vacc=%d errors=%s",
+        farmer_id, data.known_locally, lang, (time.time() - t0) * 1000, animals["total"], vaccinations["pending_count"],
         ",".join(errors) or "none",
     )
     return {

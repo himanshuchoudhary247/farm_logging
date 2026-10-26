@@ -171,9 +171,22 @@ def test_full_summary_from_storage(tmp_path, monkeypatch, sources):
     assert calls[0]["weather"]["weather"]["summary"] == "Light rain"
 
 
-def test_unknown_farmer_returns_none(tmp_path, monkeypatch):
+def test_farmer_with_no_local_record_gets_an_empty_card(tmp_path, monkeypatch, sources):
+    """The app sends main_backend's farmer id, which may not be in this
+    service's storage. Like /chat/turn, that is served, not a 404: nothing
+    recorded here, weather through the main_backend farm PIN."""
     _seed(tmp_path, monkeypatch)
-    assert build_farm_summary("nobody", today=TODAY) is None
+    sources.main_backend_pin = "411001"
+    calls = []
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok(calls))
+    out = build_farm_summary("app-only-farmer", language="hi", today=TODAY)
+    assert out["farmer_id"] == "app-only-farmer"
+    assert out["animals"] == {"total": 0, "by_species": []}
+    assert out["vaccinations"]["pending_count"] == 0 and out["vaccinations"]["items"] == []
+    assert sources.main_backend_calls == ["app-only-farmer"] and sources.weather_calls == ["411001"]
+    assert out["weather"]["available"] is True and out["errors"] == []
+    # Another farmer's records never leak in.
+    assert all("Gauri" not in a for a in calls[0]["base_actions"])
 
 
 def test_unknown_language_falls_back_to_english(tmp_path, monkeypatch):
@@ -372,13 +385,11 @@ def test_summary_route_depends_on_require_api_key(api_main):
     assert any(dep.call is api_main.require_api_key for dep in routes[0].dependant.dependencies)
 
 
-def test_summary_route_unknown_farmer_is_404(tmp_path, monkeypatch, api_main):
-    from fastapi import HTTPException
-
+def test_summary_route_answers_for_a_farmer_with_no_local_record(tmp_path, monkeypatch, api_main):
     _seed(tmp_path, monkeypatch)
-    with pytest.raises(HTTPException) as exc:
-        api_main.farm_summary("nobody", language="en", include_audio=False, _auth=None)
-    assert exc.value.status_code == 404
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    out = api_main.farm_summary("app-only-farmer", language="en", include_audio=False, _auth=None)
+    assert out["farmer_id"] == "app-only-farmer" and out["animals"]["total"] == 0
 
 
 def test_summary_route_returns_card(tmp_path, monkeypatch, api_main):
