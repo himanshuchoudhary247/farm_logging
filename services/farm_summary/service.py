@@ -257,10 +257,15 @@ def vaccination_points(vaccinations: dict[str, Any]) -> list[str]:
 
 # Sent to the LLM when there is no weather for the farm (no location, or the
 # lookup failed). Without it the advisory prompt's "if the weather is normal,
-# say so" rule lets the LLM call missing weather "normal".
+# say so" rule let the LLM call missing weather "normal"; a first fix still
+# let it add weather-style tips from general knowledge ("give shade to prevent
+# heat stress") and feed-buying tips, seen live. The weather source also
+# carries the feed prices, so neither exists in this case.
 NO_WEATHER_POINT = (
     "Weather data for this farm is not available right now. Say this once in "
-    "the summary only, not as an action, and say nothing about today's weather."
+    "the summary only, not as an action. Give no advice that depends on the "
+    "weather (heat, cold, rain, shade, shelter, water for heat) and nothing "
+    "about buying feed, since there are no feed prices either."
 )
 
 
