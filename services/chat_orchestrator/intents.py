@@ -94,6 +94,27 @@ INTENTS: Dict[str, IntentSpec] = {
             "ml": "പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യുക",
         },
     ),
+    "order": IntentSpec(
+        name="order",
+        classifier_description=(
+            "ORDERING or BUYING a product from the farmer's own FlokIQ shop -- "
+            "the farmer wants to purchase something (a medicine, vaccine, "
+            "dewormer, feed, mineral mixture, supplement or equipment), or "
+            "asks whether their shop has a product or what it costs there. "
+            "Not a vet visit or a sick animal (that is \"appointment\"), and "
+            "not a feed-market price question tied to weather or season "
+            "(that is \"weather\")."
+        ),
+        labels={
+            "en": "order a product from the shop",
+            "hi": "दुकान से सामान ऑर्डर करना",
+            "ta": "கடையிலிருந்து பொருள் ஆர்டர் செய்ய",
+            "te": "దుకాణం నుండి వస్తువు ఆర్డర్ చేయడం",
+            "kn": "ಅಂಗಡಿಯಿಂದ ವಸ್ತು ಆರ್ಡರ್ ಮಾಡಲು",
+            "mr": "दुकानातून वस्तू ऑर्डर करा",
+            "ml": "കടയിൽ നിന്ന് സാധനം ഓർഡർ ചെയ്യുക",
+        },
+    ),
     "weather": IntentSpec(
         name="weather",
         classifier_description=(

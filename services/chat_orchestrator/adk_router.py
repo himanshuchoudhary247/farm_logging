@@ -30,6 +30,7 @@ from google.genai import types
 
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
+from services.order_supervisor import default_supervisor as _order_supervisor
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
@@ -141,6 +142,22 @@ def _has_active_registration_draft(farmer_id: str, session_id: str) -> bool:
         return False
 
 
+def _has_active_order_draft(farmer_id: str, session_id: str) -> bool:
+    """Same sticky-routing pattern for the shop-order flow -- a mid-order
+    turn (a bare "2" answering "how many?", a tapped product pill, an
+    address) must reach the order agent, not be re-classified. A placed
+    order is submitted and a cancelled one is CANCELLED, so neither keeps
+    the session here."""
+    path = _order_supervisor._path(farmer_id, session_id)
+    if not path.exists():
+        return False
+    try:
+        draft = _order_supervisor._load(session_id, farmer_id, "en-IN")
+        return draft.get("state") != "CANCELLED" and not draft.get("submitted", False)
+    except Exception:
+        return False
+
+
 # Both derived from the shared catalog (services/chat_orchestrator/intents.py).
 # _ROUTE_INSTRUCTION is byte-identical to the pre-refactor hand-written
 # string (see test_intents_catalog.py::test_route_instruction_byte_identical).
@@ -153,7 +170,7 @@ def _make_record_route_tool(captured: dict[str, str]):
         """Record which area the farmer's message belongs to.
 
         Args:
-            intent: one of "appointment", "add_animal", "weather", "query".
+            intent: one of "appointment", "add_animal", "order", "weather", "query".
 
         Returns:
             Confirmation that the routing decision was recorded.
@@ -297,6 +314,13 @@ def route_turn_adk(
         reply = _reply_text("animal_registration", result)
         return _envelope("animal_registration", None, result, reply, farmer_id, session_id, text, include_audio, language)
 
+    if _has_active_order_draft(farmer_id, session_id):
+        if not _allowed("order"):
+            return _blocked_envelope("order", farmer_id, session_id, text, language)
+        result = _order_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+        reply = _reply_text("order_supervisor", result)
+        return _envelope("order_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
+
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)
     if weather_state.get("awaiting_location"):
@@ -375,6 +399,12 @@ def _dispatch_animal_registration(farmer_id, session_id, text, language, include
     return _envelope("animal_registration", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
 
+def _dispatch_order(farmer_id, session_id, text, language, include_audio, intent):
+    result = _order_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    reply = _reply_text("order_supervisor", result)
+    return _envelope("order_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
+
+
 def _dispatch_weather(farmer_id, session_id, text, language, include_audio, intent):
     return _run_weather(farmer_id, session_id, text, intent, include_audio, language)
 
@@ -395,6 +425,7 @@ def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent
 _DISPATCH_TABLE = {
     "appointment": _dispatch_appointment,
     "add_animal": _dispatch_animal_registration,
+    "order": _dispatch_order,
     "weather": _dispatch_weather,
     "query": _dispatch_query,
 }
