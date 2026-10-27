@@ -32,7 +32,7 @@ import logging
 import os
 import re
 from base64 import b64encode
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from services.common import reply_words
 from services.common.draft_supervisor import (
@@ -60,6 +60,14 @@ MAX_CHOICES = 5
 _QUANTITY_PILLS = (1, 2, 3, 5, 10)
 # A typed address shorter than this is not treated as an address.
 _MIN_ADDRESS_LENGTH = 5
+# Words that make a number a pack size ("500 ml", "1 L"), not a quantity.
+_PACK_SIZE_UNITS = {"ml", "l", "ltr", "ltrs", "litre", "litres", "liter", "liters",
+                    "kg", "kgs", "g", "gm", "gms", "gram", "grams", "mg"}
+# Messages the order agent lets go of when it finds nothing for the order in
+# them: the other agents' areas, as named by the router's intent classifier.
+# Not "query" -- the classifier's catch-all, which also covers "ok" or a
+# price question that belong to the order.
+RELEASE_TOPICS = ("weather", "appointment", "add_animal")
 
 # States. CANCELLED and ORDERED end the conversation (the router stops
 # sending this session's messages here); anything else is still in progress.
@@ -75,6 +83,23 @@ CANCELLED = "CANCELLED"
 
 def chat_orders_enabled() -> bool:
     return os.getenv("CHAT_ORDERS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def _number_in_text(text: str) -> Optional[int]:
+    """A quantity typed as digits next to the product ("2 calcium gel",
+    "calcium gel chahiye 2"), for when the LLM returned none. Only exactly
+    one standalone number from 1 to MAX_QUANTITY that is not a pack size
+    ("500 ml", "1 L"); anything else (no number, several, a PIN code) ->
+    None, and the agent asks how many. Digits of any script count."""
+    words = re.findall(r"[^\W_]+", text or "")
+    numbers = [i for i, word in enumerate(words) if word.isdecimal()]
+    if len(numbers) != 1:
+        return None
+    index = numbers[0]
+    if index + 1 < len(words) and words[index + 1].lower() in _PACK_SIZE_UNITS:
+        return None
+    number = int(words[index])
+    return number if 1 <= number <= MAX_QUANTITY else None
 
 
 def _money(value: Any) -> str:
@@ -131,8 +156,10 @@ _ORDER_TOOL_SPEC = {
                     "type": "integer",
                     "description": (
                         "How many units the farmer wants, only when clearly stated in this "
-                        "message, in any language ('2', 'two', 'do', 'don'). A bare number answers "
-                        "the quantity when the farmer was just asked how many. Never guess."
+                        "message, in any language ('2', 'two', 'do', 'don') -- also when the "
+                        "product is named in the same message, before or after the number. A bare "
+                        "number answers the quantity when the farmer was just asked how many. Not "
+                        "a pack size ('500 ml', '1 L'). Never guess."
                     ),
                 },
                 "delivery_address": {
@@ -141,6 +168,16 @@ _ORDER_TOOL_SPEC = {
                         "A delivery address the farmer gives in this message, exactly as said. "
                         "Only when they actually state an address (or were just asked for one and "
                         "reply with it). Omit otherwise."
+                    ),
+                },
+                "off_topic": {
+                    "type": "boolean",
+                    "description": (
+                        "true ONLY when the message is about something else entirely, not this "
+                        "order -- e.g. the weather, a sick animal, booking a vet, or a question "
+                        "about their animals or records. false for anything to do with the order "
+                        "(a product, a number, an address, yes/no, a price question, a question "
+                        "about delivery or payment)."
                     ),
                 },
                 "confirmation_signal": {
@@ -173,7 +210,12 @@ Examples (what goes into record_order_turn):
 7) Just asked for the delivery address | Farmer: "Near the temple, Wakad, Pune 411057" -> {delivery_address: 'Near the temple, Wakad, Pune 411057'}
 8) Asked to confirm the order | Farmer: "haan kar do" -> {confirmation_signal: 'yes'}
 9) Asked to confirm the order | Farmer: "no, make it 4" -> {confirmation_signal: 'no', quantity: 4}
-10) Any step | Farmer: "rehne do, kuch nahi chahiye" -> {confirmation_signal: 'cancel'}"""
+10) Any step | Farmer: "rehne do, kuch nahi chahiye" -> {confirmation_signal: 'cancel'}
+11) Just asked how many | Farmer: "will it rain tomorrow?" -> {off_topic: true}
+12) Just asked how many | Farmer: "what does it cost?" -> {} -- about the order, not off topic
+13) Nothing known yet | Farmer: "5 mineral mixture packet bhej do" -> {product_query: 'mineral mixture', quantity: 5}
+14) Nothing known yet | Farmer: "liver tonic chahiye 3" -> {product_query: 'liver tonic', quantity: 3}
+15) Just asked how many | Farmer: "haan ji" -> {confirmation_signal: 'yes'} -- a yes is not a number, no quantity"""
 
 
 _YES_NO = {
@@ -204,7 +246,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "I could not reach the shop right now. Please try again in a moment.",
         "not_found": "I could not find '{query}' in your store. Please tell me another name for the product.",
         "choose": "I found these in your store: {options}. Which one would you like?",
-        "ask_quantity": "How many of {product} would you like? You can order up to {max}.",
+        "ask_quantity": "{product} costs ₹{price} each. How many would you like? You can order up to {max}.",
         "too_many": "Only {available} of {product} can be ordered right now. How many would you like?",
         "out_of_stock": "{product} is out of stock right now. Would you like something else?",
         "ask_address": "Where should it be delivered? Please tell me the full address.",
@@ -224,7 +266,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "अभी दुकान से संपर्क नहीं हो पाया। कृपया थोड़ी देर बाद फिर कोशिश करें।",
         "not_found": "आपकी दुकान में '{query}' नहीं मिला। कृपया सामान का कोई दूसरा नाम बताइए।",
         "choose": "आपकी दुकान में ये मिले: {options}। आपको कौन सा चाहिए?",
-        "ask_quantity": "आपको {product} कितने चाहिए? आप ज़्यादा से ज़्यादा {max} ऑर्डर कर सकते हैं।",
+        "ask_quantity": "एक {product} का दाम ₹{price} है। आपको कितने चाहिए? आप ज़्यादा से ज़्यादा {max} ऑर्डर कर सकते हैं।",
         "too_many": "अभी {product} के सिर्फ़ {available} ऑर्डर हो सकते हैं। आपको कितने चाहिए?",
         "out_of_stock": "{product} अभी स्टॉक में नहीं है। क्या आपको कुछ और चाहिए?",
         "ask_address": "सामान कहाँ पहुँचाना है? कृपया पूरा पता बताइए।",
@@ -244,7 +286,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "सध्या दुकानाशी संपर्क होऊ शकला नाही. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
         "not_found": "तुमच्या दुकानात '{query}' सापडले नाही. कृपया वस्तूचे दुसरे नाव सांगा.",
         "choose": "तुमच्या दुकानात हे सापडले: {options}. तुम्हाला कोणते हवे आहे?",
-        "ask_quantity": "तुम्हाला {product} किती हवे आहेत? तुम्ही जास्तीत जास्त {max} ऑर्डर करू शकता.",
+        "ask_quantity": "एका {product} ची किंमत ₹{price} आहे. तुम्हाला किती हवे आहेत? तुम्ही जास्तीत जास्त {max} ऑर्डर करू शकता.",
         "too_many": "सध्या {product} फक्त {available} ऑर्डर करता येतील. तुम्हाला किती हवे आहेत?",
         "out_of_stock": "{product} सध्या स्टॉकमध्ये नाही. तुम्हाला दुसरे काही हवे आहे का?",
         "ask_address": "वस्तू कुठे पोहोचवायची आहे? कृपया पूर्ण पत्ता सांगा.",
@@ -264,7 +306,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "இப்போது கடையை அணுக முடியவில்லை. சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.",
         "not_found": "உங்கள் கடையில் '{query}' கிடைக்கவில்லை. பொருளின் வேறு பெயரைச் சொல்லுங்கள்.",
         "choose": "உங்கள் கடையில் இவை கிடைத்தன: {options}. உங்களுக்கு எது வேண்டும்?",
-        "ask_quantity": "உங்களுக்கு {product} எத்தனை வேண்டும்? அதிகபட்சம் {max} ஆர்டர் செய்யலாம்.",
+        "ask_quantity": "ஒரு {product} விலை ₹{price}. உங்களுக்கு எத்தனை வேண்டும்? அதிகபட்சம் {max} ஆர்டர் செய்யலாம்.",
         "too_many": "இப்போது {product} {available} மட்டுமே ஆர்டர் செய்ய முடியும். உங்களுக்கு எத்தனை வேண்டும்?",
         "out_of_stock": "{product} இப்போது கையிருப்பில் இல்லை. வேறு ஏதாவது வேண்டுமா?",
         "ask_address": "எங்கே டெலிவரி செய்ய வேண்டும்? முழு முகவரியைச் சொல்லுங்கள்.",
@@ -284,7 +326,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "ప్రస్తుతం దుకాణాన్ని చేరుకోలేకపోయాను. కొద్దిసేపటి తర్వాత మళ్ళీ ప్రయత్నించండి.",
         "not_found": "మీ దుకాణంలో '{query}' దొరకలేదు. దయచేసి వస్తువు యొక్క మరో పేరు చెప్పండి.",
         "choose": "మీ దుకాణంలో ఇవి దొరికాయి: {options}. మీకు ఏది కావాలి?",
-        "ask_quantity": "మీకు {product} ఎన్ని కావాలి? గరిష్ఠంగా {max} ఆర్డర్ చేయవచ్చు.",
+        "ask_quantity": "ఒక్క {product} ధర ₹{price}. మీకు ఎన్ని కావాలి? గరిష్ఠంగా {max} ఆర్డర్ చేయవచ్చు.",
         "too_many": "ప్రస్తుతం {product} {available} మాత్రమే ఆర్డర్ చేయవచ్చు. మీకు ఎన్ని కావాలి?",
         "out_of_stock": "{product} ప్రస్తుతం స్టాక్‌లో లేదు. మీకు ఇంకేమైనా కావాలా?",
         "ask_address": "ఎక్కడ డెలివరీ చేయాలి? దయచేసి పూర్తి చిరునామా చెప్పండి.",
@@ -304,7 +346,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "ಈಗ ಅಂಗಡಿಯನ್ನು ಸಂಪರ್ಕಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಸ್ವಲ್ಪ ಸಮಯದ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
         "not_found": "ನಿಮ್ಮ ಅಂಗಡಿಯಲ್ಲಿ '{query}' ಸಿಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ವಸ್ತುವಿನ ಬೇರೆ ಹೆಸರು ಹೇಳಿ.",
         "choose": "ನಿಮ್ಮ ಅಂಗಡಿಯಲ್ಲಿ ಇವು ಸಿಕ್ಕವು: {options}. ನಿಮಗೆ ಯಾವುದು ಬೇಕು?",
-        "ask_quantity": "ನಿಮಗೆ {product} ಎಷ್ಟು ಬೇಕು? ಗರಿಷ್ಠ {max} ಆರ್ಡರ್ ಮಾಡಬಹುದು.",
+        "ask_quantity": "ಒಂದು {product} ಬೆಲೆ ₹{price}. ನಿಮಗೆ ಎಷ್ಟು ಬೇಕು? ಗರಿಷ್ಠ {max} ಆರ್ಡರ್ ಮಾಡಬಹುದು.",
         "too_many": "ಈಗ {product} ಕೇವಲ {available} ಆರ್ಡರ್ ಮಾಡಬಹುದು. ನಿಮಗೆ ಎಷ್ಟು ಬೇಕು?",
         "out_of_stock": "{product} ಈಗ ಸ್ಟಾಕ್‌ನಲ್ಲಿ ಇಲ್ಲ. ನಿಮಗೆ ಬೇರೆ ಏನಾದರೂ ಬೇಕೇ?",
         "ask_address": "ಎಲ್ಲಿಗೆ ತಲುಪಿಸಬೇಕು? ದಯವಿಟ್ಟು ಪೂರ್ಣ ವಿಳಾಸ ಹೇಳಿ.",
@@ -324,7 +366,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "shop_unreachable": "ഇപ്പോൾ കടയുമായി ബന്ധപ്പെടാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.",
         "not_found": "നിങ്ങളുടെ കടയിൽ '{query}' കണ്ടെത്തിയില്ല. ദയവായി സാധനത്തിന്റെ മറ്റൊരു പേര് പറയൂ.",
         "choose": "നിങ്ങളുടെ കടയിൽ ഇവ കണ്ടെത്തി: {options}. ഏതാണ് വേണ്ടത്?",
-        "ask_quantity": "{product} എത്ര എണ്ണം വേണം? പരമാവധി {max} ഓർഡർ ചെയ്യാം.",
+        "ask_quantity": "ഒരു {product} വില ₹{price}. എത്ര എണ്ണം വേണം? പരമാവധി {max} ഓർഡർ ചെയ്യാം.",
         "too_many": "ഇപ്പോൾ {product} {available} എണ്ണം മാത്രമേ ഓർഡർ ചെയ്യാൻ കഴിയൂ. എത്ര എണ്ണം വേണം?",
         "out_of_stock": "{product} ഇപ്പോൾ സ്റ്റോക്കിൽ ഇല്ല. മറ്റെന്തെങ്കിലും വേണോ?",
         "ask_address": "എവിടെയാണ് എത്തിക്കേണ്ടത്? ദയവായി മുഴുവൻ വിലാസം പറയൂ.",
@@ -343,6 +385,10 @@ _TEXT: dict[str, dict[str, str]] = {
 class OrderSupervisor(DraftSupervisor):
     INTAKE_SUBDIR = "order_intakes"
     MESSAGES = _TEXT
+    # Optional: text -> intent name, from the router's classifier (the chat
+    # router sets it on default_supervisor). Asked only about a message the
+    # order agent found nothing in. None (tests, other callers): not asked.
+    topic_check: Optional[Callable[[str], str]] = None
 
     def _fresh(self, session_id: str, farmer_id: str, language: str) -> dict[str, Any]:
         return {
@@ -570,7 +616,7 @@ class OrderSupervisor(DraftSupervisor):
         values["quote"] = None
         self._save(draft)
         message = self._message(draft["language"], key, product=product.get("name"), max=str(cap),
-                                available=str(cap))
+                                available=str(cap), price=_money(product.get("unitPrice")))
         return self._response(draft, message, input_transcript=text, include_audio=include_audio,
                               options=self._quantity_pills(draft["language"], cap))
 
@@ -693,6 +739,19 @@ class OrderSupervisor(DraftSupervisor):
         return self._response(draft, self._message(language, key), input_transcript=text,
                               include_audio=include_audio, options=self._confirm_pills(language))
 
+    def _other_agent_topic(self, text: str) -> Optional[str]:
+        """The other agent this message is about (one of RELEASE_TOPICS), or
+        None. Never raises: if the classifier fails, the order goes on."""
+        check = self.topic_check
+        if check is None:
+            return None
+        try:
+            intent = check(text)
+        except Exception as exc:
+            _log.warning("order topic check failed: %s", exc)
+            return None
+        return intent if intent in RELEASE_TOPICS else None
+
     # ------------------------------------------------------------------ turn
 
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
@@ -749,17 +808,51 @@ class OrderSupervisor(DraftSupervisor):
         quantity = self._as_quantity(entities.get("quantity"))
         if quantity is None and state == QUANTITY:
             quantity = self._as_quantity(text)
+        # The LLM sometimes names the product but drops the number typed
+        # next to it ("2 calcium gel"). Not while choosing (a bare number
+        # there picks an option) nor at the address/confirm steps (a PIN
+        # code, a house number).
+        if quantity is None and state in (SEARCHING, QUANTITY, CORRECTING) and not entities.get("delivery_address"):
+            quantity = _number_in_text(text)
         if quantity is not None and quantity != values.get("quantity"):
             values["quantity"] = quantity
             changed = True
 
         # 3) Address: the LLM's reading, or the whole reply when it was asked.
         address = str(entities.get("delivery_address") or "").strip()
-        if not address and state == ADDRESS and len(text.strip()) >= _MIN_ADDRESS_LENGTH and not signal:
+        off_topic = bool(entities.get("off_topic"))
+        if not address and state == ADDRESS and len(text.strip()) >= _MIN_ADDRESS_LENGTH and not signal and not off_topic:
             address = text.strip()
         if address and address != values.get("address"):
             values["address"] = address[:500]
             changed = True
+
+        # A message about something else entirely (the weather, a sick
+        # animal, a question about the herd) is let go instead of being
+        # swallowed by the order flow: the unfinished order is closed and the
+        # router sends the message to the right agent. Never for a message
+        # that also carried anything for the order (a product, a pick, a
+        # number, an address or a yes/no).
+        nothing_for_order = not signal and not changed and quantity is None and not query and not picked and not address
+        topic = None
+        if nothing_for_order and not off_topic:
+            # The LLM does not always flag it, so ask the router's
+            # classifier too -- only for a message with nothing for the order.
+            topic = self._other_agent_topic(text)
+        if nothing_for_order and (off_topic or topic):
+            _log.info("order released off-topic message farmer=%s state=%s topic=%s", farmer_id, state, topic)
+            draft["state"] = CANCELLED
+            self._save(draft)
+            return {
+                "session_id": draft["session_id"],
+                "state": CANCELLED,
+                "language": draft["language"],
+                "released": True,
+                "topic": topic,
+                "response_text": "",
+                "response_audio_base64": None,
+                "audio_error": None,
+            }
 
         product = values.get("product")
         if not product:

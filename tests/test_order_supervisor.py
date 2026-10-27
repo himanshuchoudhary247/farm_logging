@@ -92,6 +92,7 @@ def test_full_order_one_product_then_pay_details(sup, monkeypatch):
     r1 = sup.turn(FARMER, "s1", "I need calcium gel", include_audio=False)
     assert r1["state"] == "QUANTITY"
     assert "Calcium Gel" in r1["response_text"]
+    assert "₹120" in r1["response_text"], "the price of one is shown before asking how many"
     assert r1["options"]["choices"] == ["1", "2", "3", "5", "10"]
     assert backend.calls["search"][0]["args"][:2] == (FARMER, "calcium gel")
 
@@ -381,6 +382,136 @@ def test_llm_failure_never_breaks_the_turn(sup, monkeypatch):
     r = sup.turn(FARMER, "s1", "something", include_audio=False)
     assert r["state"] == "SEARCHING"
     assert r["response_text"] == service._TEXT["en"]["welcome"]
+
+
+def test_off_topic_message_is_released_and_the_order_closed(sup, monkeypatch):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": "calcium gel"}, {"off_topic": True}, {}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "will it rain tomorrow?", include_audio=False)
+    assert r["released"] is True
+    assert r["state"] == "CANCELLED"
+    assert backend.calls["quote"] == []
+    assert sup._load("s1", FARMER, "en-IN")["state"] == "CANCELLED"
+    # The next order starts fresh.
+    r3 = sup.turn(FARMER, "s1", "hello", include_audio=False)
+    assert r3["state"] == "SEARCHING" and r3["draft"]["product"] is None
+
+
+def test_off_topic_flag_is_ignored_when_the_message_also_answers_the_order(sup, monkeypatch):
+    Backend(monkeypatch)
+    _say(sup, [{"product_query": "calcium gel"}, {"off_topic": True, "quantity": 2}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "2, and is it going to rain?", include_audio=False)
+    assert "released" not in r
+    assert r["state"] == "CONFIRMING"
+
+
+def test_a_bare_number_is_never_released_even_if_the_llm_says_off_topic(sup, monkeypatch):
+    Backend(monkeypatch)
+    _say(sup, [{"product_query": "calcium gel"}, {"off_topic": True}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "3", include_audio=False)
+    assert "released" not in r
+    assert r["draft"]["quantity"] == 3
+
+
+def test_off_topic_at_the_address_step_is_not_taken_as_an_address(sup, monkeypatch):
+    backend = Backend(monkeypatch, quote=[_quote(address="")])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"off_topic": True}])
+    r1 = sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
+    assert r1["state"] == "ADDRESS"
+    r2 = sup.turn(FARMER, "s1", "my goat is not eating since morning", include_audio=False)
+    assert r2["released"] is True
+    assert len(backend.calls["quote"]) == 1, "the off-topic text must not be sent as an address"
+
+
+def test_number_typed_next_to_the_product_is_used_when_the_llm_drops_it(sup, monkeypatch):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": "calcium gel"}])  # the LLM named the product but gave no quantity
+    r = sup.turn(FARMER, "s1", "calcium gel chahiye 2", include_audio=False)
+    assert r["state"] == "CONFIRMING"
+    assert backend.calls["quote"][0]["args"][1] == [{"productId": CALCIUM["productId"], "quantity": 2}]
+
+
+@pytest.mark.parametrize("text", ["calcium gel 500 ml", "calcium gel 1 L", "calcium gel 1.5 litre",
+                                  "2 or 3 calcium gel", "calcium gel for 411057"])
+def test_pack_sizes_several_numbers_or_a_pin_are_not_taken_as_the_quantity(sup, monkeypatch, text):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": "calcium gel"}])
+    r = sup.turn(FARMER, "s1", text, include_audio=False)
+    assert r["state"] == "QUANTITY" and r["draft"]["quantity"] is None
+    assert backend.calls["quote"] == []
+
+
+@pytest.mark.parametrize("text, number", [
+    ("2 calcium gel", 2), ("calcium gel chahiye 3", 3), ("कैल्शियम जेल २ चाहिए", 2), ("10 dewormer", 10),
+    ("calcium gel", None), ("15 calcium gel", None), ("0 calcium gel", None), ("calcium gel 500ml", None),
+    ("calcium gel 1 kg", None), ("Pune 411057", None), ("2 and 3", None), ("", None),
+])
+def test_number_in_text(text, number):
+    assert service._number_in_text(text) == number
+
+
+def test_a_number_while_choosing_picks_an_option_and_is_not_a_quantity(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": "calcium"}, {}])
+    sup.turn(FARMER, "s1", "calcium", include_audio=False)
+    r = sup.turn(FARMER, "s1", "2", include_audio=False)
+    assert r["state"] == "QUANTITY"
+    assert r["draft"]["product"]["productId"] == CALCIUM_PLUS["productId"]
+    assert r["draft"]["quantity"] is None
+
+
+def test_message_for_another_agent_is_released_when_the_llm_reads_nothing(sup, monkeypatch):
+    backend = Backend(monkeypatch)
+    asked = []
+    sup.topic_check = lambda text: asked.append(text) or "weather"
+    _say(sup, [{"product_query": "calcium gel"}, {}])  # the LLM did not flag it as off topic
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "kal barish hogi kya?", include_audio=False)
+    assert r["released"] is True and r["topic"] == "weather"
+    assert r["state"] == "CANCELLED"
+    assert asked == ["kal barish hogi kya?"]
+    assert backend.calls["quote"] == []
+
+
+@pytest.mark.parametrize("topic", ["query", "order", None, "something unknown"])
+def test_query_or_order_topics_keep_the_order(sup, monkeypatch, topic):
+    """"query" is the classifier's catch-all ("ok", a price question), so
+    only the other agents' areas let the order go."""
+    Backend(monkeypatch)
+    sup.topic_check = lambda text: topic
+    _say(sup, [{"product_query": "calcium gel"}, {}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "ok", include_audio=False)
+    assert "released" not in r
+    assert r["state"] == "QUANTITY"
+
+
+def test_topic_check_failure_keeps_the_order(sup, monkeypatch):
+    Backend(monkeypatch)
+
+    def broken(text):
+        raise RuntimeError("classifier down")
+
+    sup.topic_check = broken
+    _say(sup, [{"product_query": "calcium gel"}, {}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "kal barish hogi kya?", include_audio=False)
+    assert "released" not in r and r["state"] == "QUANTITY"
+
+
+def test_topic_is_not_checked_for_a_message_that_answers_the_order(sup, monkeypatch):
+    Backend(monkeypatch)
+    asked = []
+    sup.topic_check = lambda text: asked.append(text) or "weather"
+    _say(sup, [{"product_query": "calcium gel"}, {"quantity": 2}, {"confirmation_signal": "no"}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    sup.turn(FARMER, "s1", "2", include_audio=False)
+    r = sup.turn(FARMER, "s1", "no", include_audio=False)
+    assert r["state"] == "CORRECTING"
+    assert asked == []
 
 
 def test_every_language_has_every_message_with_the_same_placeholders():

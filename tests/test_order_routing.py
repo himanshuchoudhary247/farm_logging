@@ -111,3 +111,99 @@ def test_order_reply_audio_is_not_synthesized_twice(monkeypatch):
     monkeypatch.setattr(adk_router, "synthesize_speech", must_not_synthesize)
     envelope = adk_router.route_turn_adk(FARMER, "s-1", "2", include_audio=True)
     assert "response_audio_base64" not in envelope
+
+
+def test_released_message_mid_order_goes_to_the_agent_it_is_about(monkeypatch):
+    _no_other_drafts(monkeypatch)
+    monkeypatch.setattr(adk_router, "_has_active_order_draft", lambda farmer_id, session_id: True)
+    monkeypatch.setattr(adk_router._order_supervisor, "turn",
+                        lambda *args, **kwargs: {"state": "CANCELLED", "released": True, "response_text": "",
+                                                 "response_audio_base64": None})
+
+    async def classify(text):
+        return "weather"
+
+    monkeypatch.setattr(adk_router, "_classify_intent_async", classify)
+    weather_calls = []
+
+    def fake_weather(farmer_id, session_id, text, language, include_audio, intent):
+        weather_calls.append(text)
+        return {"agent": "weather_alert", "intent": intent, "result": {}, "reply_text": "Rain likely"}
+
+    monkeypatch.setitem(adk_router._DISPATCH_TABLE, "weather", fake_weather)
+    envelope = adk_router.route_turn_adk(FARMER, "s-1", "will it rain tomorrow?", include_audio=False)
+    assert envelope["agent"] == "weather_alert"
+    assert weather_calls == ["will it rain tomorrow?"]
+
+
+def test_classified_order_that_the_agent_releases_is_answered_as_a_query(monkeypatch):
+    monkeypatch.setattr(adk_router._order_supervisor, "turn",
+                        lambda *args, **kwargs: {"state": "CANCELLED", "released": True, "response_text": "",
+                                                 "response_audio_base64": None})
+    query_calls = []
+
+    def fake_query(farmer_id, session_id, text, language, include_audio, intent):
+        query_calls.append(intent)
+        return {"agent": "query_agent", "intent": intent, "result": {}, "reply_text": "You have 12 goats"}
+
+    monkeypatch.setattr(adk_router, "_dispatch_query", fake_query)
+    envelope = adk_router._dispatch_order(FARMER, "s-1", "how many goats", "en-IN", False, "order")
+    assert envelope["agent"] == "query_agent"
+    assert query_calls == ["query"]
+
+
+def test_released_with_a_topic_mid_order_goes_to_that_agent_without_classifying_again(monkeypatch):
+    _no_other_drafts(monkeypatch)
+    monkeypatch.setattr(adk_router, "_has_active_order_draft", lambda farmer_id, session_id: True)
+    monkeypatch.setattr(adk_router._order_supervisor, "turn",
+                        lambda *args, **kwargs: {"state": "CANCELLED", "released": True, "topic": "weather",
+                                                 "response_text": "", "response_audio_base64": None})
+
+    async def must_not_classify(text):
+        raise AssertionError("already classified by the order agent")
+
+    monkeypatch.setattr(adk_router, "_classify_intent_async", must_not_classify)
+    weather_calls = []
+
+    def fake_weather(farmer_id, session_id, text, language, include_audio, intent):
+        weather_calls.append(intent)
+        return {"agent": "weather_alert", "intent": intent, "result": {}, "reply_text": "Rain likely"}
+
+    monkeypatch.setitem(adk_router._DISPATCH_TABLE, "weather", fake_weather)
+    envelope = adk_router.route_turn_adk(FARMER, "s-1", "kal barish hogi kya?", include_audio=False)
+    assert envelope["agent"] == "weather_alert"
+    assert weather_calls == ["weather"]
+
+    # A channel that does not allow that agent gets the blocked stub.
+    blocked = adk_router.route_turn_adk(FARMER, "s-1", "kal barish hogi kya?", include_audio=False,
+                                        allowed_intents={"order", "query"})
+    assert blocked["agent"] is None and blocked["intent"] == "weather"
+    assert weather_calls == ["weather"]
+
+
+def test_classified_order_released_with_a_topic_goes_to_that_agent(monkeypatch):
+    monkeypatch.setattr(adk_router._order_supervisor, "turn",
+                        lambda *args, **kwargs: {"state": "CANCELLED", "released": True, "topic": "appointment",
+                                                 "response_text": "", "response_audio_base64": None})
+    calls = []
+
+    def fake_appointment(farmer_id, session_id, text, language, include_audio, intent):
+        calls.append(intent)
+        return {"agent": "appointment_supervisor", "intent": intent, "result": {}, "reply_text": "Booking"}
+
+    monkeypatch.setitem(adk_router._DISPATCH_TABLE, "appointment", fake_appointment)
+    envelope = adk_router._dispatch_order(FARMER, "s-1", "book a vet", "en-IN", False, "order")
+    assert envelope["agent"] == "appointment_supervisor"
+    assert calls == ["appointment"]
+
+
+def test_the_chat_order_agent_asks_the_router_classifier(monkeypatch):
+    from services.order_supervisor import default_supervisor
+
+    assert default_supervisor.topic_check is adk_router._order_topic
+
+    async def classify(text):
+        return "weather"
+
+    monkeypatch.setattr(adk_router, "_classify_intent_async", classify)
+    assert adk_router._order_topic("kal barish hogi kya?") == "weather"

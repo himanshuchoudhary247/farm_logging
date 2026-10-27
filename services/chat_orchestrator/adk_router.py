@@ -204,6 +204,15 @@ async def _classify_intent_async(text: str) -> str:
     return captured.get("intent", "query")
 
 
+def _order_topic(text: str) -> str:
+    """The order agent asks this about a message it found nothing in, to
+    let go of one meant for another agent (see OrderSupervisor.topic_check)."""
+    return asyncio.run(_classify_intent_async(text))
+
+
+_order_supervisor.topic_check = _order_topic
+
+
 def _looks_like_pin(text: str) -> bool:
     """A bare 6-digit PIN, spaces allowed ("411001", "411 001")."""
     compact = "".join(ch for ch in (text or "") if not ch.isspace())
@@ -318,8 +327,18 @@ def route_turn_adk(
         if not _allowed("order"):
             return _blocked_envelope("order", farmer_id, session_id, text, language)
         result = _order_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
-        reply = _reply_text("order_supervisor", result)
-        return _envelope("order_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
+        # The order agent lets go of a message about something else entirely
+        # (the weather, a sick animal, a question about the herd): it closes
+        # the unfinished order, and the message is routed below as usual.
+        if not result.get("released"):
+            reply = _reply_text("order_supervisor", result)
+            return _envelope("order_supervisor", None, result, reply, farmer_id, session_id, text, include_audio, language)
+        topic = result.get("topic")
+        if topic in _DISPATCH_TABLE and topic != "order":
+            # Already classified while being let go: no second classifier call.
+            if not _allowed(topic):
+                return _blocked_envelope(topic, farmer_id, session_id, text, language)
+            return _DISPATCH_TABLE[topic](farmer_id, session_id, text, language, include_audio, topic)
 
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)
@@ -401,6 +420,14 @@ def _dispatch_animal_registration(farmer_id, session_id, text, language, include
 
 def _dispatch_order(farmer_id, session_id, text, language, include_audio, intent):
     result = _order_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+    if result.get("released"):
+        # Classified as an order, but the order agent read it as being about
+        # something else: send it to that agent when it said which, else
+        # answer it as a general question -- never drop it.
+        topic = result.get("topic")
+        if topic in _DISPATCH_TABLE and topic != "order":
+            return _DISPATCH_TABLE[topic](farmer_id, session_id, text, language, include_audio, topic)
+        return _dispatch_query(farmer_id, session_id, text, language, include_audio, "query")
     reply = _reply_text("order_supervisor", result)
     return _envelope("order_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
