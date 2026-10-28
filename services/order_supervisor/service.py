@@ -25,6 +25,13 @@ farmer's words, and services/common/reply_words.py is only a fallback.
 Kill switch: CHAT_ORDERS_ENABLED must be "true" (default off, like
 FLOKIQ_SYNC_ENABLED), otherwise the farmer is told ordering through chat
 is not available and nothing is called.
+
+Product photos: main_backend sends each product's `image` as it stores it
+(products.image, the uploaded file's name, or empty when the product has no
+photo). The app turns it into a link the same way the Shop does
+(VITE_PUBLIC_API_FILE_PATHS + name). Only a plain file name is passed on --
+see _image_file -- and CHAT_ORDER_IMAGES_ENABLED=false stops sending photos
+without touching the rest of the order flow.
 """
 from __future__ import annotations
 
@@ -60,6 +67,10 @@ MAX_CHOICES = 5
 _QUANTITY_PILLS = (1, 2, 3, 5, 10)
 # A typed address shorter than this is not treated as an address.
 _MIN_ADDRESS_LENGTH = 5
+# Longest product photo file name passed on (main_backend's products.image
+# column is varchar(255)).
+_MAX_IMAGE_NAME_LENGTH = 255
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 # Words that make a number a pack size ("500 ml", "1 L"), not a quantity.
 _PACK_SIZE_UNITS = {"ml", "l", "ltr", "ltrs", "litre", "litres", "liter", "liters",
                     "kg", "kgs", "g", "gm", "gms", "gram", "grams", "mg"}
@@ -83,6 +94,39 @@ CANCELLED = "CANCELLED"
 
 def chat_orders_enabled() -> bool:
     return os.getenv("CHAT_ORDERS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def chat_order_images_enabled() -> bool:
+    """Product photos in the chat order flow. On unless
+    CHAT_ORDER_IMAGES_ENABLED is set to something that is not truthy (e.g.
+    "false"); unset or empty keeps them on."""
+    value = os.getenv("CHAT_ORDER_IMAGES_ENABLED", "").strip().lower()
+    return not value or value in _TRUTHY
+
+
+def _image_file(value: Any) -> Optional[str]:
+    """The product photo's file name as main_backend stores it
+    (products.image), trimmed -- or None, and the app shows no photo. None
+    for: no value, an empty one (a product without a photo), anything that is
+    not a string, a name longer than the column allows, and anything that is
+    not a plain file name (a full link, a path with folders, "." or "..",
+    control characters), since the app puts it straight after its own
+    uploads address."""
+    if not isinstance(value, str):
+        return None
+    name = value.strip()
+    if not name or len(name) > _MAX_IMAGE_NAME_LENGTH or name in {".", ".."}:
+        return None
+    if "/" in name or "\\" in name or _CONTROL_CHARACTERS.search(name):
+        return None
+    return name
+
+
+def _with_checked_image(product: dict[str, Any]) -> dict[str, Any]:
+    """A copy of main_backend's product with `image` replaced by the checked
+    file name (or None; always None when photos are switched off)."""
+    image = _image_file(product.get("image")) if chat_order_images_enabled() else None
+    return {**product, "image": image}
 
 
 def _number_in_text(text: str) -> Optional[int]:
@@ -583,8 +627,11 @@ class OrderSupervisor(DraftSupervisor):
                                   include_audio=include_audio)
         if not found["storeAssigned"]:
             return self._end(draft, CANCELLED, "no_store", text, include_audio)
-        products = [p for p in found["products"] if isinstance(p, dict) and p.get("productId")][:MAX_CHOICES]
-        _log.info("order search farmer=%s query=%r found=%d", farmer_id, query[:60], len(products))
+        products = [
+            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
+        ][:MAX_CHOICES]
+        _log.info("order search farmer=%s query=%r found=%d with_image=%d", farmer_id, query[:60], len(products),
+                  sum(1 for p in products if p["image"]))
         if not products:
             values["product"] = None
             values["options"] = []
@@ -703,14 +750,18 @@ class OrderSupervisor(DraftSupervisor):
                 "currency": body.get("currency") or "INR",
                 "deliveryAddress": body.get("deliveryAddress") or address,
                 "productName": product.get("name"),
+                # Checked again here: a draft saved before photos were
+                # checked, or with photos switched off since, must not pass
+                # an unchecked value on.
+                "image": _image_file(product.get("image")) if chat_order_images_enabled() else None,
                 "quantity": values["quantity"],
                 "payment": body["payment"],
             }
             draft["state"] = ORDERED
             draft["submitted"] = True
             self._save(draft)
-            _log.info("order placed farmer=%s order=%s reused=%s total=%s", farmer_id, body["orderId"],
-                      body.get("reused"), body.get("totalAmount"))
+            _log.info("order placed farmer=%s order=%s reused=%s total=%s image=%s", farmer_id, body["orderId"],
+                      body.get("reused"), body.get("totalAmount"), bool(values["order"]["image"]))
             message = self._message(
                 language, "placed", code=str(body.get("orderCode") or ""), quantity=str(values["quantity"]),
                 product=product.get("name"), total=_money(body.get("totalAmount")),
