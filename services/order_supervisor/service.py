@@ -156,6 +156,21 @@ def _money(value: Any) -> str:
     return str(int(amount)) if amount == int(amount) else f"{amount:.2f}"
 
 
+def _price_varies(unit_price: Any, quantity: Any, total: Any) -> bool:
+    """True when main_backend's total is not quantity x the price shown for
+    one: the store sells the oldest stock first, and stock bought at
+    different times can carry different prices, so the units ordered may
+    not all cost the same. False whenever a value is missing or not a
+    number (nothing is said then)."""
+    try:
+        unit, count, amount = float(unit_price), int(quantity), float(total)
+    except (TypeError, ValueError):
+        return False
+    if unit <= 0 or count <= 0 or amount <= 0:
+        return False
+    return abs(round(unit * count, 2) - round(amount, 2)) >= 0.01
+
+
 def _choice_label(product: dict[str, Any]) -> str:
     """The pill text for a product. Includes the pack so two packs of the
     same product stay distinguishable; a tapped pill comes back as this exact
@@ -296,6 +311,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "Where should it be delivered? Please tell me the full address.",
         "confirm": "{quantity} x {product} = ₹{total}. Delivery address: {address}. Shall I place the order?",
         "prescription": "This product needs a vet's prescription.",
+        "batch_price": "Some of these come from stock with a different price, so the total is not exactly {quantity} x ₹{price}.",
         "what_to_change": "What would you like to change: the product, the quantity or the address?",
         "stock_changed": "The stock or price of {product} changed just now. How many would you like?",
         "placed": "Your order {code} is placed: {quantity} x {product}, ₹{total}. Tap Pay to complete the payment.",
@@ -316,6 +332,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "सामान कहाँ पहुँचाना है? कृपया पूरा पता बताइए।",
         "confirm": "{quantity} x {product} = ₹{total}। डिलीवरी का पता: {address}। क्या मैं ऑर्डर कर दूँ?",
         "prescription": "इस सामान के लिए पशु डॉक्टर का पर्चा ज़रूरी है।",
+        "batch_price": "इनमें से कुछ अलग दाम वाले स्टॉक से हैं, इसलिए कुल रकम ठीक {quantity} x ₹{price} नहीं है।",
         "what_to_change": "आप क्या बदलना चाहते हैं: सामान, मात्रा या पता?",
         "stock_changed": "{product} का स्टॉक या दाम अभी बदल गया है। आपको कितने चाहिए?",
         "placed": "आपका ऑर्डर {code} हो गया: {quantity} x {product}, ₹{total}। भुगतान पूरा करने के लिए Pay दबाइए।",
@@ -336,6 +353,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "वस्तू कुठे पोहोचवायची आहे? कृपया पूर्ण पत्ता सांगा.",
         "confirm": "{quantity} x {product} = ₹{total}. डिलिव्हरीचा पत्ता: {address}. मी ऑर्डर करू का?",
         "prescription": "या वस्तूसाठी पशुवैद्यकाची चिठ्ठी आवश्यक आहे.",
+        "batch_price": "यातील काही वेगळ्या किमतीच्या स्टॉकमधून आहेत, त्यामुळे एकूण रक्कम नेमकी {quantity} x ₹{price} नाही.",
         "what_to_change": "तुम्हाला काय बदलायचे आहे: वस्तू, संख्या की पत्ता?",
         "stock_changed": "{product} चा स्टॉक किंवा किंमत आत्ताच बदलली आहे. तुम्हाला किती हवे आहेत?",
         "placed": "तुमची ऑर्डर {code} झाली: {quantity} x {product}, ₹{total}. पेमेंट पूर्ण करण्यासाठी Pay दाबा.",
@@ -356,6 +374,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "எங்கே டெலிவரி செய்ய வேண்டும்? முழு முகவரியைச் சொல்லுங்கள்.",
         "confirm": "{quantity} x {product} = ₹{total}. டெலிவரி முகவரி: {address}. ஆர்டர் செய்யட்டுமா?",
         "prescription": "இந்தப் பொருளுக்கு கால்நடை மருத்துவரின் பரிந்துரைச் சீட்டு தேவை.",
+        "batch_price": "இவற்றில் சில வேறு விலையுள்ள கையிருப்பிலிருந்து வருகின்றன, அதனால் மொத்தத் தொகை சரியாக {quantity} x ₹{price} அல்ல.",
         "what_to_change": "எதை மாற்ற விரும்புகிறீர்கள்: பொருள், எண்ணிக்கை அல்லது முகவரி?",
         "stock_changed": "{product} இன் கையிருப்பு அல்லது விலை இப்போது மாறிவிட்டது. உங்களுக்கு எத்தனை வேண்டும்?",
         "placed": "உங்கள் ஆர்டர் {code} செய்யப்பட்டது: {quantity} x {product}, ₹{total}. பணம் செலுத்த Pay அழுத்தவும்.",
@@ -376,6 +395,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "ఎక్కడ డెలివరీ చేయాలి? దయచేసి పూర్తి చిరునామా చెప్పండి.",
         "confirm": "{quantity} x {product} = ₹{total}. డెలివరీ చిరునామా: {address}. ఆర్డర్ చేయమంటారా?",
         "prescription": "ఈ వస్తువుకు పశువైద్యుని ప్రిస్క్రిప్షన్ అవసరం.",
+        "batch_price": "వీటిలో కొన్ని వేరే ధర ఉన్న స్టాక్ నుండి వస్తాయి, కాబట్టి మొత్తం సరిగ్గా {quantity} x ₹{price} కాదు.",
         "what_to_change": "మీరు ఏమి మార్చాలనుకుంటున్నారు: వస్తువు, సంఖ్య లేదా చిరునామా?",
         "stock_changed": "{product} స్టాక్ లేదా ధర ఇప్పుడే మారింది. మీకు ఎన్ని కావాలి?",
         "placed": "మీ ఆర్డర్ {code} పూర్తయింది: {quantity} x {product}, ₹{total}. చెల్లింపు పూర్తి చేయడానికి Pay నొక్కండి.",
@@ -396,6 +416,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "ಎಲ್ಲಿಗೆ ತಲುಪಿಸಬೇಕು? ದಯವಿಟ್ಟು ಪೂರ್ಣ ವಿಳಾಸ ಹೇಳಿ.",
         "confirm": "{quantity} x {product} = ₹{total}. ಡೆಲಿವರಿ ವಿಳಾಸ: {address}. ಆರ್ಡರ್ ಮಾಡಲೇ?",
         "prescription": "ಈ ವಸ್ತುವಿಗೆ ಪಶುವೈದ್ಯರ ಚೀಟಿ ಅಗತ್ಯ.",
+        "batch_price": "ಇವುಗಳಲ್ಲಿ ಕೆಲವು ಬೇರೆ ಬೆಲೆಯ ಸ್ಟಾಕ್‌ನಿಂದ ಬರುತ್ತವೆ, ಆದ್ದರಿಂದ ಒಟ್ಟು ಮೊತ್ತ ನಿಖರವಾಗಿ {quantity} x ₹{price} ಅಲ್ಲ.",
         "what_to_change": "ನೀವು ಏನನ್ನು ಬದಲಾಯಿಸಲು ಬಯಸುತ್ತೀರಿ: ವಸ್ತು, ಸಂಖ್ಯೆ ಅಥವಾ ವಿಳಾಸ?",
         "stock_changed": "{product} ಸ್ಟಾಕ್ ಅಥವಾ ಬೆಲೆ ಈಗಷ್ಟೇ ಬದಲಾಗಿದೆ. ನಿಮಗೆ ಎಷ್ಟು ಬೇಕು?",
         "placed": "ನಿಮ್ಮ ಆರ್ಡರ್ {code} ಆಗಿದೆ: {quantity} x {product}, ₹{total}. ಪಾವತಿ ಪೂರ್ಣಗೊಳಿಸಲು Pay ಒತ್ತಿ.",
@@ -416,6 +437,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "ask_address": "എവിടെയാണ് എത്തിക്കേണ്ടത്? ദയവായി മുഴുവൻ വിലാസം പറയൂ.",
         "confirm": "{quantity} x {product} = ₹{total}. ഡെലിവറി വിലാസം: {address}. ഓർഡർ ചെയ്യട്ടെ?",
         "prescription": "ഈ സാധനത്തിന് മൃഗഡോക്ടറുടെ കുറിപ്പടി ആവശ്യമാണ്.",
+        "batch_price": "ഇവയിൽ ചിലത് വേറെ വിലയുള്ള സ്റ്റോക്കിൽ നിന്നാണ്, അതിനാൽ ആകെ തുക കൃത്യമായി {quantity} x ₹{price} അല്ല.",
         "what_to_change": "എന്താണ് മാറ്റേണ്ടത്: സാധനം, എണ്ണം അല്ലെങ്കിൽ വിലാസം?",
         "stock_changed": "{product} ന്റെ സ്റ്റോക്കോ വിലയോ ഇപ്പോൾ മാറി. എത്ര എണ്ണം വേണം?",
         "placed": "നിങ്ങളുടെ ഓർഡർ {code} ചെയ്തു: {quantity} x {product}, ₹{total}. പണമടയ്ക്കൽ പൂർത്തിയാക്കാൻ Pay അമർത്തുക.",
@@ -727,10 +749,18 @@ class OrderSupervisor(DraftSupervisor):
             language, "confirm", quantity=str(values["quantity"]), product=product.get("name"),
             total=_money(body.get("totalAmount")), address=address,
         )
+        # "₹120 each" was said when asking how many; when the units come from
+        # stock at different prices the total is not quantity x that price,
+        # so say why before asking to confirm.
+        price_varies = _price_varies(product.get("unitPrice"), values["quantity"], body.get("totalAmount"))
+        if price_varies:
+            note = self._message(language, "batch_price", quantity=str(values["quantity"]),
+                                 price=_money(product.get("unitPrice")))
+            message = f"{note} {message}"
         if product.get("prescriptionRequired"):
             message = f"{message} {self._message(language, 'prescription')}"
-        _log.info("order quoted farmer=%s product=%s qty=%s total=%s", farmer_id, product.get("productId"),
-                  values["quantity"], body.get("totalAmount"))
+        _log.info("order quoted farmer=%s product=%s qty=%s total=%s price_varies=%s", farmer_id,
+                  product.get("productId"), values["quantity"], body.get("totalAmount"), price_varies)
         return self._response(draft, message, input_transcript=text, include_audio=include_audio,
                               options=self._confirm_pills(language))
 

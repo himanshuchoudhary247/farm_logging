@@ -1221,3 +1221,71 @@ def test_a_finished_order_is_not_reused_by_the_next_order(sup, monkeypatch):
     assert r["state"] == "CONFIRMING" and "order" not in r
     assert r["draft"]["product"]["productId"] == CALCIUM_PLUS["productId"] and r["draft"]["order"] is None
     assert backend.calls["quote"][-1]["args"][1] == [{"productId": CALCIUM_PLUS["productId"], "quantity": 1}]
+
+
+# ---------------------------------------------------------------- price differs between stock batches
+# main_backend sells the oldest stock first and prices each unit by its
+# batch, so "₹120 each" (the first batch) times the quantity can differ from
+# the quoted total (e.g. 1 at ₹120 + 1 at ₹130 = ₹250).
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_a_total_that_is_not_quantity_times_the_price_is_explained_in_every_language(sup, monkeypatch, lang):
+    Backend(monkeypatch, quote=[_quote(total=250)])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}])
+    r = sup.turn(FARMER, "s1", "2 calcium gel", language=lang, include_audio=False)
+    code = service._lang(lang)
+    note = service._TEXT[code]["batch_price"].format(quantity="2", price="120")
+    confirm = service._TEXT[code]["confirm"].format(quantity="2", product="Calcium Gel", total="250", address=ADDRESS)
+    assert r["state"] == "CONFIRMING"
+    assert r["response_text"] == f"{note} {confirm}"
+    assert r["options"]["choices"] == list(service._YES_NO[code])
+
+
+def test_no_note_when_the_total_is_quantity_times_the_price(sup, monkeypatch):
+    Backend(monkeypatch, quote=[_quote(total=240)])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}])
+    r = sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
+    assert r["response_text"] == service._TEXT["en"]["confirm"].format(
+        quantity="2", product="Calcium Gel", total="240", address=ADDRESS)
+
+
+def test_the_note_comes_first_and_the_prescription_last(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [{**CALCIUM, "prescriptionRequired": True}]}],
+            quote=[_quote(total=250)])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}])
+    text = sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)["response_text"]
+    assert text.startswith(service._TEXT["en"]["batch_price"].format(quantity="2", price="120"))
+    assert text.endswith(service._TEXT["en"]["prescription"])
+
+
+def test_a_new_quote_after_a_change_rechecks_the_price(sup, monkeypatch):
+    Backend(monkeypatch, quote=[_quote(total=250), _quote(total=360)])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "no"}, {"quantity": 3}])
+    r1 = sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
+    assert r1["response_text"].startswith("Some of these come from stock")
+    sup.turn(FARMER, "s1", "no", include_audio=False)
+    r3 = sup.turn(FARMER, "s1", "3", include_audio=False)
+    assert not r3["response_text"].startswith("Some of these come from stock")
+    assert "₹360" in r3["response_text"]
+
+
+def test_the_quote_log_says_whether_the_price_varied(sup, monkeypatch):
+    lines = []
+    monkeypatch.setattr(service, "_log", type("L", (), {
+        "info": lambda self, msg, *a: lines.append(msg % a),
+        "warning": lambda self, msg, *a: lines.append(msg % a),
+    })())
+    Backend(monkeypatch, quote=[_quote(total=250)])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}])
+    sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
+    assert any("order quoted" in line and "price_varies=True" in line for line in lines), lines
+
+
+@pytest.mark.parametrize("unit, quantity, total, varies", [
+    (120, 2, 240, False), (120, 2, 250, True), (120, 5, 640, True), (120, 1, 120, False),
+    (99.5, 2, 199, False), (99.5, 2, 199.004, False), (99.5, 2, 199.02, True), ("120", "2", "240", False),
+    ("120", 2, "250.0", True), (None, 2, 240, False), (120, None, 240, False), (120, 2, None, False),
+    ("abc", 2, 240, False), (0, 2, 240, False), (120, 0, 240, False), (120, 2, 0, False), (120, -1, 240, False),
+])
+def test_price_varies(unit, quantity, total, varies):
+    assert service._price_varies(unit, quantity, total) is varies
