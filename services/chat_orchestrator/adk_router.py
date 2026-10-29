@@ -30,6 +30,7 @@ from google.genai import types
 
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
+from services.a2ui.booking_widget import booking_widget_for
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
@@ -99,6 +100,12 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+    if agent == "appointment_supervisor" and isinstance(result, dict):
+        # Booking form as an A2UI widget (services/a2ui). Additive: the reply
+        # above is unchanged and apps that do not know "a2ui" ignore it.
+        widget = booking_widget_for(farmer_id, session_id, result, result.get("language") or language)
+        if widget:
+            envelope["a2ui"] = widget
     if include_audio and "response_audio_base64" not in result:
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
