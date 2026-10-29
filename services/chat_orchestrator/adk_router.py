@@ -100,8 +100,8 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
-    # A form for this step as an A2UI widget (services/a2ui) -- booking and
-    # new-animal registration so far. Additive: the reply above is unchanged
+    # A widget for this reply as A2UI (services/a2ui) -- the booking and
+    # new-animal registration forms, and the weather forecast card. Additive: the reply above is unchanged
     # and apps that do not know "a2ui" ignore it.
     widget = widget_for(agent, farmer_id, session_id, result, language)
     if widget:

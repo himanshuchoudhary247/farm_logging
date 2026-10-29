@@ -281,7 +281,7 @@ def test_dispatcher_picks_the_form_by_agent(sup, monkeypatch):
     messages = widgets.widget_for("animal_registration", "f-001", "s1", first, "en-IN")
     assert messages[0]["createSurface"]["surfaceId"] == "register-s1"
     # Agents without a form, and results that are not dicts, get nothing.
-    for agent in ("query_agent", "weather_alert", "order_supervisor", "unknown"):
+    for agent in ("query_agent", "order_supervisor", "unknown"):
         assert widgets.widget_for(agent, "f-001", "s1", first, "en-IN") is None
     assert widgets.widget_for("animal_registration", "f-001", "s1", "not a dict", "en-IN") is None
 
