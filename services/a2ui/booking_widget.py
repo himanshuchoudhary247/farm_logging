@@ -21,17 +21,18 @@ CHAT_A2UI_WIDGETS=false stops sending it.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import Any, Iterable, Optional
+
+from services.a2ui.common import BASIC_CATALOG_ID, clean as _clean, lang_code, surface_messages, widgets_enabled
+
+__all__ = ["BASIC_CATALOG_ID", "MAX_ANIMAL_CHOICES", "build_booking_widget", "booking_widget_for", "widgets_enabled"]
 
 _log = logging.getLogger("a2ui_booking_widget")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
     _log.setLevel(logging.INFO)
 
-A2UI_VERSION = "v0.9"
-BASIC_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
 SUBMIT_EVENT = "submit_booking"
 
 # Booking states in which the form is useful: details are still being
@@ -41,7 +42,6 @@ _FORM_STATES = {"COLLECTING", "CORRECTING"}
 # A dropdown longer than this is hard to use on a phone; named animals and
 # the ones offered by the booking flow come first.
 MAX_ANIMAL_CHOICES = 50
-_FALSY = {"0", "false", "no", "off"}
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
@@ -63,20 +63,6 @@ _TEXT: dict[str, dict[str, str]] = {
     "ml": {"title": "മൃഗഡോക്ടറുടെ ബുക്കിംഗ്", "animal": "മൃഗം", "problem": "പ്രശ്നം",
            "other_problem": "മറ്റ് പ്രശ്നം (ഇവിടെ എഴുതുക)", "date": "തീയതി", "time": "സമയം", "book": "ബുക്ക് ചെയ്യുക"},
 }
-
-
-def widgets_enabled() -> bool:
-    """On unless CHAT_A2UI_WIDGETS is set to a false value."""
-    return os.getenv("CHAT_A2UI_WIDGETS", "").strip().lower() not in _FALSY
-
-
-def _lang(language: str) -> str:
-    code = (language or "en-IN").split("-")[0].lower()
-    return code if code in _TEXT else "en"
-
-
-def _clean(value: Any) -> str:
-    return value.strip() if isinstance(value, str) else ""
 
 
 def _animal_choices(animals: Iterable[Any], offered: Iterable[str], current: str) -> list[str]:
@@ -115,7 +101,7 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
     if not result.get("missing_fields"):
         return None
     draft = result.get("draft") if isinstance(result.get("draft"), dict) else {}
-    text = _TEXT[_lang(language)]
+    text = _TEXT[lang_code(language, _TEXT)]
 
     current_animal = _clean(draft.get("animal_identifier"))
     animals = list(animals)
@@ -177,12 +163,7 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
                            "options": [{"label": s, "value": s} for s in symptoms],
                            "selections": {"path": "/booking/problem"}, "maxAllowedSelections": 1})
 
-    return [
-        {"version": A2UI_VERSION, "createSurface": {"surfaceId": surface_id, "catalogId": BASIC_CATALOG_ID}},
-        # v0.9: the component with id "root" is the top of the tree.
-        {"version": A2UI_VERSION, "updateComponents": {"surfaceId": surface_id, "components": components}},
-        {"version": A2UI_VERSION, "updateDataModel": {"surfaceId": surface_id, "path": "/booking", "value": data}},
-    ]
+    return surface_messages(surface_id, components, "/booking", data)
 
 
 def booking_widget_for(farmer_id: str, session_id: str, result: dict[str, Any], language: str) -> Optional[list[dict]]:
