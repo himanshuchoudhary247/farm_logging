@@ -8,18 +8,20 @@ from services.appointment_supervisor import service
 @pytest.fixture(autouse=True)
 def _no_real_query_agent_calls(monkeypatch):
     """Real bug, found live: no test in this file ever mocked
-    service.process_query (the off-topic-probe call turn() makes when
-    confirmation_signal=="no" and nothing new was extracted). Every test
-    here has silently depended on that call failing due to missing AWS
-    credentials in whatever environment ran the suite -- true by accident
-    every time until this session's ADK work ran the suite with real
-    credentials present for the first time, at which point a live Bedrock
-    call started actually succeeding mid-test and changing behavior
-    non-deterministically. Default every test in this file to a
-    definitely-not-a-data-answer probe result; a test that specifically
-    wants to exercise the probe succeeding can still override this locally
-    with its own monkeypatch.setattr(service, "process_query", ...)."""
-    monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {"answer": None, "sql": None, "data": None})
+    service.process_query (the off-topic-probe call turn() used to make
+    only when confirmation_signal=="no" and nothing new was extracted;
+    generalized since to every COLLECTING turn that fails to advance the
+    draft, and to weather as well as query, via service._try_mid_draft_escape).
+    Every test here has silently depended on that call failing due to
+    missing AWS credentials in whatever environment ran the suite -- true
+    by accident every time until this session's ADK work ran the suite
+    with real credentials present for the first time, at which point a
+    live Bedrock call started actually succeeding mid-test and changing
+    behavior non-deterministically. Default every test in this file to
+    "not a genuine topic switch"; a test that specifically wants to
+    exercise the escape succeeding can still override this locally with
+    its own monkeypatch.setattr(service, "_try_mid_draft_escape", ...)."""
+    monkeypatch.setattr(service, "_try_mid_draft_escape", lambda text, farmer_id, session_id, language: None)
 
 
 def test_turn_confirm_and_submit_state_machine(tmp_path, monkeypatch):
@@ -1031,3 +1033,100 @@ def test_successful_sync_stays_silent(tmp_path, monkeypatch):
     assert "could not send it to the app" not in result["response_text"], (
         f"a successful sync must not show the failure message: {result['response_text']!r}"
     )
+
+
+def test_off_topic_question_mid_collecting_is_answered_and_booking_resumes(tmp_path, monkeypatch):
+    """The reported gap: mid-booking, still COLLECTING (not yet at the
+    final CONFIRMING yes/no), a genuinely unrelated question ("how many
+    animals do I have") must be answered, not swallowed by the booking
+    state machine or silently discarded. _try_mid_draft_escape is the
+    seam -- this test is the one that overrides the autouse fixture's
+    default "not a genuine switch" to prove the success path end to end."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi"}},
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-off-topic-collecting", "Lakshmi", "en-IN")
+    assert first["draft"]["animal_identifier"] == "Lakshmi"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    second = supervisor.turn("demo-farmer", "session-off-topic-collecting", "how many animals do I have", "en-IN")
+    assert "You have 12 animals registered." in second["response_text"]
+    # The booking must not be dropped: still COLLECTING, still remembers
+    # the animal already given, and the pending-field question is still
+    # asked in the same reply (Q4 -- explicit re-prompt after an escape).
+    assert second["state"] == "COLLECTING"
+    assert second["draft"]["animal_identifier"] == "Lakshmi"
+    assert second["response_text"] != "You have 12 animals registered."
+
+
+def test_off_topic_weather_question_mid_confirming_is_answered(tmp_path, monkeypatch):
+    """Generalizes the existing CONFIRMING-only escape to also accept a
+    weather intent, not just query -- previously only
+    probe.get("sql") and probe.get("data") (query_agent only) counted as
+    genuine."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "foot swelling", "date": "2026-08-25", "time": "11:30"},
+        },
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-off-topic-weather", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
+    assert first["state"] == "CONFIRMING"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "no"},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "weather", "answer": "Expect light rain tomorrow."},
+    )
+    second = supervisor.turn("demo-farmer", "session-off-topic-weather", "will it rain tomorrow", "en-IN")
+    assert "Expect light rain tomorrow." in second["response_text"]
+    assert second["state"] == "CONFIRMING"
+    assert second["draft"]["animal_identifier"] == "Lakshmi"
+
+
+def test_cancel_at_confirming_is_not_swallowed_by_the_escape_probe(tmp_path, monkeypatch):
+    """Real bug, found in deep review: the escape gate was broadened from
+    confirmation_signal=="no" to !="yes" to catch ambiguous off-topic
+    replies, but confirmation_signal=="cancel" also satisfies !="yes" --
+    an explicit cancel at the confirm checkpoint must still cancel the
+    booking, not get treated as a candidate for the off-topic probe, even
+    if that probe would have returned a truthy (genuine-looking) result."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "foot swelling", "date": "2026-08-25", "time": "11:30"},
+        },
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
+    assert first["state"] == "CONFIRMING"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    second = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "cancel, by the way how many animals do I have", "en-IN")
+    assert second["state"] == "CANCELLED"
