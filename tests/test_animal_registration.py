@@ -422,3 +422,30 @@ def test_off_topic_question_mid_confirming_no_is_answered(tmp_path, monkeypatch)
     assert "Expect light rain tomorrow." in result["response_text"]
     assert result["state"] == "CONFIRMING"
     assert result["draft"]["unique_animal_id"] == "C-9"
+
+
+def test_ambiguous_confirming_reply_with_no_escape_restates_summary_not_reset(tmp_path, monkeypatch):
+    """Real bug, found in deep review: when the escape probe can't confirm a
+    genuine topic switch (returns None) and confirmation_signal is neither
+    yes nor no, execution used to fall all the way through to the
+    unconditional COLLECTING_OPTIONAL reset at the bottom of turn() --
+    silently abandoning the confirm checkpoint for an ambiguous reply. Must
+    re-show the same confirm summary instead, matching
+    appointment_supervisor's equivalent fallback."""
+    monkeypatch.setattr("services.animal_registration.service.synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr("services.animal_registration.service.animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        "services.animal_registration.service._try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: None,
+    )
+
+    sup = AnimalRegistrationSupervisor(tmp_path)
+    draft = sup._fresh("s-ambiguous-confirm", "f-001", "en-IN")
+    draft["state"] = "CONFIRMING"
+    draft["draft"] = {"unique_animal_id": "C-9", "species": "goat", "breed": "Jamunapari", "sex": "male"}
+    sup._save(draft)
+
+    _mock_extract(sup, [{}])
+    result = sup.turn("f-001", "s-ambiguous-confirm", "bro you dont understand my intent at all", include_audio=False)
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["unique_animal_id"] == "C-9"

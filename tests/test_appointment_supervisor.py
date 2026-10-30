@@ -1099,3 +1099,34 @@ def test_off_topic_weather_question_mid_confirming_is_answered(tmp_path, monkeyp
     assert "Expect light rain tomorrow." in second["response_text"]
     assert second["state"] == "CONFIRMING"
     assert second["draft"]["animal_identifier"] == "Lakshmi"
+
+
+def test_cancel_at_confirming_is_not_swallowed_by_the_escape_probe(tmp_path, monkeypatch):
+    """Real bug, found in deep review: the escape gate was broadened from
+    confirmation_signal=="no" to !="yes" to catch ambiguous off-topic
+    replies, but confirmation_signal=="cancel" also satisfies !="yes" --
+    an explicit cancel at the confirm checkpoint must still cancel the
+    booking, not get treated as a candidate for the off-topic probe, even
+    if that probe would have returned a truthy (genuine-looking) result."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "foot swelling", "date": "2026-08-25", "time": "11:30"},
+        },
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
+    assert first["state"] == "CONFIRMING"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    second = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "cancel, by the way how many animals do I have", "en-IN")
+    assert second["state"] == "CANCELLED"

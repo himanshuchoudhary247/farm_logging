@@ -69,3 +69,25 @@ def test_other_intents_are_never_treated_as_a_switch(monkeypatch, intent):
     explicitly separate, later decision, not this fix's job."""
     monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as(intent))
     assert mid_draft_escape.try_switch("register a goat instead", "f-001", "s1", "en-IN") is None
+
+
+def test_classifier_failure_is_swallowed_not_raised(monkeypatch):
+    """Real bug, found in deep review: this probe now runs on the single
+    most common "didn't understand" turn shape in both supervisors (any
+    COLLECTING turn that extracts nothing). A transient Bedrock/ADK error
+    must degrade to "not a genuine switch", not crash the whole turn --
+    on WhatsApp specifically, an uncaught exception here left the farmer
+    with no reply at all."""
+    async def boom(text):
+        raise RuntimeError("Bedrock throttled")
+    monkeypatch.setattr(adk_router, "_classify_intent_async", boom)
+    assert mid_draft_escape.try_switch("umm", "f-001", "s1", "en-IN") is None
+
+
+def test_dispatch_failure_is_swallowed_not_raised(monkeypatch):
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("query"))
+
+    def boom(text, farmer_id, session_id=None, app_language=None):
+        raise RuntimeError("query_agent down")
+    monkeypatch.setattr(mid_draft_escape, "process_query_adk", boom)
+    assert mid_draft_escape.try_switch("how many animals do I have", "f-001", "s1", "en-IN") is None

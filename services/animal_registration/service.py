@@ -744,6 +744,18 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 pending_prompt = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
                 reply = f"{escape['answer']} {pending_prompt}".strip()
                 return self._response(draft, reply, input_transcript=text, include_audio=include_audio)
+            if conf_sig not in {"yes", "no"}:
+                # Real bug, found in deep review: without this, a reply that was
+                # neither a genuine topic switch (escape found nothing) nor an
+                # explicit yes/no/correction fell all the way through to the
+                # unconditional COLLECTING_OPTIONAL reset further below -- the
+                # exact silent-state-jump the comment above already describes,
+                # just not actually closed for the "escape tried and failed" case.
+                # Re-show the same confirm summary instead, matching
+                # appointment_supervisor's equivalent fallback.
+                self._save(draft)
+                message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
+                return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
 
         if draft["state"] == "CONFIRMING" and conf_sig in {"yes", "no"}:
             self._save(draft)

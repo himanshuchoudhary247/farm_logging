@@ -696,7 +696,16 @@ class AppointmentSupervisor(DraftSupervisor):
         # control falls through to the normal correction handling below
         # exactly as before -- this only adds a probe, never changes the
         # outcome for a genuine correction.
-        if awaiting_confirmation and confirmation_signal != "yes" and not answers_expected_field:
+        # Real bug, found in deep review: "cancel" is a valid confirmation_signal
+        # value too, so a bare `!= "yes"` gate also matched it and ran BEFORE the
+        # dedicated cancel handler below -- an explicit cancel at this checkpoint
+        # could be swallowed by a truthy escape result instead of actually
+        # cancelling the booking. Excluded here the same way answers_expected_field
+        # already excludes a real field answer.
+        if (
+            awaiting_confirmation and confirmation_signal not in {"yes", "cancel"}
+            and not answers_expected_field
+        ):
             escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
             if escape:
                 self._save(draft)
