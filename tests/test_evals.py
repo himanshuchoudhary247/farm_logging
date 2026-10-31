@@ -181,3 +181,90 @@ def test_has_number():
     ok = check_turn({"has_number": True}, agent=None, reply="आज 9.3mm बारिश हो सकती है", ms=1, language="hi-IN")
     bad = check_turn({"has_number": True}, agent=None, reply="आज मौसम अच्छा है", ms=1, language="hi-IN")
     assert turn_passed(ok) and not turn_passed(bad)
+
+
+def test_validate_flags_unknown_expect_key():
+    """Real bug, found in deep review: check_turn() silently ignores any
+    expect key it doesn't recognize -- a typo (e.g. "reply_contain_any")
+    used to produce zero checks instead of an error, the exact "regression
+    detector that silently stops detecting regressions" failure mode."""
+    bad = [{"id": "X", "language": "en-IN", "turns": [{"user": "hi", "expect": {"reply_contain_any": ["hi"]}}]}]
+    assert validate_conversations(bad) == [
+        "X turn 1: unknown expect key 'reply_contain_any' -- it will silently run no check"
+    ]
+
+
+def test_validate_flags_malformed_data_check():
+    bad = [{
+        "id": "X", "language": "en-IN", "mutates": True,
+        "turns": [{"user": "hi", "expect": {}}],
+        "data_checks": [{"file": "data/animals.json"}],
+    }]
+    assert validate_conversations(bad) == [
+        "X: data_checks entry {'file': 'data/animals.json'} has neither 'contains' nor 'grew' -- it will silently run no check"
+    ]
+
+
+def test_restore_data_warns_and_returns_false_on_git_failure(monkeypatch, capsys):
+    """Real bug, found in deep review: restore_data() used to discard
+    git checkout's CompletedProcess entirely -- a failed restore (lock
+    contention, a mid-rebase tree, a permission error) left data/ silently
+    mutated for every run and tester after it, with no warning."""
+    from evals import run
+
+    class _Failed:
+        returncode = 1
+        stderr = "fatal: Unable to create '.git/index.lock': File exists."
+
+    monkeypatch.setattr(run, "_git", lambda *args: _Failed())
+    assert run.restore_data() is False
+    assert "Unable to create" in capsys.readouterr().err
+
+
+def test_remove_eval_intakes_sweeps_both_appointment_and_registration_drafts(tmp_path, monkeypatch):
+    """Real bug, found in deep review: INTAKES_DIR only ever pointed at
+    animal_registration_intakes -- every eval run that booked an
+    appointment left a permanent orphan draft file in appointment_intakes,
+    invisible to `git checkout -- data` (untracked) and never cleaned up."""
+    from evals import run
+
+    animal_dir = tmp_path / "animal_registration_intakes"
+    appt_dir = tmp_path / "appointment_intakes"
+    animal_dir.mkdir()
+    appt_dir.mkdir()
+    (animal_dir / "a1.json").write_text(json.dumps({"session_id": "eval-t1-C-001-r1"}), encoding="utf-8")
+    (appt_dir / "b1.json").write_text(json.dumps({"session_id": "eval-t1-C-002-r1"}), encoding="utf-8")
+    # Real, unrelated drafts must survive untouched.
+    (appt_dir / "c1.json").write_text(json.dumps({"session_id": "real-farmer-session"}), encoding="utf-8")
+
+    monkeypatch.setattr(run, "INTAKES_DIRS", (animal_dir, appt_dir))
+    removed = run.remove_eval_intakes("t1")
+    assert removed == 2
+    assert not (animal_dir / "a1.json").exists()
+    assert not (appt_dir / "b1.json").exists()
+    assert (appt_dir / "c1.json").exists()
+
+
+def test_chat_turn_returns_error_not_raise_on_malformed_json(monkeypatch):
+    """Real bug, found in deep review: a malformed response body (truncated,
+    an HTML error page, non-UTF-8 bytes) used to propagate a raw
+    JSONDecodeError/UnicodeDecodeError past run_conversation() and
+    main()'s loop, crashing the whole process before any accumulated
+    results were written to disk."""
+    from evals import run
+
+    class _FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"<html>502 Bad Gateway</html>"
+
+    monkeypatch.setattr(run.urllib.request, "urlopen", lambda req, timeout=None: _FakeResp())
+    data, ms, err, is_conn = run.chat_turn("http://x", "f-001", "s1", "hi", "en-IN", timeout=1)
+    assert data is None
+    assert err is not None and "bad response" in err
+    assert is_conn is False

@@ -32,16 +32,19 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from evals.judge import KNOWN_AGENTS, check_turn, turn_passed
+from evals.judge import KNOWN_AGENTS, KNOWN_EXPECT_KEYS, check_turn, turn_passed
 
 EVALS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EVALS_DIR.parent
 CONV_DIR = EVALS_DIR / "conversations"
 RESULTS_DIR = EVALS_DIR / "results"
 DATA_DIR = REPO_ROOT / "data"
-# Registration drafts, one JSON file per chat session (file name is a hash,
-# the session_id is inside). Untracked by git, so git checkout won't remove them.
-INTAKES_DIR = DATA_DIR / "animal_registration_intakes"
+# Appointment and registration drafts, one JSON file per chat session (file
+# name is a hash, the session_id is inside). Untracked by git, so git
+# checkout won't remove them -- real bug, found in deep review:
+# appointment_intakes was missing from this list entirely, so every eval
+# run that booked an appointment left a permanent orphan draft file behind.
+INTAKES_DIRS = (DATA_DIR / "animal_registration_intakes", DATA_DIR / "appointment_intakes")
 
 MAX_CONN_ERRORS_IN_A_ROW = 5     # server not reachable at all
 MAX_SERVER_ERRORS_IN_A_ROW = 5   # server reachable but every turn returns HTTP 5xx
@@ -82,9 +85,16 @@ def validate_conversations(convs: list[dict]) -> list[str]:
         for i, t in enumerate(c.get("turns", []), 1):
             if not str(t.get("user", "")).strip():
                 problems.append(f"{cid} turn {i}: empty user text")
-            agent = (t.get("expect") or {}).get("agent")
+            expect = t.get("expect") or {}
+            agent = expect.get("agent")
             if agent and agent not in KNOWN_AGENTS:
                 problems.append(f"{cid} turn {i}: unknown agent {agent!r}")
+            for key in expect:
+                if key not in KNOWN_EXPECT_KEYS:
+                    problems.append(f"{cid} turn {i}: unknown expect key {key!r} -- it will silently run no check")
+        for chk in c.get("data_checks", []):
+            if "contains" not in chk and "grew" not in chk:
+                problems.append(f"{cid}: data_checks entry {chk!r} has neither 'contains' nor 'grew' -- it will silently run no check")
         if c.get("data_checks") and not c.get("mutates"):
             problems.append(f"{cid}: has data_checks but mutates is false")
         for bad in sorted(set(_PLACEHOLDER.findall(json.dumps(c, ensure_ascii=False))) - {"tag"}):
@@ -137,30 +147,40 @@ def data_is_clean() -> tuple[bool, str]:
     return res.stdout.strip() == "", res.stdout.strip()
 
 
-def restore_data() -> None:
-    _git("checkout", "--", "data")
+def restore_data() -> bool:
+    """Restore data/ to its committed state. Returns False (and prints a
+    warning) if git itself fails -- real bug, found in deep review: this
+    used to discard the CompletedProcess entirely, so a failed restore
+    (lock contention, a mid-rebase tree, a permission error) left data/
+    silently mutated for every run and tester after it, with no warning
+    and no way to tell a clean run from a corrupted one."""
+    res = _git("checkout", "--", "data")
+    if res.returncode != 0:
+        print(f"WARNING: failed to restore data/: {res.stderr.strip() or 'unknown git error'}", file=sys.stderr)
+        return False
+    return True
 
 
 def remove_eval_intakes(tag: str) -> int:
-    """Delete registration drafts made by this run (session_id starts with eval-<tag>-).
-
-    Drafts from real use or older tests are never touched.
-    """
+    """Delete appointment/registration drafts made by this run (session_id
+    starts with eval-<tag>-). Drafts from real use or older tests are never
+    touched."""
     removed = 0
-    if not INTAKES_DIR.is_dir():
-        return 0
     prefix = f"eval-{tag}-"
-    for path in INTAKES_DIR.glob("*.json"):
-        try:
-            sid = str(json.loads(path.read_text(encoding="utf-8")).get("session_id", ""))
-        except (OSError, ValueError, AttributeError):
+    for intakes_dir in INTAKES_DIRS:
+        if not intakes_dir.is_dir():
             continue
-        if sid.startswith(prefix):
+        for path in intakes_dir.glob("*.json"):
             try:
-                path.unlink()
-                removed += 1
-            except OSError:
-                pass
+                sid = str(json.loads(path.read_text(encoding="utf-8")).get("session_id", ""))
+            except (OSError, ValueError, AttributeError):
+                continue
+            if sid.startswith(prefix):
+                try:
+                    path.unlink()
+                    removed += 1
+                except OSError as exc:
+                    print(f"WARNING: could not remove {path}: {exc}", file=sys.stderr)
     return removed
 
 
@@ -228,7 +248,8 @@ def chat_turn(base_url: str, farmer_id: str, session_id: str, text: str, languag
     t0 = time.perf_counter()
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+        data = json.loads(raw.decode("utf-8"))
         return data, (time.perf_counter() - t0) * 1000, None, False
     except urllib.error.HTTPError as e:
         ms = (time.perf_counter() - t0) * 1000
@@ -237,6 +258,14 @@ def chat_turn(base_url: str, farmer_id: str, session_id: str, text: str, languag
     except (urllib.error.URLError, ConnectionError, socket.timeout, TimeoutError) as e:
         ms = (time.perf_counter() - t0) * 1000
         return None, ms, f"connection: {e}", True
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        # Real bug, found in deep review: an unparseable response (truncated
+        # body, an HTML error page, non-UTF-8 bytes) used to propagate
+        # uncaught past run_conversation() and main()'s loop, crashing the
+        # whole process before any accumulated results were written to disk.
+        # Treat it the same as any other bad-response turn error.
+        ms = (time.perf_counter() - t0) * 1000
+        return None, ms, f"bad response: {e}", False
 
 
 # ---------------------------------------------------------------- running
@@ -405,6 +434,7 @@ def main(argv: list[str] | None = None) -> int:
     results: list[dict] = []
     conn_errors = [0, 0]  # [connection errors in a row, HTTP 5xx in a row]
     aborted = None
+    data_restore_failed = False
     n = 0
     try:
         for conv, rep in plan:
@@ -416,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[{n}/{total}] {'PASS' if res['passed'] else 'FAIL'}  {res['id']:<12} r{rep} "
                   f"{res['language']:<6} {secs:6.1f}s  {res['title']}")
             if conv.get("mutates") and not args.no_reset:
-                restore_data()
+                data_restore_failed = not restore_data() or data_restore_failed
     except ServerDown as e:
         aborted = str(e)
         print(f"\nStopped: {aborted}")
@@ -425,10 +455,12 @@ def main(argv: list[str] | None = None) -> int:
         print("\nStopped by user.")
     finally:
         if not args.no_reset:
-            restore_data()
+            data_restore_failed = not restore_data() or data_restore_failed
             removed = remove_eval_intakes(tag)
             if removed:
-                print(f"Removed {removed} registration draft file(s) made by this run.")
+                print(f"Removed {removed} draft file(s) made by this run.")
+            if data_restore_failed:
+                print("WARNING: data/ may not have been fully restored -- check `git status -- data` before the next run.", file=sys.stderr)
 
     run = {
         "run_id": run_id,
@@ -445,7 +477,7 @@ def main(argv: list[str] | None = None) -> int:
     path.write_text(json.dumps(run, ensure_ascii=False, indent=2), encoding="utf-8")
     run["_path"] = str(path.relative_to(REPO_ROOT))
     print_report(run)
-    ok = not aborted and all(r["passed"] for r in results)
+    ok = not aborted and not data_restore_failed and all(r["passed"] for r in results)
     return 0 if ok else 1
 
 
