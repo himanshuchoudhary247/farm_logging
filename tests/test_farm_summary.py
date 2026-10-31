@@ -443,3 +443,99 @@ def test_summary_route_returns_card(tmp_path, monkeypatch, api_main):
     assert out["animals"]["total"] == 3
     assert out["vaccinations"]["pending_count"] == 2
     assert out["errors"] == []
+
+
+def test_summary_route_rejects_unsupported_language(tmp_path, monkeypatch, api_main):
+    """Real bug, found in deep review: an unrecognized language used to be
+    silently coerced to English by build_farm_summary's own
+    normalize_language -- the same "silently passed through" failure mode
+    chat_turn's own language check exists to prevent (PR #41)."""
+    from fastapi import HTTPException
+    _seed(tmp_path, monkeypatch)
+    with pytest.raises(HTTPException) as exc_info:
+        api_main.farm_summary(FARMER, language="fr", include_audio=False, _auth=None)
+    assert exc_info.value.status_code == 400
+
+
+# --- data-loading / counting / vaccination failure isolation ---
+
+def test_load_farm_data_failure_keeps_the_card_and_other_errors_independent(tmp_path, monkeypatch, sources):
+    """Real bug, found in deep review: unlike weather/suggestion/audio,
+    load_farm_data()/count_animals()/pending_vaccinations() had no failure
+    isolation at all -- a single bad record anywhere would 500 the whole
+    endpoint for every farmer, discarding weather/suggestion even if those
+    had already succeeded."""
+    import services.farm_summary.service as farm_summary_service
+    _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(farm_summary_service, "load_farm_data",
+                        lambda farmer_id: (_ for _ in ()).throw(RuntimeError("storage corrupted")))
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    out = build_farm_summary(FARMER, today=TODAY)
+    assert "farm_data" in out["errors"]
+    assert out["animals"] == {"total": 0, "by_species": []}
+    assert out["vaccinations"] == {"pending_count": 0, "overdue_count": 0, "items": [], "truncated": False}
+    # The whole point: this did NOT crash/500. The fallback farmer has no
+    # saved location (that was lost along with the rest of the farm data),
+    # so weather legitimately can't be resolved -- "weather_no_location" is
+    # the correct, expected consequence, not a bug. What matters is the
+    # endpoint still returned a 200 with a labeled-empty card instead of
+    # propagating the exception.
+    assert out["weather"]["available"] is False
+    assert "weather_no_location" in out["errors"]
+
+
+def test_count_animals_failure_keeps_vaccinations_and_weather(tmp_path, monkeypatch, sources):
+    import services.farm_summary.service as farm_summary_service
+    _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(farm_summary_service, "count_animals",
+                        lambda animals: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    out = build_farm_summary(FARMER, today=TODAY)
+    assert "animals" in out["errors"]
+    assert out["animals"] == {"total": 0, "by_species": []}
+    assert out["vaccinations"]["pending_count"] == 2
+    assert out["weather"]["available"] is True
+
+
+def test_pending_vaccinations_failure_keeps_animal_count_and_weather(tmp_path, monkeypatch, sources):
+    import services.farm_summary.service as farm_summary_service
+    _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(farm_summary_service, "pending_vaccinations",
+                        lambda records, animals, today: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    out = build_farm_summary(FARMER, today=TODAY)
+    assert "vaccinations" in out["errors"]
+    assert out["vaccinations"] == {"pending_count": 0, "overdue_count": 0, "items": [], "truncated": False}
+    assert out["animals"]["total"] == 3
+    assert out["weather"]["available"] is True
+
+
+def test_default_today_is_computed_in_ist_not_naive_server_local(tmp_path, monkeypatch, sources):
+    """Real bug, found in deep review: `today or date.today()` uses the
+    server process's local/system timezone, not IST. FarmHerd is
+    India-only, so a UTC-clocked server (common container default)
+    misclassifies vaccination overdue status for ~5.5h around midnight
+    IST. Same bug class already fixed elsewhere in this repo
+    (bedrock_adapter.py) via datetime.now(ZoneInfo("Asia/Kolkata")).date().
+    Proves build_farm_summary's default (today omitted) path asks for the
+    IST-aware "now", not a bare date.today()."""
+    import services.farm_summary.service as farm_summary_service
+    from datetime import datetime as real_datetime
+
+    calls: list[object] = []
+
+    class _SpyDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            calls.append(tz)
+            return real_datetime(2026, 10, 26, 12, 0, tzinfo=tz)
+
+    _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    monkeypatch.setattr(farm_summary_service, "datetime", _SpyDatetime)
+
+    build_farm_summary(FARMER)  # today omitted -- exercises the default path
+
+    assert farm_summary_service._IST in calls, (
+        f"expected datetime.now(_IST) to be called for the default 'today', got calls={calls!r}"
+    )

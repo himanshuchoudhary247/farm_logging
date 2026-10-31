@@ -58,7 +58,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.advisory.llm_advisory import generate_llm_advisory, summarize_livestock
-from services.farm_summary import build_farm_summary
+from services.farm_summary import SUPPORTED_LANGUAGES as FARM_SUMMARY_LANGUAGES, build_farm_summary
 from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
@@ -951,14 +951,27 @@ def farm_summary(
     """Farm Summary card: weather, active animal count, pending vaccinations,
     AI suggestion in the farmer's language, optional audio. Each part fails
     on its own (named in "errors"); see services/farm_summary/service.py."""
-    result = build_farm_summary(
-        farmer_id,
-        language=language,
-        include_audio=include_audio,
-    )
-    if result is None:
-        raise HTTPException(status_code=404, detail="Farmer not found")
-    return result
+    # Real bug, found in deep review: an unrecognized language used to be
+    # silently coerced to English by build_farm_summary's own
+    # normalize_language -- the same "silently passed through" failure mode
+    # chat_turn's own language check was added to prevent (see the comment
+    # there citing PR #41). Reject it explicitly instead.
+    if language not in FARM_SUMMARY_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
+    try:
+        return build_farm_summary(
+            farmer_id,
+            language=language,
+            include_audio=include_audio,
+        )
+    except Exception as exc:
+        # build_farm_summary never returns None (an unknown farmer_id gets
+        # an empty card by design, not a 404 -- see load_farm_data's
+        # docstring), so there is no real "not found" path here. This is a
+        # backstop for any future unguarded failure inside farm_summary,
+        # not a currently-reachable branch.
+        _log.warning("farm summary route failed farmer=%s: %s", farmer_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Farm summary temporarily unavailable") from exc
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")

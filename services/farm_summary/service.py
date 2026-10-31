@@ -39,6 +39,14 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
+
+# FarmHerd is India-only -- UTC is 5:30h behind IST, so a naive date.today()
+# on a server whose process clock is UTC (common container default) is one
+# day off for ~5.5h around midnight IST, misclassifying a vaccination's
+# overdue status. Same fix already applied in bedrock_adapter.py and
+# eval_appointment_extraction.py for the identical bug class.
+_IST = ZoneInfo("Asia/Kolkata")
 
 _log = logging.getLogger("farm_summary")
 if not _log.handlers:
@@ -330,13 +338,44 @@ def build_farm_summary(
     """The full card, for any farmer id (see load_farm_data)."""
     t0 = time.time()
     lang = normalize_language(language)
-    today = today or date.today()
-
-    data = load_farm_data(farmer_id)
+    today = today or datetime.now(_IST).date()
 
     errors: list[str] = []
-    animals = count_animals(data.animals)
-    vaccinations = pending_vaccinations(data.vaccinations, data.animals, today)
+
+    # Real bug, found in deep review: unlike weather/suggestion/audio below,
+    # this -- the two most fundamental "facts" parts of the card -- had no
+    # failure isolation at all, directly contradicting this module's own
+    # "each part is built on its own" promise. A single malformed record
+    # anywhere in animals.json/vaccinations.json FOR ANY FARMER (the files
+    # are loaded whole, then filtered) would 500 the summary endpoint for
+    # every farmer, including ones whose own data was perfectly fine, and
+    # would also discard weather/suggestion/audio even if those had already
+    # succeeded by the time the exception unwound the function.
+    try:
+        data = load_farm_data(farmer_id)
+    except Exception as exc:
+        _log.warning("farm summary data load failed farmer=%s: %s", farmer_id, exc, exc_info=True)
+        from models import Farmer
+        data = FarmData(
+            farmer=Farmer(id=farmer_id, name="", login_username="", password_hash=""),
+            known_locally=False, animals=[], farms=[], vaccinations=[],
+            health_logs=[], appointments=[],
+        )
+        errors.append("farm_data")
+
+    try:
+        animals = count_animals(data.animals)
+    except Exception as exc:
+        _log.warning("farm summary animal count failed farmer=%s: %s", farmer_id, exc, exc_info=True)
+        animals = {"total": 0, "by_species": []}
+        errors.append("animals")
+
+    try:
+        vaccinations = pending_vaccinations(data.vaccinations, data.animals, today)
+    except Exception as exc:
+        _log.warning("farm summary vaccinations failed farmer=%s: %s", farmer_id, exc, exc_info=True)
+        vaccinations = {"pending_count": 0, "overdue_count": 0, "items": [], "truncated": False}
+        errors.append("vaccinations")
 
     location = resolve_location(farmer_id, data)
     general: Optional[dict[str, Any]] = None
