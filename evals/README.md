@@ -4,6 +4,24 @@ Fixed chat conversations, saved as JSON, that we run again and again against the
 Chocolate agents. Each run checks the answers and the speed and saves the results.
 Later runs are compared with a saved baseline to catch regressions.
 
+## Relationship to the other eval tools in this repo
+
+Two other tools cover related but different ground -- this is the automated
+regression suite (JSON fixtures, live server, baseline/compare tracking); use
+whichever of the others fits the job instead of reinventing it here:
+
+- `scripts/eval_conversations.py` -- multi-turn replay, but **offline by
+  default** (stubbed LLM, `BEDROCK_LIVE=1` to go live), **in-process**
+  against `services.voice_agent.orchestrator` rather than over HTTP, YAML
+  fixtures in `tests/eval/conversations.yaml`. Fast, no server needed; good
+  for quick local iteration on extraction/orchestrator changes.
+- `qa/multilingual_disambiguation_battery.py` -- a **manual, hand-run QA
+  script** (not part of this automated suite, not run in CI) against a live
+  local server, specifically for `appointment_supervisor`'s disambiguation
+  behavior. Run it yourself before merging a change that touches
+  `appointment_supervisor`, `process_text_input`, or the extraction tool
+  schema.
+
 ## Layers
 
 | Layer | File | What it tests |
