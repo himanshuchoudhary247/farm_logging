@@ -130,7 +130,8 @@ def _answer_is_native_script(answer: str, lang: str) -> bool:
 
 
 # Static translation catalog for the fixed, known column names a SELECT
-# against animals/health_logs/appointments actually returns -- reuses the
+# against animals/health_logs/appointments (and the health tables:
+# ai_health_logs, vaccination_records) actually returns -- reuses the
 # same labels already established in animal_registration/appointment_
 # supervisor's own _LABELS catalogs for the overlapping fields, so a
 # farmer sees the identical word for "breed" everywhere in the app.
@@ -145,42 +146,77 @@ _COLUMN_LABELS = {
         "status": "स्थिति", "birth_date": "जन्म तिथि", "current_location": "स्थान",
         "age_years": "उम्र (वर्ष)", "issue": "समस्या", "notes": "नोट्स",
         "date": "तारीख", "time": "समय",
+        "vaccine_name": "टीका", "due_date": "नियत तारीख", "administered_date": "टीका लगने की तारीख",
+        "recorded_at": "दर्ज तारीख", "log_timestamp": "दर्ज तारीख", "risk_level": "जोखिम",
+        "symptoms_reported": "लक्षण", "potential_ailments": "संभावित बीमारियाँ",
+        "ai_diagnosis_suggestion": "AI सुझाव", "first_aid_advice": "प्राथमिक उपचार",
+        "issue_summary": "समस्या", "veterinarian_notes": "डॉक्टर के नोट्स",
     },
     "ta": {
         "species": "இனம்", "breed": "இனவகை", "sex": "பாலினம்", "tag_or_name": "டேக்/பெயர்",
         "status": "நிலை", "birth_date": "பிறந்த தேதி", "current_location": "இடம்",
         "age_years": "வயது (ஆண்டுகள்)", "issue": "பிரச்சினை", "notes": "குறிப்புகள்",
         "date": "தேதி", "time": "நேரம்",
+        "vaccine_name": "தடுப்பூசி", "due_date": "போட வேண்டிய தேதி", "administered_date": "போட்ட தேதி",
+        "recorded_at": "பதிவு தேதி", "log_timestamp": "பதிவு தேதி", "risk_level": "ஆபத்து",
+        "symptoms_reported": "அறிகுறிகள்", "potential_ailments": "சாத்தியமான நோய்கள்",
+        "ai_diagnosis_suggestion": "AI பரிந்துரை", "first_aid_advice": "முதலுதவி",
+        "issue_summary": "பிரச்சினை", "veterinarian_notes": "மருத்துவர் குறிப்புகள்",
     },
     "te": {
         "species": "జాతి", "breed": "బ్రీడ్", "sex": "లింగం", "tag_or_name": "ట్యాగ్/పేరు",
         "status": "స్థితి", "birth_date": "పుట్టిన తేదీ", "current_location": "స్థానం",
         "age_years": "వయస్సు (సంవత్సరాలు)", "issue": "సమస్య", "notes": "గమనికలు",
         "date": "తేదీ", "time": "సమయం",
+        "vaccine_name": "టీకా", "due_date": "వేయవలసిన తేదీ", "administered_date": "వేసిన తేదీ",
+        "recorded_at": "నమోదు తేదీ", "log_timestamp": "నమోదు తేదీ", "risk_level": "ప్రమాదం",
+        "symptoms_reported": "లక్షణాలు", "potential_ailments": "సాధ్యమైన వ్యాధులు",
+        "ai_diagnosis_suggestion": "AI సూచన", "first_aid_advice": "ప్రథమ చికిత్స",
+        "issue_summary": "సమస్య", "veterinarian_notes": "డాక్టర్ గమనికలు",
     },
     "kn": {
         "species": "ಪ್ರಭೇದ", "breed": "ತಳಿ", "sex": "ಲಿಂಗ", "tag_or_name": "ಟ್ಯಾಗ್/ಹೆಸರು",
         "status": "ಸ್ಥಿತಿ", "birth_date": "ಜನನ ದಿನಾಂಕ", "current_location": "ಸ್ಥಳ",
         "age_years": "ವಯಸ್ಸು (ವರ್ಷಗಳು)", "issue": "ಸಮಸ್ಯೆ", "notes": "ಟಿಪ್ಪಣಿಗಳು",
         "date": "ದಿನಾಂಕ", "time": "ಸಮಯ",
+        "vaccine_name": "ಲಸಿಕೆ", "due_date": "ನೀಡಬೇಕಾದ ದಿನಾಂಕ", "administered_date": "ನೀಡಿದ ದಿನಾಂಕ",
+        "recorded_at": "ದಾಖಲಿಸಿದ ದಿನಾಂಕ", "log_timestamp": "ದಾಖಲಿಸಿದ ದಿನಾಂಕ", "risk_level": "ಅಪಾಯ",
+        "symptoms_reported": "ಲಕ್ಷಣಗಳು", "potential_ailments": "ಸಂಭವನೀಯ ರೋಗಗಳು",
+        "ai_diagnosis_suggestion": "AI ಸಲಹೆ", "first_aid_advice": "ಪ್ರಥಮ ಚಿಕಿತ್ಸೆ",
+        "issue_summary": "ಸಮಸ್ಯೆ", "veterinarian_notes": "ವೈದ್ಯರ ಟಿಪ್ಪಣಿಗಳು",
     },
     "en": {
         "species": "Species", "breed": "Breed", "sex": "Sex", "tag_or_name": "Tag / Name",
         "status": "Status", "birth_date": "Date of birth", "current_location": "Location",
         "age_years": "Age (years)", "issue": "Issue", "notes": "Notes",
         "date": "Date", "time": "Time",
+        "vaccine_name": "Vaccine", "due_date": "Due date", "administered_date": "Given on",
+        "recorded_at": "Recorded on", "log_timestamp": "Recorded on", "risk_level": "Risk",
+        "symptoms_reported": "Symptoms", "potential_ailments": "Possible illnesses",
+        "ai_diagnosis_suggestion": "AI suggestion", "first_aid_advice": "First aid",
+        "issue_summary": "Issue", "veterinarian_notes": "Vet notes",
     },
     "mr": {
         "species": "प्रजाती", "breed": "जात", "sex": "लिंग", "tag_or_name": "टॅग/नाव",
         "status": "स्थिती", "birth_date": "जन्मतारीख", "current_location": "ठिकाण",
         "age_years": "वय (वर्षे)", "issue": "समस्या", "notes": "टिपा",
         "date": "तारीख", "time": "वेळ",
+        "vaccine_name": "लस", "due_date": "नियोजित तारीख", "administered_date": "लस दिल्याची तारीख",
+        "recorded_at": "नोंद तारीख", "log_timestamp": "नोंद तारीख", "risk_level": "धोका",
+        "symptoms_reported": "लक्षणे", "potential_ailments": "संभाव्य आजार",
+        "ai_diagnosis_suggestion": "AI सूचना", "first_aid_advice": "प्रथमोपचार",
+        "issue_summary": "समस्या", "veterinarian_notes": "डॉक्टरांच्या टिपा",
     },
     "ml": {
         "species": "വർഗ്ഗം", "breed": "ഇനം", "sex": "ലിംഗം", "tag_or_name": "ടാഗ്/പേര്",
         "status": "നില", "birth_date": "ജനനത്തീയതി", "current_location": "സ്ഥലം",
         "age_years": "പ്രായം (വർഷം)", "issue": "പ്രശ്നം", "notes": "കുറിപ്പുകൾ",
         "date": "തീയതി", "time": "സമയം",
+        "vaccine_name": "വാക്സിൻ", "due_date": "നൽകേണ്ട തീയതി", "administered_date": "നൽകിയ തീയതി",
+        "recorded_at": "രേഖപ്പെടുത്തിയ തീയതി", "log_timestamp": "രേഖപ്പെടുത്തിയ തീയതി", "risk_level": "അപകടസാധ്യത",
+        "symptoms_reported": "ലക്ഷണങ്ങൾ", "potential_ailments": "സാധ്യതയുള്ള രോഗങ്ങൾ",
+        "ai_diagnosis_suggestion": "AI നിർദ്ദേശം", "first_aid_advice": "പ്രഥമശുശ്രൂഷ",
+        "issue_summary": "പ്രശ്നം", "veterinarian_notes": "ഡോക്ടറുടെ കുറിപ്പുകൾ",
     },
 }
 
@@ -247,6 +283,8 @@ Rules:
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
 - If asking for a single total/count, give just the number in your answer.
 - If asking for a breakdown by category, show EACH group with its count -- never summarize or say "ranging from"/"most are" when specific data was requested.
+- A general word for the farmer's animals ("cattle", "livestock", "animals", or the same in any language) means ALL of their animals: filter by species only when the farmer clearly names one species. If a filter by species finds nothing, check whether the farmer has animals of other species before saying they have none.
+- A request for a "health report", or how the farmer's animals are doing health-wise, is about their health records, not the animal list: look in ai_health_logs (risk level, symptoms), health_logs (recorded problems) and vaccination_records (pending vaccines), joined to animals for each animal's name, newest first. Select the records themselves (one query per table), not only how many there are. If there are no health records, say so plainly.
 - Otherwise, give a natural conversational answer.
 - Never mention SQL, tables, columns, or any technical/database terms in your final answer -- speak like a farm advisor, not a database.
 - A bare greeting ("hi", "hello", "hey") with NO real question attached gets a plain greeting back, under 10 words, e.g. "Hi! What would you like to know about your farm?" -- do NOT list your capabilities (animal counts, health records, appointments, etc.) unless the farmer's message actually asked what you can do.
@@ -422,6 +460,51 @@ async def _get_or_create_session(service: BaseSessionService, user_id: str, sess
         return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
 
 
+# Lookups kept for one answer's data_sets: the last few distinct ones (a
+# retried, identical query counts once). The records card shows up to 3 of
+# them; a few more are kept because a single count adds nothing there.
+_MAX_DATA_SETS = 5
+
+
+def _distinct_lookups(results: "list[dict[str, Any]]") -> "list[dict[str, Any]]":
+    """The turn's successful lookups without repeats (same columns and rows),
+    last _MAX_DATA_SETS, in the order they were made."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in results:
+        key = repr((r.get("columns"), r.get("rows")))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out[-_MAX_DATA_SETS:]
+
+
+def _data_payload(sql_result: "dict[str, Any]", labels_lang: str) -> "dict[str, Any]":
+    """One lookup's rows for the API response.
+
+    Raw data payload stays machine-readable (English column identifiers,
+    native int/float scalars, tag/ID/date strings unchanged) -- reviewers
+    found the previous always-translate behavior corrupted IDs and dates so
+    they no longer round-tripped to the DB. Localized copies for UI display
+    live in data["display"], keyed the same way, so the frontend can pick one
+    or the other without ambiguity. Headings and row digits both follow
+    labels_lang so the whole response is internally consistent in one
+    language (found in deep-review of PR #41)."""
+    raw_data = {
+        "columns": sql_result.get("columns"),
+        "rows": sql_result.get("rows"),
+        "row_count": sql_result.get("row_count"),
+        "truncated": sql_result.get("truncated", False),
+    }
+    if labels_lang in _COLUMN_LABELS:
+        raw_data["display"] = {
+            "columns": _localize_columns(raw_data["columns"], labels_lang),
+            "rows": _localize_numbers(raw_data["rows"], labels_lang),
+        }
+    return raw_data
+
+
 async def _run_query_async(
     query: str,
     farmer_id: str,
@@ -437,6 +520,10 @@ async def _run_query_async(
 
     answer_text: str | None = None
     last_successful_result: dict[str, Any] | None = None
+    # Every successful lookup of this turn, in order: a health report needs
+    # several (AI health checks, health problems, pending vaccines), and the
+    # app's records card shows each of them (data_sets below).
+    successful_results: list[dict[str, Any]] = []
 
     try:
         async for event in runner.run_async(
@@ -446,6 +533,7 @@ async def _run_query_async(
             for fr in event.get_function_responses():
                 if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
                     last_successful_result = fr.response
+                    successful_results.append(fr.response)
             if event.is_final_response() and event.content and event.content.parts:
                 answer_text = "".join(p.text for p in event.content.parts if p.text)
     except LlmCallsLimitExceededError:
@@ -464,34 +552,17 @@ async def _run_query_async(
     if last_successful_result is None:
         return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
 
-    # Raw data payload stays machine-readable (English column identifiers,
-    # native int/float scalars, tag/ID/date strings unchanged) -- reviewers
-    # found the previous always-translate behavior corrupted IDs and dates
-    # so they no longer round-tripped to the DB. Localized copies for UI
-    # display live in data["display"], keyed the same way, so the frontend
-    # can pick one or the other without ambiguity.
-    raw_data = {
-        "columns": last_successful_result.get("columns"),
-        "rows": last_successful_result.get("rows"),
-        "row_count": last_successful_result.get("row_count"),
-        "truncated": last_successful_result.get("truncated", False),
-    }
-    # Headings and row digits both follow labels_lang (computed above,
-    # now also used for the text/speech answer's digits) so the whole
-    # response is internally consistent in one language -- not "English
-    # headings over Devanagari digits" when the app's language and the
-    # query's script differ (found in deep-review of PR #41).
-    if labels_lang in _COLUMN_LABELS:
-        raw_data["display"] = {
-            "columns": _localize_columns(raw_data["columns"], labels_lang),
-            "rows": _localize_numbers(raw_data["rows"], labels_lang),
-        }
-    return {
+    raw_data = _data_payload(last_successful_result, labels_lang)
+    result = {
         "answer": text_answer,
         "sql": last_successful_result.get("sql"),
         "data": raw_data,
         "speech_text": speech_text,
     }
+    data_sets = _distinct_lookups(successful_results)
+    if len(data_sets) >= 2:
+        result["data_sets"] = [_data_payload(r, labels_lang) for r in data_sets]
+    return result
 
 
 def process_query_adk(
