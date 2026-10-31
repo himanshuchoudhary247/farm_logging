@@ -10,6 +10,7 @@ import logging
 from typing import Any, Callable, Optional
 
 from services.a2ui.booking_widget import booking_widget_for
+from services.a2ui.query_widget import query_widget_for
 from services.a2ui.registration_widget import registration_widget_for
 from services.a2ui.weather_widget import weather_widget_for
 
@@ -19,6 +20,7 @@ _BUILDERS: dict[str, Callable[[str, str, dict[str, Any], str], Optional[list[dic
     "appointment_supervisor": booking_widget_for,
     "animal_registration": registration_widget_for,
     "weather_alert": weather_widget_for,
+    "query_agent": query_widget_for,
 }
 
 
