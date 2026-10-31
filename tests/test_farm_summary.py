@@ -108,15 +108,38 @@ def _llm_ok(calls):
 # --- facts ---
 
 def test_counts_only_active_animals_per_species():
+    # "dead" is not a real status (animal_registration's _VALID_STATUS has
+    # "deceased", never "dead") -- using the real value here so this test
+    # actually proves what it claims to.
     animals = [
         Animal(id="1", farmer_id=FARMER, species="Goat", tag_or_name="a"),
         Animal(id="2", farmer_id=FARMER, species="goat ", tag_or_name="b"),
         Animal(id="3", farmer_id=FARMER, species="", tag_or_name="c"),
-        Animal(id="4", farmer_id=FARMER, species="sheep", tag_or_name="d", status="dead"),
+        Animal(id="4", farmer_id=FARMER, species="sheep", tag_or_name="d", status="deceased"),
     ]
     assert count_animals(animals) == {
         "total": 3,
         "by_species": [{"species": "goat", "count": 2}, {"species": "unknown", "count": 1}],
+    }
+
+
+def test_counts_include_pregnant_and_sick_animals():
+    """Real bug, found in deep review: _is_active used to check
+    status == "active" exactly, but animal_registration/service.py's own
+    _VALID_STATUS enum has "pregnant" and "sick" as legitimate still-on-farm
+    statuses -- a farmer with a pregnant or sick animal saw it silently
+    vanish from their own animal count."""
+    animals = [
+        Animal(id="1", farmer_id=FARMER, species="goat", tag_or_name="a", status="active"),
+        Animal(id="2", farmer_id=FARMER, species="goat", tag_or_name="b", status="pregnant"),
+        Animal(id="3", farmer_id=FARMER, species="goat", tag_or_name="c", status="sick"),
+        Animal(id="4", farmer_id=FARMER, species="goat", tag_or_name="d", status="sold"),
+        Animal(id="5", farmer_id=FARMER, species="goat", tag_or_name="e", status="deceased"),
+        Animal(id="6", farmer_id=FARMER, species="goat", tag_or_name="f", status="culled"),
+    ]
+    assert count_animals(animals) == {
+        "total": 3,
+        "by_species": [{"species": "goat", "count": 3}],
     }
 
 
@@ -138,6 +161,25 @@ def test_pending_vaccinations_order_overdue_and_missing_animal():
     assert [i["record_id"] for i in out["items"]] == ["r2", "r1", "r3"]
     assert out["items"][0]["animal_name"] is None and out["items"][0]["overdue"] is True
     assert out["items"][2]["due_date"] is None and out["items"][2]["overdue"] is False
+
+
+def test_pending_vaccinations_include_pregnant_and_sick_animals():
+    """Same bug as test_counts_include_pregnant_and_sick_animals, other side:
+    a pregnant or sick animal's pending vaccination must still show, not be
+    silently dropped because the animal wasn't "active"."""
+    animals = [
+        Animal(id="a1", farmer_id=FARMER, species="goat", tag_or_name="Pregnant One", status="pregnant"),
+        Animal(id="a2", farmer_id=FARMER, species="goat", tag_or_name="Sick One", status="sick"),
+        Animal(id="a3", farmer_id=FARMER, species="goat", tag_or_name="Sold One", status="sold"),
+    ]
+    records = [
+        VaccinationRecord(id="r1", farmer_id=FARMER, animal_id="a1", vaccine_name="FMD", due_date="2026-11-01"),
+        VaccinationRecord(id="r2", farmer_id=FARMER, animal_id="a2", vaccine_name="PPR", due_date="2026-11-02"),
+        VaccinationRecord(id="r3", farmer_id=FARMER, animal_id="a3", vaccine_name="HS", due_date="2026-11-03"),
+    ]
+    out = pending_vaccinations(records, animals, TODAY)
+    assert out["pending_count"] == 2
+    assert {i["record_id"] for i in out["items"]} == {"r1", "r2"}
 
 
 # --- full card ---

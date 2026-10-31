@@ -116,13 +116,27 @@ def load_farm_data(farmer_id: str) -> FarmData:
     )
 
 
+# Real bug, found in deep review: animal_registration/service.py's own
+# _VALID_STATUS enum ({"active", "sold", "deceased", "culled", "pregnant",
+# "sick"}) includes "pregnant" and "sick" as still-on-farm statuses, but
+# _is_active checked `== "active"` exactly -- a pregnant or sick animal
+# silently vanished from both the farm's animal count and its pending
+# vaccination list, exactly backwards from this function's own stated
+# intent ("sold/dead ones are not on the farm"). Checking against the
+# "left the farm" statuses instead (not a whitelist) also means an
+# unrecognized/legacy status string still counts as present, matching the
+# existing default-to-"active" behavior for a missing status field.
+_LEFT_FARM_STATUSES = {"sold", "deceased", "culled"}
+
+
 def _is_active(animal: Any) -> bool:
-    return (getattr(animal, "status", "active") or "active").strip().lower() == "active"
+    status = (getattr(animal, "status", "active") or "active").strip().lower()
+    return status not in _LEFT_FARM_STATUSES
 
 
 def count_animals(animals: list) -> dict[str, Any]:
-    """Active animals only (sold/dead ones are not on the farm), per species,
-    biggest group first."""
+    """Animals still on the farm (sold/deceased/culled ones are not), per
+    species, biggest group first."""
     counts: dict[str, int] = {}
     total = 0
     for animal in animals:
