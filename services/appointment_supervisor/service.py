@@ -34,6 +34,7 @@ from storage import (
 _log = logging.getLogger("appointment_supervisor")
 if not _log.handlers:
     _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
 
 # Farmers change their mind in the middle of a booking (found by the evals
 # suite, layer 4). Each behaviour below has its own kill switch; "0" brings
@@ -50,7 +51,6 @@ _OTHER_ANIMAL_QUESTION_ENV = "APPOINTMENT_OTHER_ANIMAL_QUESTION_CHECK"
 
 def _switch_on(name: str) -> bool:
     return os.getenv(name, "1").strip().lower() not in ("0", "false", "no", "off")
-    _log.setLevel(logging.INFO)
 
 # SUPPORTED_LANGUAGES / _UNSET / _lang re-exported from services.common.draft_supervisor
 # so existing external imports (`from services.appointment_supervisor.service
