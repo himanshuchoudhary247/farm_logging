@@ -13,6 +13,10 @@ session state per turn, and reports:
 LLM stubbed by default (offline). Set BEDROCK_LIVE=1 to hit real Bedrock via
 whatever model config/llm.yaml routes to.
 
+See also evals/ (automated regression suite, live server, baseline/compare
+tracking -- evals/README.md explains how the three eval tools in this repo
+relate) and qa/multilingual_disambiguation_battery.py (manual QA script).
+
 Usage:
     python scripts/eval_conversations.py
     python scripts/eval_conversations.py --lang kn,hi
