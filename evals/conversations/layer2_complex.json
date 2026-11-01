@@ -704,7 +704,8 @@
           "user": "ennidam ethanai aadugal irukku",
           "expect": {
             "agent": "query_agent",
-            "number": 14
+            "number": 14,
+            "reply_not_contains": ["எருமை", "பசு", "கோழி"]
           }
         }
       ]

@@ -520,6 +520,100 @@ def _check_weekday_date(text: str, entities: Dict[str, Any], today=None) -> Dict
     _log.warning("extraction date %s is a %s but the farmer said %s; using %s",
                  value, _WEEKDAYS[day.weekday()], _WEEKDAYS[named], fixed.isoformat())
     return {**entities, "date": fixed.isoformat()}
+
+
+# Backstop for "day after tomorrow". Found by the evals suite (layer 3):
+# Telugu "MOTI తినడం లేదు, ఎల్లుండి ఉదయం 11 గంటలకు డాక్టర్ బుక్ చేయండి" came
+# back as tomorrow 5 times out of 5, backstop on or off, while the same
+# word alone was right -- the calendar line says which date is the day after
+# tomorrow, and the model still misread it in that sentence. When the farmer
+# says "day after tomorrow" in any supported language and the extracted date
+# is tomorrow, the date is moved to the day after tomorrow. Nothing else is
+# touched: no other date, and not when a weekday is also named (the weekday
+# check above decides then). "Tomorrow" words are not listed on purpose --
+# Hindi कल also means yesterday. Logged. EXTRACTION_DAY_AFTER_TOMORROW_CHECK=0
+# turns it off.
+_DAY_AFTER_TOMORROW_ENV = "EXTRACTION_DAY_AFTER_TOMORROW_CHECK"
+_DAY_AFTER_TOMORROW_WORDS = (
+    "day after tomorrow", "परसों", "परवा", "நாளை மறுநாள்", "ఎల్లుండి", "ನಾಡಿದ್ದು", "മറ്റന്നാൾ",
+)
+
+
+def _says_day_after_tomorrow(text: str) -> bool:
+    """True when the text says "day after tomorrow" in any supported language.
+    Single words may carry a short case ending (e.g. a postposition that
+    attaches without a space). Real bug, found porting this fix: the
+    original tolerance (up to 3 extra characters) let an unrelated word
+    sharing the same prefix match too -- Hindi "परवानगी" (permission) starts
+    with "परवा" (day-after-tomorrow) and is exactly 3 characters longer, so
+    it falsely matched. Narrowed to 1, which still accepts a short attached
+    ending but rejects that false positive."""
+    lowered = (text or "").lower()
+    tokens = [word.strip(".,!?;:()[]\"'") for word in lowered.split()]
+    for phrase in _DAY_AFTER_TOMORROW_WORDS:
+        if " " in phrase:
+            if phrase in lowered:
+                return True
+        elif any(token.startswith(phrase) and len(token) - len(phrase) <= 1 for token in tokens):
+            return True
+    return False
+
+
+def _check_day_after_tomorrow(text: str, entities: Dict[str, Any], today=None) -> Dict[str, Any]:
+    if os.getenv(_DAY_AFTER_TOMORROW_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return entities
+    value = entities.get("date")
+    if not isinstance(value, str):
+        return entities
+    from datetime import timedelta
+    today = today or _today_ist_date()
+    tomorrow = today + timedelta(days=1)
+    if value not in ("tomorrow", tomorrow.isoformat()):
+        return entities
+    if not _says_day_after_tomorrow(text) or _weekday_named(text) is not None:
+        return entities
+    fixed = (today + timedelta(days=2)).isoformat()
+    _log.warning("extraction date %s is tomorrow but the farmer said day after tomorrow; using %s", value, fixed)
+    return {**entities, "date": fixed}
+
+
+# Backstop for a "tomorrow" the model left out. Found by the evals suite
+# (layer 4): Telugu "CHINNI కి జ్వరం, రేపు డాక్టర్ కావాలి" sometimes came back
+# with no date at all, so the bot asked for the date again -- or a later
+# "today" (from a weather question) became the booking date. When the
+# farmer says "tomorrow" in a supported language and the extraction has NO
+# date, tomorrow's date is filled in. A date the model did give is never
+# changed. Not applied when "day after tomorrow" or a weekday is also said
+# (the checks above decide then). Hindi कल is not listed on purpose -- it
+# also means yesterday. Logged. EXTRACTION_TOMORROW_CHECK=0 turns it off.
+_TOMORROW_ENV = "EXTRACTION_TOMORROW_CHECK"
+_TOMORROW_WORDS = ("tomorrow", "उद्या", "நாளை", "రేపు", "రేపటి", "ನಾಳೆ", "നാളെ")
+
+
+def _says_tomorrow(text: str) -> bool:
+    """True when the text says "tomorrow" in a supported language (a short
+    case ending is allowed, as in _says_day_after_tomorrow). Real bug, found
+    porting this fix: the original tolerance (up to 3 extra characters) has
+    the same false-positive risk already fixed in _says_day_after_tomorrow
+    -- narrowed to 1 here too."""
+    tokens = [word.strip(".,!?;:()[]\"'") for word in (text or "").lower().split()]
+    return any(
+        token.startswith(word) and len(token) - len(word) <= 1
+        for word in _TOMORROW_WORDS for token in tokens
+    )
+
+
+def _fill_missing_tomorrow(text: str, entities: Dict[str, Any], today=None) -> Dict[str, Any]:
+    if os.getenv(_TOMORROW_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return entities
+    if entities.get("date") not in (None, ""):
+        return entities
+    if not _says_tomorrow(text) or _says_day_after_tomorrow(text) or _weekday_named(text) is not None:
+        return entities
+    from datetime import timedelta
+    fixed = ((today or _today_ist_date()) + timedelta(days=1)).isoformat()
+    _log.warning("extraction gave no date but the farmer said tomorrow; using %s", fixed)
+    return {**entities, "date": fixed}
 # already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
 # strategies, no _coerce_confidence/_coerce_list shims. Verified working on
 # DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
@@ -799,7 +893,7 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     confirmation_signal = tool_input.pop("confirmation_signal", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
-    entities = _check_weekday_date(text, tool_input)
+    entities = _fill_missing_tomorrow(text, _check_day_after_tomorrow(text, _check_weekday_date(text, tool_input)))
 
     return {
         "intent": intent,
