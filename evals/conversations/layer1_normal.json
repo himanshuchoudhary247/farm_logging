@@ -1,0 +1,2191 @@
+{
+  "layer": 1,
+  "name": "normal",
+  "description": "One clear intent per conversation: counts, breeds, names, weather, full booking and registration flows. 11 per language.",
+  "farmer_id": "f-001",
+  "facts_note": "From data/animals.json for f-001: 53 animals = goat 14, sheep 7, buffalo 16, cow 9, chicken 7. Breeds: goat Sirohi 5, Osmanabadi 3; buffalo Mehsana 5, Nili-Ravi 5; cow Kankrej 3; sheep Nali 3; chicken Aseel 3. GAURI = Sirohi goat, MOTI = Sirohi goat, KAALI = Jamunapari goat, LAKSHMI = Murrah buffalo, CHINNI = Jaffarabadi buffalo, BIJLI = Nili-Ravi buffalo, RAJA = Kankrej cow (male).",
+  "conversations": [
+    {
+      "id": "L1-en-001",
+      "language": "en-IN",
+      "title": "Goat count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "How many goats do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-002",
+      "language": "en-IN",
+      "title": "Chicken count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "How many chickens do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-003",
+      "language": "en-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "How many animals do I have in total?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-004",
+      "language": "en-IN",
+      "title": "Sirohi goat count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "How many Sirohi goats do I have?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-005",
+      "language": "en-IN",
+      "title": "Breed of GAURI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "What breed is GAURI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-006",
+      "language": "en-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "What animal is MOTI?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "goat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-007",
+      "language": "en-IN",
+      "title": "Weather: asks for PIN, then forecast for 411001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "How is the weather today?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "PIN",
+              "pin code",
+              "pincode",
+              "place"
+            ]
+          }
+        },
+        {
+          "user": "411001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-008",
+      "language": "en-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "What is the weather in Nashik today?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-en-009",
+      "language": "en-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I'd like to book an appointment",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "GAURI has fever and is not eating",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "day after tomorrow at 2 pm",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "yes",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "yes",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "saved",
+              "booked",
+              "success"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-en-010",
+      "language": "en-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I want to register a new animal",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "goat, male",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-EN010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "no",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-EN010"
+            ]
+          }
+        },
+        {
+          "user": "yes",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-EN010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-EN010"
+        }
+      ]
+    },
+    {
+      "id": "L1-en-011",
+      "language": "en-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "I want to register a new animal",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "sheep, female",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-EN011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Nellore",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "no",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-EN011"
+            ]
+          }
+        },
+        {
+          "user": "yes",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-EN011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-EN011"
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-001",
+      "language": "hi-IN",
+      "title": "Sheep count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी भेड़ें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-002",
+      "language": "hi-IN",
+      "title": "Cow count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी गायें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-003",
+      "language": "hi-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कुल कितने जानवर हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-004",
+      "language": "hi-IN",
+      "title": "Mehsana buffalo count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "मेरे पास कितनी Mehsana भैंसें हैं?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-005",
+      "language": "hi-IN",
+      "title": "Breed of LAKSHMI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "LAKSHMI की नस्ल क्या है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Murrah",
+              "मुर्रा",
+              "मुरा",
+              "मुर्राह"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-006",
+      "language": "hi-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "RAJA कौन सा जानवर है?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "गाय",
+              "बैल",
+              "cow",
+              "bull",
+              "Kankrej",
+              "कांकरेज"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-007",
+      "language": "hi-IN",
+      "title": "Weather: asks for PIN, then forecast for 431001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आज का मौसम कैसा है?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "पिन",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "431001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-008",
+      "language": "hi-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आज जयपुर का मौसम कैसा है?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-009",
+      "language": "hi-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मुझे एक अपॉइंटमेंट बुक करना है",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "गौरी को बुखार है और खाना नहीं खा रही",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "परसों दोपहर 2 बजे",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "हाँ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "हाँ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "सेव",
+              "सफल"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-010",
+      "language": "hi-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मुझे नया पशु पंजीकृत करना है",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "बकरी, नर",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-HI010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "नहीं",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-HI010"
+            ]
+          }
+        },
+        {
+          "user": "हाँ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-HI010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-HI010"
+        }
+      ]
+    },
+    {
+      "id": "L1-hi-011",
+      "language": "hi-IN",
+      "title": "Register a new female Marwari sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मुझे नया पशु पंजीकृत करना है",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "भेड़, मादा",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-HI011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Marwari",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "नहीं",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-HI011"
+            ]
+          }
+        },
+        {
+          "user": "हाँ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-HI011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-HI011"
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-001",
+      "language": "mr-IN",
+      "title": "Buffalo count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती म्हशी आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-002",
+      "language": "mr-IN",
+      "title": "Goat count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती शेळ्या आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-003",
+      "language": "mr-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे एकूण किती जनावरे आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-004",
+      "language": "mr-IN",
+      "title": "Osmanabadi goat count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "माझ्याकडे किती Osmanabadi शेळ्या आहेत?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-005",
+      "language": "mr-IN",
+      "title": "Breed of KAALI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "KAALI ची जात कोणती आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jamunapari",
+              "जमुनापारी",
+              "जमनापारी"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-006",
+      "language": "mr-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "BIJLI कोणता प्राणी आहे?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "म्हैस",
+              "म्हशी",
+              "रेडा",
+              "buffalo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-007",
+      "language": "mr-IN",
+      "title": "Weather: asks for PIN, then forecast for 500001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आजचे हवामान कसे आहे?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "पिन",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "500001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-008",
+      "language": "mr-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "आज पुण्याचे हवामान कसे आहे?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-009",
+      "language": "mr-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मला अपॉइंटमेंट बुक करायची आहे",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "गौरीला ताप आहे आणि ती खात नाही",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "परवा दुपारी 2 वाजता",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "हो",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "हो",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "सेव्ह",
+              "यशस्वी"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-010",
+      "language": "mr-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मला नवीन जनावर नोंदवायचे आहे",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "शेळी, नर",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-MR010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "नाही",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-MR010"
+            ]
+          }
+        },
+        {
+          "user": "हो",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-MR010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-MR010"
+        }
+      ]
+    },
+    {
+      "id": "L1-mr-011",
+      "language": "mr-IN",
+      "title": "Register a new female Deccani sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "मला नवीन जनावर नोंदवायचे आहे",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "मेंढी, मादी",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-MR011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Deccani",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "नाही",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-MR011"
+            ]
+          }
+        },
+        {
+          "user": "हो",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-MR011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-MR011"
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-001",
+      "language": "ta-IN",
+      "title": "Goat count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை வெள்ளாடுகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-002",
+      "language": "ta-IN",
+      "title": "Buffalo count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை எருமைகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-003",
+      "language": "ta-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் மொத்தம் எத்தனை விலங்குகள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-004",
+      "language": "ta-IN",
+      "title": "Kankrej cow count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "என்னிடம் எத்தனை Kankrej பசுக்கள் உள்ளன?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-005",
+      "language": "ta-IN",
+      "title": "Breed of MOTI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "MOTI ஆட்டின் breed என்ன?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "சிரோஹி",
+              "சிரோகி",
+              "சிரோஹீ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-006",
+      "language": "ta-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "LAKSHMI எந்த விலங்கு?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "எருமை",
+              "buffalo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-007",
+      "language": "ta-IN",
+      "title": "Weather: asks for PIN, then forecast for 600001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "இன்றைய வானிலை எப்படி இருக்கிறது?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "பின்",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "600001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-008",
+      "language": "ta-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "இன்று மதுரையில் வானிலை எப்படி?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-009",
+      "language": "ta-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "எனக்கு ஒரு அப்பாயிண்ட்மெண்ட் புக் செய்ய வேண்டும்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "கௌரிக்கு காய்ச்சல், சாப்பிடவில்லை",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "நாளை மறுநாள் மதியம் 2 மணிக்கு",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ஆம்",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ஆம்",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "வெற்றிகரமாக",
+              "சேமிக்கப்பட்ட"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-010",
+      "language": "ta-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "நான் ஒரு புதிய விலங்கை பதிவு செய்ய விரும்புகிறேன்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "வெள்ளாடு, ஆண்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-TA010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "வேண்டாம்",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TA010"
+            ]
+          }
+        },
+        {
+          "user": "ஆம்",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TA010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-TA010"
+        }
+      ]
+    },
+    {
+      "id": "L1-ta-011",
+      "language": "ta-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "நான் ஒரு புதிய விலங்கை பதிவு செய்ய விரும்புகிறேன்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "செம்மறி ஆடு, பெண்",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-TA011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Nellore",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "வேண்டாம்",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TA011"
+            ]
+          }
+        },
+        {
+          "user": "ஆம்",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TA011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-TA011"
+        }
+      ]
+    },
+    {
+      "id": "L1-te-001",
+      "language": "te-IN",
+      "title": "Cow count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని ఆవులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-002",
+      "language": "te-IN",
+      "title": "Sheep count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని గొర్రెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-003",
+      "language": "te-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర మొత్తం ఎన్ని జంతువులు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-004",
+      "language": "te-IN",
+      "title": "Nali sheep count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "నా దగ్గర ఎన్ని Nali గొర్రెలు ఉన్నాయి?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-005",
+      "language": "te-IN",
+      "title": "Breed of GAURI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "గౌరి ఏ జాతి మేక?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Sirohi",
+              "సిరోహి",
+              "సిరోహీ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-006",
+      "language": "te-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "MOTI ఏ జంతువు?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "మేక",
+              "goat"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-007",
+      "language": "te-IN",
+      "title": "Weather: asks for PIN, then forecast for 560001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ఈరోజు వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "పిన్",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "560001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-008",
+      "language": "te-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ఈరోజు విజయవాడలో వాతావరణం ఎలా ఉంది?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-te-009",
+      "language": "te-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నాకు ఒక అపాయింట్మెంట్ బుక్ చేయాలి",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "గౌరికి జ్వరం, తినడం లేదు",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "ఎల్లుండి మధ్యాహ్నం 2 గంటలకు",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "అవును",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "అవును",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "విజయవంతంగా",
+              "సేవ్"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-te-010",
+      "language": "te-IN",
+      "title": "Register a new female Nellore sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నేను కొత్త జంతువును నమోదు చేయాలనుకుంటున్నాను",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "గొర్రె, ఆడ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-TE010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Nellore",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "వద్దు",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TE010"
+            ]
+          }
+        },
+        {
+          "user": "అవును",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TE010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-TE010"
+        }
+      ]
+    },
+    {
+      "id": "L1-te-011",
+      "language": "te-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "నేను కొత్త జంతువును నమోదు చేయాలనుకుంటున్నాను",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "మేక, మగ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-TE011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "వద్దు",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TE011"
+            ]
+          }
+        },
+        {
+          "user": "అవును",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-TE011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-TE011"
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-001",
+      "language": "kn-IN",
+      "title": "Chicken count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಕೋಳಿಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-002",
+      "language": "kn-IN",
+      "title": "Cow count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು ಹಸುಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-003",
+      "language": "kn-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಒಟ್ಟು ಎಷ್ಟು ಪ್ರಾಣಿಗಳಿವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-004",
+      "language": "kn-IN",
+      "title": "Aseel chicken count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "ನನ್ನ ಬಳಿ ಎಷ್ಟು Aseel ಕೋಳಿಗಳು ಇವೆ?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-005",
+      "language": "kn-IN",
+      "title": "Breed of CHINNI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "CHINNI ಯಾವ ತಳಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Jaffarabadi",
+              "Jafarabadi",
+              "ಜಾಫರಾಬಾದಿ",
+              "ಜಫರಾಬಾದಿ",
+              "ಜಾಫ್ರಾಬಾದಿ"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-006",
+      "language": "kn-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "RAJA ಯಾವ ಪ್ರಾಣಿ?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "ಹಸು",
+              "ದನ",
+              "ಎತ್ತು",
+              "ಗೂಳಿ",
+              "cow",
+              "bull",
+              "Kankrej",
+              "ಗೋವು",
+              "ಕಂಕ್ರೇಜ್"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-007",
+      "language": "kn-IN",
+      "title": "Weather: asks for PIN, then forecast for 682001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ಇಂದಿನ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "ಪಿನ್",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "682001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-008",
+      "language": "kn-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ಇಂದು ಮೈಸೂರಿನ ಹವಾಮಾನ ಹೇಗಿದೆ?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-009",
+      "language": "kn-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನನಗೆ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಬುಕ್ ಮಾಡಬೇಕು",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ಗೌರಿಗೆ ಜ್ವರ, ತಿನ್ನುತ್ತಿಲ್ಲ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "ನಾಡಿದ್ದು ಮಧ್ಯಾಹ್ನ 2 ಗಂಟೆಗೆ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "ಹೌದು",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ಹೌದು",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "ಯಶಸ್ವಿ",
+              "ಉಳಿಸ",
+              "ಸೇವ್"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-010",
+      "language": "kn-IN",
+      "title": "Register a new female Deccani sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನಾನು ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಲು ಬಯಸುತ್ತೇನೆ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ಕುರಿ, ಹೆಣ್ಣು",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-KN010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Deccani",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ಬೇಡ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-KN010"
+            ]
+          }
+        },
+        {
+          "user": "ಹೌದು",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-KN010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-KN010"
+        }
+      ]
+    },
+    {
+      "id": "L1-kn-011",
+      "language": "kn-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ನಾನು ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಲು ಬಯಸುತ್ತೇನೆ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ಮೇಕೆ, ಗಂಡು",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-KN011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ಬೇಡ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-KN011"
+            ]
+          }
+        },
+        {
+          "user": "ಹೌದು",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-KN011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-KN011"
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-001",
+      "language": "ml-IN",
+      "title": "Sheep count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര ചെമ്മരിയാടുകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-002",
+      "language": "ml-IN",
+      "title": "Chicken count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര കോഴികൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-003",
+      "language": "ml-IN",
+      "title": "Total animal count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ ആകെ എത്ര മൃഗങ്ങൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 53
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-004",
+      "language": "ml-IN",
+      "title": "Nili-Ravi buffalo count",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "എന്റെ കയ്യിൽ എത്ര Nili-Ravi എരുമകൾ ഉണ്ട്?",
+          "expect": {
+            "agent": "query_agent",
+            "number": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-005",
+      "language": "ml-IN",
+      "title": "Breed of BIJLI",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "BIJLI ഏത് ഇനമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "Nili",
+              "നീലി",
+              "നിലി"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-006",
+      "language": "ml-IN",
+      "title": "Animal type of a name that is also a common word",
+      "mutates": false,
+      "turns": [
+        {
+          "user": "LAKSHMI ഏത് മൃഗമാണ്?",
+          "expect": {
+            "agent": "query_agent",
+            "reply_contains_any": [
+              "എരുമ",
+              "buffalo"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-007",
+      "language": "ml-IN",
+      "title": "Weather: asks for PIN, then forecast for 110001",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ഇന്നത്തെ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "weather_alert",
+            "reply_contains_any": [
+              "പിന്",
+              "പിൻ",
+              "PIN"
+            ]
+          }
+        },
+        {
+          "user": "110001",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-008",
+      "language": "ml-IN",
+      "title": "Weather by place name in one message",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "ഇന്ന് തൃശ്ശൂരിലെ കാലാവസ്ഥ എങ്ങനെയുണ്ട്?",
+          "expect": {
+            "agent": "weather_alert",
+            "has_number": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-009",
+      "language": "ml-IN",
+      "title": "Book vet appointment for GAURI (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എനിക്കൊരു അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്യണം",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "ഗൗരിക്ക് പനിയുണ്ട്, തീറ്റ എടുക്കുന്നില്ല",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "GAURI"
+            ]
+          }
+        },
+        {
+          "user": "മറ്റന്നാൾ ഉച്ചയ്ക്ക് 2 മണിക്ക്",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "14:00",
+              "2:00",
+              "2 PM",
+              "2 pm"
+            ],
+            "reply_contains_all": [
+              "{date+2}"
+            ]
+          }
+        },
+        {
+          "user": "അതെ",
+          "expect": {
+            "agent": "appointment_supervisor"
+          }
+        },
+        {
+          "user": "അതെ",
+          "expect": {
+            "agent": "appointment_supervisor",
+            "reply_contains_any": [
+              "വിജയകരമായി",
+              "സേവ്"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "appointments.json",
+          "grew": true
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-010",
+      "language": "ml-IN",
+      "title": "Register a new male Osmanabadi goat (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എനിക്ക് പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യണം",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ആട്, ആൺ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-ML010",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Osmanabadi",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "വേണ്ട",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-ML010"
+            ]
+          }
+        },
+        {
+          "user": "അതെ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-ML010"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-ML010"
+        }
+      ]
+    },
+    {
+      "id": "L1-ml-011",
+      "language": "ml-IN",
+      "title": "Register a new female Nali sheep (full flow)",
+      "mutates": true,
+      "turns": [
+        {
+          "user": "എനിക്ക് പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യണം",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "ചെമ്മരിയാട്, പെൺ",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "EVAL-{tag}-ML011",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "Nali",
+          "expect": {
+            "agent": "animal_registration"
+          }
+        },
+        {
+          "user": "വേണ്ട",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-ML011"
+            ]
+          }
+        },
+        {
+          "user": "അതെ",
+          "expect": {
+            "agent": "animal_registration",
+            "reply_contains_any": [
+              "EVAL-{tag}-ML011"
+            ]
+          }
+        }
+      ],
+      "data_checks": [
+        {
+          "file": "animals.json",
+          "contains": "EVAL-{tag}-ML011"
+        }
+      ]
+    }
+  ]
+}

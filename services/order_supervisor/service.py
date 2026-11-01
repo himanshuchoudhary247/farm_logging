@@ -669,6 +669,29 @@ class OrderSupervisor(DraftSupervisor):
 
     # ------------------------------------------------------------------ steps
 
+    def _fetch_products(self, draft: dict[str, Any], farmer_id: str, query: str, limit: int, log_verb: str,
+                        text: str, include_audio: bool) -> tuple[Optional[list[dict[str, Any]]], Optional[dict[str, Any]]]:
+        """The main_backend call shared by _search (query) and _browse (empty
+        query): fetch, filter to real product dicts, image-check, cap, log.
+        Returns (products, None) on success, or (None, response) when the
+        caller should return that response immediately (unreachable shop or
+        no store assigned) without doing its own product-list handling."""
+        language = draft["language"]
+        found = flokiq_sync.search_products(farmer_id, query, limit=limit)
+        if found is None:
+            draft["state"] = SEARCHING
+            self._save(draft)
+            return None, self._response(draft, self._message(language, "shop_unreachable"), input_transcript=text,
+                                        include_audio=include_audio)
+        if not found["storeAssigned"]:
+            return None, self._end(draft, CANCELLED, "no_store", text, include_audio)
+        products = [
+            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
+        ][:limit]
+        _log.info("order %s farmer=%s query=%r found=%d with_image=%d", log_verb, farmer_id, query[:60],
+                  len(products), sum(1 for p in products if p["image"]))
+        return products, None
+
     def _search(self, draft: dict[str, Any], farmer_id: str, query: str, text: str,
                 include_audio: bool) -> Optional[dict[str, Any]]:
         """Look the product up in the farmer's store. Returns a response to
@@ -676,18 +699,9 @@ class OrderSupervisor(DraftSupervisor):
         go on to the quantity in this same turn."""
         values = draft["draft"]
         language = draft["language"]
-        found = flokiq_sync.search_products(farmer_id, query, limit=MAX_CHOICES)
-        if found is None:
-            self._save(draft)
-            return self._response(draft, self._message(language, "shop_unreachable"), input_transcript=text,
-                                  include_audio=include_audio)
-        if not found["storeAssigned"]:
-            return self._end(draft, CANCELLED, "no_store", text, include_audio)
-        products = [
-            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
-        ][:MAX_CHOICES]
-        _log.info("order search farmer=%s query=%r found=%d with_image=%d", farmer_id, query[:60], len(products),
-                  sum(1 for p in products if p["image"]))
+        products, early = self._fetch_products(draft, farmer_id, query, MAX_CHOICES, "search", text, include_audio)
+        if early is not None:
+            return early
         if not products:
             values["product"] = None
             values["options"] = []
@@ -701,6 +715,7 @@ class OrderSupervisor(DraftSupervisor):
             return None
         values["product"] = None
         values["options"] = products
+        values["options_source"] = "search"
         draft["state"] = CHOOSING
         self._save(draft)
         listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in products)
@@ -716,19 +731,9 @@ class OrderSupervisor(DraftSupervisor):
         search, with no search words."""
         values = draft["draft"]
         language = draft["language"]
-        found = flokiq_sync.search_products(farmer_id, "", limit=MAX_BROWSE)
-        if found is None:
-            draft["state"] = SEARCHING
-            self._save(draft)
-            return self._response(draft, self._message(language, "shop_unreachable"), input_transcript=text,
-                                  include_audio=include_audio)
-        if not found["storeAssigned"]:
-            return self._end(draft, CANCELLED, "no_store", text, include_audio)
-        products = [
-            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
-        ][:MAX_BROWSE]
-        _log.info("order browse farmer=%s shown=%d with_image=%d", farmer_id, len(products),
-                  sum(1 for p in products if p["image"]))
+        products, early = self._fetch_products(draft, farmer_id, "", MAX_BROWSE, "browse", text, include_audio)
+        if early is not None:
+            return early
         values["product"] = None
         if not products:
             values["options"] = []
@@ -738,6 +743,7 @@ class OrderSupervisor(DraftSupervisor):
                                   include_audio=include_audio)
         # Even a single product is offered, not picked: the farmer did not ask for it.
         values["options"] = products
+        values["options_source"] = "browse"
         draft["state"] = CHOOSING
         self._save(draft)
         return self._response(
@@ -1008,14 +1014,22 @@ class OrderSupervisor(DraftSupervisor):
         product = values.get("product")
         if not product:
             if values.get("options"):
-                # Still choosing: offer the same options again.
+                # Still choosing: offer the same options again. Real bug,
+                # found in deep review: this always used the search-flow
+                # wording ("I found these in your store: ...") even when
+                # the options came from browsing with no product named --
+                # the pills/cards shown are identical either way, but the
+                # intro text didn't match how the farmer actually got here.
                 draft["state"] = CHOOSING
                 self._save(draft)
-                listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in values["options"])
+                pills = self._pills(draft["language"], [_choice_label(p) for p in values["options"]])
+                if values.get("options_source") == "browse":
+                    message = self._message(draft["language"], "browse")
+                else:
+                    listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in values["options"])
+                    message = self._message(draft["language"], "choose", options=listed)
                 return self._response(
-                    draft, self._message(draft["language"], "choose", options=listed), input_transcript=text,
-                    include_audio=include_audio,
-                    options=self._pills(draft["language"], [_choice_label(p) for p in values["options"]]),
+                    draft, message, input_transcript=text, include_audio=include_audio, options=pills,
                 )
             if chat_order_browse_enabled():
                 # No product named yet: show what the store has instead of only asking.

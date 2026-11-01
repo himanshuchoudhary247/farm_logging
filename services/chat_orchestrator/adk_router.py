@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from base64 import b64encode
 from typing import Any, Optional
 
@@ -31,13 +32,16 @@ from google.genai import types
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
 from services.order_supervisor import default_supervisor as _order_supervisor
+from services.a2ui.widgets import widget_for
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
+from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
 from services.voice_agent.session_store import get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from services.weather_alert.adk_agent import process_weather_query_adk
 from services.llm_service.adk_model import build_adk_model
+from storage import animals_for_farmer
 
 _log = logging.getLogger("chat_orchestrator.adk_router")
 if not _log.handlers:
@@ -100,6 +104,13 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+    # A widget for this reply as A2UI (services/a2ui) -- the booking and
+    # new-animal registration forms, the weather forecast card and the farm
+    # records card for query answers. Additive: the reply above is unchanged
+    # and apps that do not know "a2ui" ignore it.
+    widget = widget_for(agent, farmer_id, session_id, result, language)
+    if widget:
+        envelope["a2ui"] = widget
     if include_audio and "response_audio_base64" not in result:
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
@@ -219,6 +230,31 @@ def _looks_like_pin(text: str) -> bool:
     return compact.isascii() and compact.isdigit() and len(compact) == 6
 
 
+def _looks_like_attempted_pin(text: str) -> bool:
+    """A bare number close enough to a PIN that, in a weather conversation,
+    the farmer was plainly trying to type one -- including a typo.
+
+    Separate from _looks_like_pin because the two answer different questions.
+    _looks_like_pin asks "is this a usable PIN?"; this asks "was a PIN what
+    they meant?". A mistyped PIN used to fail the first test, fall through to
+    the classifier, and reach query_agent, which replied "I see you've entered
+    a number (46111), but I'm not sure what information you're looking for" --
+    leaving the farmer with no idea they were one digit short. Routing it to
+    weather instead lets the agent that owns PIN codes say what is actually
+    wrong.
+
+    5-8 digits: catches one digit dropped (5) or doubled (7) from a 6-digit
+    PIN, with margin to 8; narrow enough that a bare 4-digit year ("2026")
+    still classifies normally. Real bug, found adding tests for this
+    function: the range originally started at 4, which silently defeated
+    that exact claim -- a bare "2026" sent on the turn right after any
+    weather turn would have matched and been routed to weather instead of
+    being classified.
+    """
+    compact = "".join(ch for ch in (text or "") if not ch.isspace())
+    return compact.isascii() and compact.isdigit() and 5 <= len(compact) <= 8
+
+
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
 # The weather and query agents pick their reply language from the text
@@ -265,11 +301,63 @@ def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None
     # different error, it asked for the PIN anyway, and the PIN then went
     # to query_agent (seen live).
     if result.get("error") and asks < _MAX_LOCATION_ASKS:
-        update_session(weather_key, {"awaiting_location": True, "asks": asks})
+        update_session(weather_key, {"awaiting_location": True, "asks": asks, "last_was_weather": True})
     else:
-        update_session(weather_key, {"awaiting_location": False})
+        # last_was_weather is set even on SUCCESS, which awaiting_location is
+        # not. A farmer who gets a weather answer for the PIN on their profile
+        # and then types a different bare PIN is asking for that place's
+        # weather -- but the success path cleared every weather flag, so the
+        # PIN was classified from scratch, looked like a bare number, and went
+        # to query_agent ("I see you've entered a number..."). Seen live in the
+        # Weather Advisory pill flow.
+        update_session(weather_key, {"awaiting_location": False, "last_was_weather": True})
     reply = weather["answer"] or _reply_text("weather_alert", result)
     return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
+
+
+# The animal the farmer was just talking about. "What breed is KAALI?" then
+# "she is limping, book a vet for her": the booking asked for the animal
+# again (seen live in en/hi). After a farm-data question that names exactly
+# one of the farmer's own stored animals (in the question or the answer, any
+# script or spelling), that name is kept for the NEXT turn only; a new
+# booking started on that turn uses it when it names no animal itself. Any
+# other turn clears it. Kill switch: CHAT_RECENT_ANIMAL=0.
+_RECENT_ANIMAL_ENV = "CHAT_RECENT_ANIMAL"
+
+
+def _recent_animal_on() -> bool:
+    return os.getenv(_RECENT_ANIMAL_ENV, "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _recent_animal_key(farmer_id: str, session_id: str) -> str:
+    return f"{farmer_id}:{session_id}:recent_animal"
+
+
+def _take_recent_animal(farmer_id: str, session_id: str) -> Optional[str]:
+    """The animal kept by the previous turn, cleared on read so it lasts one turn."""
+    if not _recent_animal_on():
+        return None
+    key = _recent_animal_key(farmer_id, session_id)
+    name = get_session(key).get("name")
+    if name:
+        update_session(key, {"name": None})
+    return name or None
+
+
+def _remember_animal(farmer_id: str, session_id: str, *texts: str) -> None:
+    """Keep the one stored animal named in these texts, if exactly one is."""
+    if not _recent_animal_on():
+        return
+    try:
+        names = [a.tag_or_name for a in animals_for_farmer(farmer_id)]
+        found = {m.name for t in texts for m in find_name_mentions(t or "", names, include_exact=True)}
+    except Exception as exc:
+        _log.warning("adk_router recent animal lookup failed farmer=%s: %s", farmer_id, exc)
+        return
+    if len(found) == 1:
+        name = found.pop()
+        update_session(_recent_animal_key(farmer_id, session_id), {"name": name})
+        _log.info("adk_router recent animal farmer=%s session=%s animal=%s", farmer_id, session_id, name)
 
 
 def _blocked_envelope(intent: "str | None", farmer_id: str, session_id: str, text: str, language: str) -> dict[str, Any]:
@@ -309,6 +397,8 @@ def route_turn_adk(
     def _allowed(intent_name: str) -> bool:
         return allowed_intents is None or intent_name in allowed_intents
 
+    recent_animal = _take_recent_animal(farmer_id, session_id)
+
     if _has_active_booking_draft(farmer_id, session_id):
         if not _allowed("appointment"):
             return _blocked_envelope("appointment", farmer_id, session_id, text, language)
@@ -342,19 +432,36 @@ def route_turn_adk(
 
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)
-    if weather_state.get("awaiting_location"):
+
+    # Sticky after ANY weather turn, not only one that failed to find a
+    # location.
+    #
+    # awaiting_location covers "weather asked for a PIN and is still waiting".
+    # It misses the other half: weather ANSWERED (the farmer has a PIN on
+    # file), and the next message is a follow-up that only makes sense as one
+    # -- a bare PIN, or a bare place name. Those were classified from scratch,
+    # looked like a number or a stray proper noun, and went to query_agent,
+    # which answered "You have 2 animals on your farm" to "Pune".
+    #
+    # One-shot: cleared on use below, and re-armed by _run_weather on each
+    # weather turn, so weather is sticky for exactly the turn after it spoke
+    # and never beyond. The disambiguation that follows is the existing,
+    # already-tested logic -- a genuine data question still escapes to
+    # query_agent via the probe, and a different request goes to its own
+    # agent.
+    if weather_state.get("awaiting_location") or weather_state.get("last_was_weather"):
         # Sticky while weather is still waiting for a location, capped at
         # _MAX_LOCATION_ASKS asks in a row (see _run_weather): clear first;
         # _run_weather re-arms only if it asks again and the cap allows,
         # so a farmer who has moved on is never locked into weather.
-        update_session(weather_key, {"awaiting_location": False})
+        update_session(weather_key, {"awaiting_location": False, "last_was_weather": False})
         # A bare PIN goes straight to weather. Anything else is classified:
         # a location answer ("Pune") comes back as weather or query and stays
         # with weather, but a different request ("register a goat", "book a
         # vet") goes to its own agent. Seen live: "register a goat" sent while
         # weather waited for the PIN was answered by weather, used up an ask,
         # and the PIN that followed went to query_agent.
-        sticky_intent = "weather" if _looks_like_pin(text) else asyncio.run(_classify_intent_async(text))
+        sticky_intent = "weather" if _looks_like_attempted_pin(text) else asyncio.run(_classify_intent_async(text))
         if sticky_intent == "query" and _allowed("query"):
             # Real bug, found in whole-branch review: "query" here used to
             # mean only "the classifier called a bare location reply
@@ -394,6 +501,9 @@ def route_turn_adk(
     # `query` for anything unrecognized -- matches _make_record_route_tool's
     # own "unknown -> query" guard, so one behavior in one place instead of
     # two places drifting.
+    if intent == "appointment" and recent_animal:
+        return _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent,
+                                     recent_animal=recent_animal)
     handler = _DISPATCH_TABLE.get(intent) or _DISPATCH_TABLE["query"]
     return handler(farmer_id, session_id, text, language, include_audio, intent)
 
@@ -406,8 +516,12 @@ def route_turn_adk(
 # functions so the dispatch table below is a plain literal a reader can
 # eyeball at a glance.
 
-def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent):
-    result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
+def _dispatch_appointment(farmer_id, session_id, text, language, include_audio, intent, recent_animal=None):
+    if recent_animal:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio,
+                                              recent_animal=recent_animal)
+    else:
+        result = _appointment_supervisor.turn(farmer_id, session_id, text, language, include_audio=include_audio)
     reply = _reply_text("appointment_supervisor", result)
     return _envelope("appointment_supervisor", intent, result, reply, farmer_id, session_id, text, include_audio, language)
 
@@ -446,6 +560,7 @@ def _dispatch_query(farmer_id, session_id, text, language, include_audio, intent
         session_id=session_id, app_language=language,
     )
     reply = result.get("answer") or ""
+    _remember_animal(farmer_id, session_id, text, reply)
     return _envelope("query_agent", intent, result, reply, farmer_id, session_id, text, include_audio, language, result.get("speech_text"))
 
 

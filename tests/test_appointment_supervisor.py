@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime as _dt
+
 import pytest
 
 from services.appointment_supervisor import service
@@ -8,18 +10,30 @@ from services.appointment_supervisor import service
 @pytest.fixture(autouse=True)
 def _no_real_query_agent_calls(monkeypatch):
     """Real bug, found live: no test in this file ever mocked
-    service.process_query (the off-topic-probe call turn() makes when
-    confirmation_signal=="no" and nothing new was extracted). Every test
-    here has silently depended on that call failing due to missing AWS
-    credentials in whatever environment ran the suite -- true by accident
-    every time until this session's ADK work ran the suite with real
-    credentials present for the first time, at which point a live Bedrock
-    call started actually succeeding mid-test and changing behavior
-    non-deterministically. Default every test in this file to a
-    definitely-not-a-data-answer probe result; a test that specifically
-    wants to exercise the probe succeeding can still override this locally
-    with its own monkeypatch.setattr(service, "process_query", ...)."""
-    monkeypatch.setattr(service, "process_query", lambda query, farmer_id: {"answer": None, "sql": None, "data": None})
+    service.process_query (the off-topic-probe call turn() used to make
+    only when confirmation_signal=="no" and nothing new was extracted;
+    generalized since to every COLLECTING turn that fails to advance the
+    draft, and to weather as well as query, via service._try_mid_draft_escape).
+    Every test here has silently depended on that call failing due to
+    missing AWS credentials in whatever environment ran the suite -- true
+    by accident every time until this session's ADK work ran the suite
+    with real credentials present for the first time, at which point a
+    live Bedrock call started actually succeeding mid-test and changing
+    behavior non-deterministically. Default every test in this file to
+    "not a genuine topic switch"; a test that specifically wants to
+    exercise the escape succeeding can still override this locally with
+    its own monkeypatch.setattr(service, "_try_mid_draft_escape", ...)."""
+    monkeypatch.setattr(service, "_try_mid_draft_escape", lambda text, farmer_id, session_id, language: None)
+
+
+@pytest.fixture(autouse=True)
+def _fixed_today(monkeypatch):
+    """These tests book fixed dates (2026-08-25, 2026-09-20), and
+    _valid_appointment_date rejects a booking date before today. Pin
+    "today" to a day before them, so the tests don't all break once the
+    real calendar passes those dates. A test that needs another "today"
+    can override it with its own monkeypatch.setattr(service, "_today_ist", ...)."""
+    monkeypatch.setattr(service, "_today_ist", lambda: _dt.date(2026, 8, 20))
 
 
 def test_turn_confirm_and_submit_state_machine(tmp_path, monkeypatch):
@@ -944,6 +958,114 @@ def test_bare_wrong_tag_no_with_no_other_field_still_resets_animal(tmp_path, mon
     assert result["state"] == "COLLECTING"
 
 
+# ---- "no, not GAURI, it's MOTI" at the final readback ---------------------
+# Found by the evals suite (layer 2, case 006, all 7 languages). Entities
+# below use the keys the real extraction emits (animal_name, not
+# animal_identifier) and the farm's real pair of Sirohi goats.
+
+def _gauri_moti(monkeypatch):
+    animals = [
+        type("Animal", (), {"id": "a-gauri", "tag_or_name": "GAURI", "species": "goat"})(),
+        type("Animal", (), {"id": "a-moti", "tag_or_name": "MOTI", "species": "goat"})(),
+    ]
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: animals)
+    return animals
+
+
+_GAURI_BOOKING = {"animal_name": "GAURI", "issue": "fever", "symptoms": ["fever"], "date": "2026-08-22", "time": "10:00"}
+
+
+def _readback_then(monkeypatch, tmp_path, session, second_entities, language="en-IN", first_entities=None):
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": dict(first_entities or _GAURI_BOOKING), "intent": "CREATE_APPOINTMENT"},
+    )
+    first = supervisor.turn("demo-farmer", session, "GAURI has fever, day after tomorrow 10 am", language)
+    assert first["state"] == "CONFIRMING" and first["missing_fields"] == []
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": dict(second_entities), "confirmation_signal": "no"},
+    )
+    return supervisor, supervisor.turn("demo-farmer", session, "no wait, not GAURI, it's MOTI", language)
+
+
+def test_no_with_a_new_animal_switches_the_animal_and_keeps_the_booking(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti", {"animal_name": "MOTI"})
+    assert result["state"] == "CONFIRMING", "must read the booking back again, not ask what to correct"
+    assert result["draft"]["animal_identifier"] == "MOTI"
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert result["draft"]["date"] == "2026-08-22" and result["draft"]["time"] == "10:00"
+    assert "MOTI" in result["response_text"] and "2026-08-22" in result["response_text"]
+
+
+def test_no_with_a_new_animal_when_extraction_repeats_earlier_fields(tmp_path, monkeypatch):
+    """Same, when the extraction also hands back the fields it already knew
+    (the session cache) next to the new animal."""
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti-cached", {**_GAURI_BOOKING, "animal_name": "MOTI"})
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert result["draft"]["date"] == "2026-08-22"
+
+
+def test_new_animal_is_not_sent_to_the_off_topic_probe(tmp_path, monkeypatch):
+    """kn/ml/ta/te: the probe found MOTI in the database and answered with
+    MOTI's details instead of continuing the booking."""
+    _gauri_moti(monkeypatch)
+    calls = []
+
+    def escape(text, farmer_id, session_id, language):
+        calls.append(text)
+        return {"intent": "query", "answer": "MOTI is a Sirohi goat"}
+
+    monkeypatch.setattr(service, "_try_mid_draft_escape", escape)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-moti-probe", {"animal_name": "MOTI"}, language="kn-IN")
+    assert calls == []
+    assert result["draft"]["animal_id"] == "a-moti"
+    assert "Sirohi goat" not in result["response_text"]
+
+
+def test_no_with_a_new_date_updates_the_date(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-new-date", {"date": "2026-08-23"})
+    assert result["state"] == "CONFIRMING"
+    assert result["draft"]["date"] == "2026-08-23"
+    assert result["draft"]["animal_id"] == "a-gauri", "the animal was not in question"
+
+
+def test_bare_no_at_readback_still_asks_what_to_correct(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    _, result = _readback_then(monkeypatch, tmp_path, "s-bare-no", {})
+    assert result["state"] == "CORRECTING"
+    assert result["response_text"] == "What would you like to correct?"
+
+
+def test_no_that_repeats_the_same_animal_in_another_script_is_a_bare_no(tmp_path, monkeypatch):
+    """The farmer first said "गौरी" (verified to GAURI by the fuzzy match).
+    The extraction repeating "गौरी" from the session cache is not a new
+    animal, so this is still a bare "no"."""
+    _gauri_moti(monkeypatch)
+    monkeypatch.setattr(service, "_resolve_animal_id", lambda wanted, animals: ("a-gauri", []))
+    hindi = {**_GAURI_BOOKING, "animal_name": "गौरी"}
+    _, result = _readback_then(monkeypatch, tmp_path, "s-hi-same", hindi, language="hi-IN", first_entities=hindi)
+    assert result["state"] == "CORRECTING"
+    assert result["draft"]["animal_id"] == "a-gauri"
+
+
+def test_off_topic_question_at_readback_still_goes_to_the_probe(tmp_path, monkeypatch):
+    _gauri_moti(monkeypatch)
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 14 goats"},
+    )
+    _, result = _readback_then(monkeypatch, tmp_path, "s-offtopic", {})
+    assert "You have 14 goats" in result["response_text"]
+    assert result["draft"]["animal_id"] == "a-gauri"
+
+
 def _submit_appointment(tmp_path, monkeypatch, session_id, create_appointment_stub, will_attempt_stub):
     """Shared setup for the sync-outcome-messaging tests below: drives a
     full turn/confirm/submit sequence, same shape as
@@ -1031,3 +1153,100 @@ def test_successful_sync_stays_silent(tmp_path, monkeypatch):
     assert "could not send it to the app" not in result["response_text"], (
         f"a successful sync must not show the failure message: {result['response_text']!r}"
     )
+
+
+def test_off_topic_question_mid_collecting_is_answered_and_booking_resumes(tmp_path, monkeypatch):
+    """The reported gap: mid-booking, still COLLECTING (not yet at the
+    final CONFIRMING yes/no), a genuinely unrelated question ("how many
+    animals do I have") must be answered, not swallowed by the booking
+    state machine or silently discarded. _try_mid_draft_escape is the
+    seam -- this test is the one that overrides the autouse fixture's
+    default "not a genuine switch" to prove the success path end to end."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {"animal_identifier": "Lakshmi"}},
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-off-topic-collecting", "Lakshmi", "en-IN")
+    assert first["draft"]["animal_identifier"] == "Lakshmi"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    second = supervisor.turn("demo-farmer", "session-off-topic-collecting", "how many animals do I have", "en-IN")
+    assert "You have 12 animals registered." in second["response_text"]
+    # The booking must not be dropped: still COLLECTING, still remembers
+    # the animal already given, and the pending-field question is still
+    # asked in the same reply (Q4 -- explicit re-prompt after an escape).
+    assert second["state"] == "COLLECTING"
+    assert second["draft"]["animal_identifier"] == "Lakshmi"
+    assert second["response_text"] != "You have 12 animals registered."
+
+
+def test_off_topic_weather_question_mid_confirming_is_answered(tmp_path, monkeypatch):
+    """Generalizes the existing CONFIRMING-only escape to also accept a
+    weather intent, not just query -- previously only
+    probe.get("sql") and probe.get("data") (query_agent only) counted as
+    genuine."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "foot swelling", "date": "2026-08-25", "time": "11:30"},
+        },
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-off-topic-weather", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
+    assert first["state"] == "CONFIRMING"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "no"},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "weather", "answer": "Expect light rain tomorrow."},
+    )
+    second = supervisor.turn("demo-farmer", "session-off-topic-weather", "will it rain tomorrow", "en-IN")
+    assert "Expect light rain tomorrow." in second["response_text"]
+    assert second["state"] == "CONFIRMING"
+    assert second["draft"]["animal_identifier"] == "Lakshmi"
+
+
+def test_cancel_at_confirming_is_not_swallowed_by_the_escape_probe(tmp_path, monkeypatch):
+    """Real bug, found in deep review: the escape gate was broadened from
+    confirmation_signal=="no" to !="yes" to catch ambiguous off-topic
+    replies, but confirmation_signal=="cancel" also satisfies !="yes" --
+    an explicit cancel at the confirm checkpoint must still cancel the
+    booking, not get treated as a candidate for the off-topic probe, even
+    if that probe would have returned a truthy (genuine-looking) result."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [type("Animal", (), {"id": "a-1", "tag_or_name": "Lakshmi"})()])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "Lakshmi", "issue": "foot swelling", "date": "2026-08-25", "time": "11:30"},
+        },
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "Lakshmi foot swelling Aug 25 11:30", "en-IN")
+    assert first["state"] == "CONFIRMING"
+
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {"entities": {}, "confirmation_signal": "cancel"},
+    )
+    monkeypatch.setattr(
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 12 animals registered."},
+    )
+    second = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "cancel, by the way how many animals do I have", "en-IN")
+    assert second["state"] == "CANCELLED"

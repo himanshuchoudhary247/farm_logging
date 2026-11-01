@@ -1123,6 +1123,27 @@ def test_an_unclear_reply_while_choosing_offers_the_same_options_again(sup, monk
     assert r["state"] == "CHOOSING"
     assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
     assert len(backend.calls["search"]) == 1
+    # The re-offer after a named search uses the "I found these..." wording,
+    # with the price list in the text (the pills alone don't show price here).
+    assert r["response_text"] == service._TEXT["en"]["choose"].format(
+        options="Calcium Gel (1 L) ₹120, Calcium Plus (500 ml) ₹95")
+
+
+def test_an_unclear_reply_while_browsing_offers_the_same_options_with_browse_wording(sup, monkeypatch):
+    """Real bug, found in deep review: the re-offer branch always used the
+    search-flow "I found these in your store: ..." wording, even when the
+    farmer reached CHOOSING by browsing with no product named -- the pills
+    shown are identical either way, but the intro text didn't match how the
+    farmer actually got there."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{}])
+    sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    r = sup.turn(FARMER, "s1", "hmm", include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
+    assert r["response_text"] == service._TEXT["en"]["browse"]
+    assert "I found these in your store" not in r["response_text"]
+    assert len(backend.calls["search"]) == 1
 
 
 def test_search_asks_main_backend_for_at_most_five(sup, monkeypatch):
@@ -1314,7 +1335,7 @@ def test_starting_without_a_product_shows_the_store(sup, monkeypatch, caplog):
                                                                 LIVER_TONIC["productId"]]
     assert r["draft"]["options"][2]["image"] == "liver.png"
     assert backend.calls["quote"] == []
-    assert "order browse" in caplog.text and "shown=3" in caplog.text and "with_image=1" in caplog.text
+    assert "order browse" in caplog.text and "found=3" in caplog.text and "with_image=1" in caplog.text
 
 
 def test_tapping_a_product_from_the_store_goes_to_quantity(sup, monkeypatch):

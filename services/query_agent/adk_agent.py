@@ -16,6 +16,7 @@ LLM-driven tool call with).
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 import uuid
@@ -28,10 +29,13 @@ from google.adk.runners import InMemoryRunner, Runner
 from google.adk.sessions import BaseSessionService, InMemorySessionService
 from google.genai import types
 
+from services.common.name_match import find_name_mentions
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.db import execute_query
 from services.query_agent.schema import generate_schema_for_prompt
 from services.llm_service.adk_model import build_adk_model
+
+logger = logging.getLogger(__name__)
 
 # Native digits per language. Kept in step with SUPPORTED_LANGUAGES
 # (appointment_supervisor, animal_registration), which now has all 7
@@ -130,7 +134,8 @@ def _answer_is_native_script(answer: str, lang: str) -> bool:
 
 
 # Static translation catalog for the fixed, known column names a SELECT
-# against animals/health_logs/appointments actually returns -- reuses the
+# against animals/health_logs/appointments (and the health tables:
+# ai_health_logs, vaccination_records) actually returns -- reuses the
 # same labels already established in animal_registration/appointment_
 # supervisor's own _LABELS catalogs for the overlapping fields, so a
 # farmer sees the identical word for "breed" everywhere in the app.
@@ -145,42 +150,77 @@ _COLUMN_LABELS = {
         "status": "स्थिति", "birth_date": "जन्म तिथि", "current_location": "स्थान",
         "age_years": "उम्र (वर्ष)", "issue": "समस्या", "notes": "नोट्स",
         "date": "तारीख", "time": "समय",
+        "vaccine_name": "टीका", "due_date": "नियत तारीख", "administered_date": "टीका लगने की तारीख",
+        "recorded_at": "दर्ज तारीख", "log_timestamp": "दर्ज तारीख", "risk_level": "जोखिम",
+        "symptoms_reported": "लक्षण", "potential_ailments": "संभावित बीमारियाँ",
+        "ai_diagnosis_suggestion": "AI सुझाव", "first_aid_advice": "प्राथमिक उपचार",
+        "issue_summary": "समस्या", "veterinarian_notes": "डॉक्टर के नोट्स",
     },
     "ta": {
         "species": "இனம்", "breed": "இனவகை", "sex": "பாலினம்", "tag_or_name": "டேக்/பெயர்",
         "status": "நிலை", "birth_date": "பிறந்த தேதி", "current_location": "இடம்",
         "age_years": "வயது (ஆண்டுகள்)", "issue": "பிரச்சினை", "notes": "குறிப்புகள்",
         "date": "தேதி", "time": "நேரம்",
+        "vaccine_name": "தடுப்பூசி", "due_date": "போட வேண்டிய தேதி", "administered_date": "போட்ட தேதி",
+        "recorded_at": "பதிவு தேதி", "log_timestamp": "பதிவு தேதி", "risk_level": "ஆபத்து",
+        "symptoms_reported": "அறிகுறிகள்", "potential_ailments": "சாத்தியமான நோய்கள்",
+        "ai_diagnosis_suggestion": "AI பரிந்துரை", "first_aid_advice": "முதலுதவி",
+        "issue_summary": "பிரச்சினை", "veterinarian_notes": "மருத்துவர் குறிப்புகள்",
     },
     "te": {
         "species": "జాతి", "breed": "బ్రీడ్", "sex": "లింగం", "tag_or_name": "ట్యాగ్/పేరు",
         "status": "స్థితి", "birth_date": "పుట్టిన తేదీ", "current_location": "స్థానం",
         "age_years": "వయస్సు (సంవత్సరాలు)", "issue": "సమస్య", "notes": "గమనికలు",
         "date": "తేదీ", "time": "సమయం",
+        "vaccine_name": "టీకా", "due_date": "వేయవలసిన తేదీ", "administered_date": "వేసిన తేదీ",
+        "recorded_at": "నమోదు తేదీ", "log_timestamp": "నమోదు తేదీ", "risk_level": "ప్రమాదం",
+        "symptoms_reported": "లక్షణాలు", "potential_ailments": "సాధ్యమైన వ్యాధులు",
+        "ai_diagnosis_suggestion": "AI సూచన", "first_aid_advice": "ప్రథమ చికిత్స",
+        "issue_summary": "సమస్య", "veterinarian_notes": "డాక్టర్ గమనికలు",
     },
     "kn": {
         "species": "ಪ್ರಭೇದ", "breed": "ತಳಿ", "sex": "ಲಿಂಗ", "tag_or_name": "ಟ್ಯಾಗ್/ಹೆಸರು",
         "status": "ಸ್ಥಿತಿ", "birth_date": "ಜನನ ದಿನಾಂಕ", "current_location": "ಸ್ಥಳ",
         "age_years": "ವಯಸ್ಸು (ವರ್ಷಗಳು)", "issue": "ಸಮಸ್ಯೆ", "notes": "ಟಿಪ್ಪಣಿಗಳು",
         "date": "ದಿನಾಂಕ", "time": "ಸಮಯ",
+        "vaccine_name": "ಲಸಿಕೆ", "due_date": "ನೀಡಬೇಕಾದ ದಿನಾಂಕ", "administered_date": "ನೀಡಿದ ದಿನಾಂಕ",
+        "recorded_at": "ದಾಖಲಿಸಿದ ದಿನಾಂಕ", "log_timestamp": "ದಾಖಲಿಸಿದ ದಿನಾಂಕ", "risk_level": "ಅಪಾಯ",
+        "symptoms_reported": "ಲಕ್ಷಣಗಳು", "potential_ailments": "ಸಂಭವನೀಯ ರೋಗಗಳು",
+        "ai_diagnosis_suggestion": "AI ಸಲಹೆ", "first_aid_advice": "ಪ್ರಥಮ ಚಿಕಿತ್ಸೆ",
+        "issue_summary": "ಸಮಸ್ಯೆ", "veterinarian_notes": "ವೈದ್ಯರ ಟಿಪ್ಪಣಿಗಳು",
     },
     "en": {
         "species": "Species", "breed": "Breed", "sex": "Sex", "tag_or_name": "Tag / Name",
         "status": "Status", "birth_date": "Date of birth", "current_location": "Location",
         "age_years": "Age (years)", "issue": "Issue", "notes": "Notes",
         "date": "Date", "time": "Time",
+        "vaccine_name": "Vaccine", "due_date": "Due date", "administered_date": "Given on",
+        "recorded_at": "Recorded on", "log_timestamp": "Recorded on", "risk_level": "Risk",
+        "symptoms_reported": "Symptoms", "potential_ailments": "Possible illnesses",
+        "ai_diagnosis_suggestion": "AI suggestion", "first_aid_advice": "First aid",
+        "issue_summary": "Issue", "veterinarian_notes": "Vet notes",
     },
     "mr": {
         "species": "प्रजाती", "breed": "जात", "sex": "लिंग", "tag_or_name": "टॅग/नाव",
         "status": "स्थिती", "birth_date": "जन्मतारीख", "current_location": "ठिकाण",
         "age_years": "वय (वर्षे)", "issue": "समस्या", "notes": "टिपा",
         "date": "तारीख", "time": "वेळ",
+        "vaccine_name": "लस", "due_date": "नियोजित तारीख", "administered_date": "लस दिल्याची तारीख",
+        "recorded_at": "नोंद तारीख", "log_timestamp": "नोंद तारीख", "risk_level": "धोका",
+        "symptoms_reported": "लक्षणे", "potential_ailments": "संभाव्य आजार",
+        "ai_diagnosis_suggestion": "AI सूचना", "first_aid_advice": "प्रथमोपचार",
+        "issue_summary": "समस्या", "veterinarian_notes": "डॉक्टरांच्या टिपा",
     },
     "ml": {
         "species": "വർഗ്ഗം", "breed": "ഇനം", "sex": "ലിംഗം", "tag_or_name": "ടാഗ്/പേര്",
         "status": "നില", "birth_date": "ജനനത്തീയതി", "current_location": "സ്ഥലം",
         "age_years": "പ്രായം (വർഷം)", "issue": "പ്രശ്നം", "notes": "കുറിപ്പുകൾ",
         "date": "തീയതി", "time": "സമയം",
+        "vaccine_name": "വാക്സിൻ", "due_date": "നൽകേണ്ട തീയതി", "administered_date": "നൽകിയ തീയതി",
+        "recorded_at": "രേഖപ്പെടുത്തിയ തീയതി", "log_timestamp": "രേഖപ്പെടുത്തിയ തീയതി", "risk_level": "അപകടസാധ്യത",
+        "symptoms_reported": "ലക്ഷണങ്ങൾ", "potential_ailments": "സാധ്യതയുള്ള രോഗങ്ങൾ",
+        "ai_diagnosis_suggestion": "AI നിർദ്ദേശം", "first_aid_advice": "പ്രഥമശുശ്രൂഷ",
+        "issue_summary": "പ്രശ്നം", "veterinarian_notes": "ഡോക്ടറുടെ കുറിപ്പുകൾ",
     },
 }
 
@@ -243,20 +283,204 @@ Rules:
 - The query MUST be a single SQLite SELECT statement.
 - Use COUNT(*) when counting; GROUP BY when the farmer wants a breakdown by category; ORDER BY for listing/sorting.
 - Use LOWER() for case-insensitive text filtering.
-- The database stores species/breed/status and other enum-like values in English only (e.g. 'goat', 'sheep', 'active'). Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
+- The database stores species/breed/status and other enum-like values in English only. Regardless of what language the farmer's question is in, any such value used in a WHERE clause must be the English database value, never translated or transliterated -- e.g. a Hindi question about "बकरी" must filter species = 'goat', not species = 'बकरी'.
+- The section "Values in this farmer's records" below lists the exact species, breeds and animal names stored for this farmer. Map the farmer's words (in any language or script) to one of those exact values before writing SQL: a local-language species word to its English species value, a breed name to the listed breed spelling, and an animal name written in another script or spelling to the listed name as stored (names are usually stored in Latin capitals). Do not filter on a value that is not in that list; if nothing in the list matches, run a query to check before saying it does not exist.
+- The farmer's message may end with a note saying which stored animal a word most likely refers to (found by comparing how the word sounds with the farmer's stored names, in any script). Treat that word as that animal's name and look the animal up -- do not read it as a species or another word that sounds alike. Only if the rest of the message clearly shows the farmer means something else, follow the farmer.
+- Farmers often type their own language in English letters (e.g. Hindi "bakri" = goat, Telugu "meka" = goat, Marathi "shelya" = goats, Kannada "mekegalu" = goats, Tamil "aadu"). Treat such a word exactly like the same word in its own script: map an animal-kind word to its stored English species and filter on it, by its meaning in the farmer's language -- never by an English word it happens to sound like. When the farmer asks about one kind of animal, never count or list all animals without that species filter.
+- Some animal-kind words can mean more than one stored species (for example Tamil "aadu" / "ஆடு" on its own is used for both goats and sheep). When the farmer uses such a word with nothing saying which kind, do not pick one species yourself and do not list the whole farm: filter on exactly the species that word can mean (e.g. species IN ('goat', 'sheep')) and give each one's count separately (e.g. "you have 10 goats and 4 sheep"). When the word or the rest of the message does say which kind, filter on that one species only.
+- When your answer names an animal's species, translate the English database value faithfully into the farmer's language (a buffalo is never a cow, a goat is never a sheep).
 - If run_sql_query returns success=false, read the error and try a corrected query -- do not give up after one attempt, and do not repeat the exact same failing query.
 - If asking for a single total/count, give just the number in your answer.
 - If asking for a breakdown by category, show EACH group with its count -- never summarize or say "ranging from"/"most are" when specific data was requested.
+- A general word for the farmer's animals ("cattle", "livestock", "animals", or the same in any language) means ALL of their animals: filter by species only when the farmer clearly names one species. If a filter by species finds nothing, check whether the farmer has animals of other species before saying they have none.
+- A request for a "health report", or how the farmer's animals are doing health-wise, is about their health records, not the animal list: look in ai_health_logs (risk level, symptoms), health_logs (recorded problems) and vaccination_records (pending vaccines), joined to animals for each animal's name, newest first. Select the records themselves (one query per table), not only how many there are. If there are no health records, say so plainly.
 - Otherwise, give a natural conversational answer.
 - Never mention SQL, tables, columns, or any technical/database terms in your final answer -- speak like a farm advisor, not a database.
 - A bare greeting ("hi", "hello", "hey") with NO real question attached gets a plain greeting back, under 10 words, e.g. "Hi! What would you like to know about your farm?" -- do NOT list your capabilities (animal counts, health records, appointments, etc.) unless the farmer's message actually asked what you can do.
 - If the farmer's message contains a greeting word ("hello", "namaste", "hi") ALONGSIDE a real question (e.g. "hello, how many animals do I have"), answer the question directly -- do NOT prepend a greeting/"hello"/"namaste" to the answer. One farmer message, one direct answer; the greeting word was just how they opened their sentence, not a separate thing to reply to.
 - Never open an answer with "thank you"/"धन्यवाद" or similar courtesy filler either -- go straight to the answer.
-- You are a farm/livestock assistant ONLY -- not a general-purpose chatbot. If the farmer's message has nothing to do with their farm, animals, or records (general knowledge, world facts, other topics entirely), do NOT answer it from your own knowledge even if you know the answer. Say plainly that you can only help with questions about their farm, and ask what they'd like to know about it instead. This applies however confidently you could answer -- being able to answer something is not the same as it being in scope.
+- You are a farm/livestock assistant ONLY -- not a general-purpose chatbot. If the farmer's message has nothing to do with their farm, animals, or records (general knowledge, world facts, other topics entirely), do NOT answer it from your own knowledge even if you know the answer. Say plainly that you can only help with questions about their farm, and ask what they'd like to know about it instead. This applies however confidently you could answer -- being able to answer something is not the same as it being in scope. BUT before deciding a message is off-topic, check the animal names listed under "Values in this farmer's records": if the message mentions one of them (in any script or spelling), it IS a question about the farmer's own animal, even when that name is also an everyday word (a name meaning "king" or "pearl" is still the farmer's animal) -- look it up and answer.
 
 Your answer is shown as text AND read aloud by text-to-speech -- these can differ. The text answer can be as detailed as the question needs (full breakdowns, full lists). The spoken version must always be short, since a farmer listening doesn't want a list of 5+ numbers read out loud one by one.
 
-So: after your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly summary of the same answer -- one sentence, no itemized lists, no reading out every number in a breakdown (say "you have 53 animals across 5 species" instead of naming each species and count). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line, even for a greeting."""
+So: after your full text answer, on its own line, write exactly `---SPOKEN---` followed by a short, spoken-friendly summary of the same answer -- one sentence, no itemized lists, no reading out every number in a breakdown (say "you have 53 animals across 5 species" instead of naming each species and count). If your text answer is already one short sentence, the spoken version can repeat it as-is. Always include the `---SPOKEN---` line, even for a greeting.
+{farm_values}"""
+
+
+# Values block for the prompt (see "Values in this farmer's records" in the
+# instruction). Real bugs found by the evals suite (evals/, layer 1): the
+# model never saw which values are actually stored, only column names and
+# the example "'goat', 'sheep'". So it guessed: Kannada "how many chickens"
+# came back "you only have goats and sheep" (3/3 runs), Marathi "how many
+# buffaloes" came back 2 or 9 instead of 16, Telugu "గౌరి" never matched the
+# stored 'GAURI', and "RAJA कौन सा जानवर है?" was refused as general
+# knowledge because nothing told the model RAJA is one of the farmer's own
+# animals. Built from the farmer's own rows on every turn (no hardcoded word
+# lists), capped so a very large farm can't blow up the prompt, and fully
+# skippable via QUERY_AGENT_VALUE_HINTS=0 as a kill switch. The block sits
+# at the very END of the instruction, so the long schema + rules part stays
+# an identical prefix for every farmer (prompt caching, see the note in
+# bedrock_adapter.py, can only reuse an identical prefix).
+_VALUE_HINTS_ENV = "QUERY_AGENT_VALUE_HINTS"
+_MAX_HINT_NAMES = 150
+_MAX_HINT_BREEDS = 60
+
+# The farmer's word for each stored species, given to the model so it names
+# the species correctly in its answer. Real bug found by the evals suite:
+# asked "LAKSHMI ഏത് മൃഗമാണ്?" the model read species 'buffalo' from the
+# database and still answered "...പശുവാണ്" ("is a cow") in 10 of 10 runs; a
+# rule saying "translate faithfully" was not enough. Same idea as
+# _COLUMN_LABELS above: a fixed catalog keyed by the English database value,
+# not an LLM guess. Only used to word the answer -- never to match or filter
+# what the farmer typed. A species missing here simply gets no hint (the
+# model translates it itself, as before), and English needs none.
+_SPECIES_WORDS = {
+    "hi": {"goat": "बकरी", "sheep": "भेड़", "buffalo": "भैंस", "cow": "गाय", "chicken": "मुर्गी"},
+    "mr": {"goat": "शेळी", "sheep": "मेंढी", "buffalo": "म्हैस", "cow": "गाय", "chicken": "कोंबडी"},
+    "ta": {"goat": "வெள்ளாடு", "sheep": "செம்மறி ஆடு", "buffalo": "எருமை", "cow": "பசு", "chicken": "கோழி"},
+    "te": {"goat": "మేక", "sheep": "గొర్రె", "buffalo": "గేదె", "cow": "ఆవు", "chicken": "కోడి"},
+    "kn": {"goat": "ಮೇಕೆ", "sheep": "ಕುರಿ", "buffalo": "ಎಮ್ಮೆ", "cow": "ಹಸು", "chicken": "ಕೋಳಿ"},
+    "ml": {"goat": "ആട്", "sheep": "ചെമ്മരിയാട്", "buffalo": "എരുമ", "cow": "പശു", "chicken": "കോഴി"},
+}
+
+
+def _reply_language(script_lang: str, labels_lang: str) -> str:
+    """Language the answer will be written in, for the species words. The
+    model answers in the language the farmer typed, so the query's script
+    wins; the app's language only decides when the script can't (Roman
+    letters look like English, and Devanagari can be Hindi or Marathi)."""
+    if script_lang == "en":
+        return labels_lang
+    if script_lang == "hi" and labels_lang == "mr":
+        return "mr"
+    return script_lang
+
+
+def _hint_values(farmer_id: str, sql: str, limit: int) -> "list[str]":
+    """Distinct non-empty values from one SELECT, as strings. Any failure
+    returns [] so the prompt just loses the hint instead of the turn failing."""
+    try:
+        result = execute_query(sql, farmer_id)
+    except Exception as exc:
+        logger.warning("query_agent value hints skipped farmer=%s: %s", farmer_id, exc)
+        return []
+    if not result.get("success"):
+        logger.warning("query_agent value hints skipped farmer=%s: %s", farmer_id, result.get("error"))
+        return []
+    out: "list[str]" = []
+    for row in result.get("rows") or []:
+        if not row or row[0] is None:
+            continue
+        # ADK treats {name} in an instruction as a session-state variable, so
+        # a stray brace in stored data must never reach the instruction text.
+        value = str(row[0]).strip().replace("{", "").replace("}", "")
+        if value and value not in out:
+            out.append(value)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _farm_values_for_prompt(farmer_id: str, language: "str | None" = None) -> str:
+    """'Values in this farmer's records' section of the instruction, or ''
+    when disabled or when nothing could be read. `language` (a key of
+    _SPECIES_WORDS) adds the farmer's word for each stored species."""
+    if os.getenv(_VALUE_HINTS_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    species = _hint_values(
+        farmer_id, "SELECT DISTINCT LOWER(species) FROM animals ORDER BY 1", 30)
+    breeds = _hint_values(
+        farmer_id,
+        "SELECT DISTINCT LOWER(species) || ': ' || breed FROM animals "
+        "WHERE breed IS NOT NULL AND breed != '' ORDER BY 1",
+        _MAX_HINT_BREEDS)
+    names = _hint_values(
+        farmer_id,
+        "SELECT tag_or_name FROM animals WHERE tag_or_name IS NOT NULL "
+        f"AND tag_or_name != '' ORDER BY 1 LIMIT {_MAX_HINT_NAMES + 1}",
+        _MAX_HINT_NAMES + 1)
+    if not (species or breeds or names):
+        return ""
+    lines = ["", "Values in this farmer's records (exact stored spellings):"]
+    if species:
+        lines.append("- species: " + ", ".join(species))
+        words = _SPECIES_WORDS.get(language or "", {})
+        pairs = [f"{s} = {words[s]}" for s in species if s in words]
+        if pairs:
+            lines.append(
+                "- when your answer names a species, use exactly these words for it "
+                "(for a male animal, the male word if the language has one): "
+                + "; ".join(pairs))
+            # The same words are what the farmer says. Found by the evals
+            # suite (layer 2): Roman Marathi "shelya" (goats) was counted as
+            # sheep 2 runs out of 3 -- the rule below only listed the word,
+            # not what it means, and it sounds like English "sheep".
+            lines.append(
+                "- the farmer uses these same words for these species too -- in any "
+                "form (plural, with a case ending) and also typed in English letters. "
+                "Read such a word by its meaning in the farmer's language, even when "
+                "it sounds like a different English word.")
+    if breeds:
+        lines.append("- breeds (species: breed): " + "; ".join(breeds))
+    if names:
+        more = len(names) > _MAX_HINT_NAMES
+        shown = names[:_MAX_HINT_NAMES]
+        lines.append("- animal names/tags: " + ", ".join(shown)
+                     + (" (more exist; query to check others)" if more else ""))
+    return "\n".join(lines) + "\n"
+
+
+# Name notes for the farmer's message. Farmers type an animal's name in
+# their own script and spelling (गोरी, గౌరి, கௌரி for a stored "GAURI"), and
+# the model, even with the names listed above, often fails to connect them
+# -- it may read the name as a similar-sounding word (a species) or answer
+# that no such animal exists. Each word of the message is compared with the
+# farmer's own stored names by sound (services/common/name_match.py); a
+# confident match is added as a short note at the end of the message. No
+# model call, no word lists. QUERY_AGENT_NAME_HINTS=0 turns it off.
+_NAME_HINTS_ENV = "QUERY_AGENT_NAME_HINTS"
+_MAX_NAME_NOTES = 3
+# One row (group_concat) so the result is not cut at db._MAX_ROWS.
+_ALL_NAMES_SQL = (
+    "SELECT group_concat(tag_or_name, char(10)) FROM "
+    "(SELECT DISTINCT tag_or_name FROM animals "
+    "WHERE tag_or_name IS NOT NULL AND tag_or_name != '')"
+)
+
+
+def _stored_animal_names(farmer_id: str) -> "list[str]":
+    """All of this farmer's animal names/tags. [] if they can't be read."""
+    try:
+        result = execute_query(_ALL_NAMES_SQL, farmer_id)
+    except Exception as exc:
+        logger.warning("query_agent name notes skipped farmer=%s: %s", farmer_id, exc)
+        return []
+    if not result.get("success"):
+        logger.warning("query_agent name notes skipped farmer=%s: %s", farmer_id, result.get("error"))
+        return []
+    rows = result.get("rows") or []
+    joined = rows[0][0] if rows and rows[0] else None
+    return [n.strip() for n in str(joined or "").split("\n") if n.strip()]
+
+
+def _with_name_notes(query: str, farmer_id: str) -> str:
+    """`query` plus a note for each word that most likely names one of the
+    farmer's animals, or `query` unchanged when nothing matches, the store
+    can't be read, or the feature is turned off."""
+    if os.getenv(_NAME_HINTS_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return query
+    names = _stored_animal_names(farmer_id)
+    if not names:
+        return query
+    mentions = find_name_mentions(query, names)[:_MAX_NAME_NOTES]
+    if not mentions:
+        return query
+    logger.info(
+        "query_agent name notes farmer=%s %s", farmer_id,
+        ", ".join(f"{m.word!r}->{m.name} ({m.score})" for m in mentions),
+    )
+    notes = "; ".join(f'"{m.word}" most likely means the farmer\'s animal {m.name}' for m in mentions)
+    return f"{query}\n\n(Note: {notes}.)"
 
 
 def _make_run_sql_query_tool(farmer_id: str):
@@ -279,10 +503,11 @@ def _make_run_sql_query_tool(farmer_id: str):
     return run_sql_query
 
 
-def build_query_agent(farmer_id: str) -> LlmAgent:
+def build_query_agent(farmer_id: str, language: "str | None" = None) -> LlmAgent:
     """One Agent per farmer_id -- farmer_id is baked into the tool closure
     above, not passed through the model, so no prompt can ever redirect a
-    query at a different farmer's data."""
+    query at a different farmer's data. `language` is the answer's language
+    (see _reply_language); it only adds the species words to the prompt."""
     model_spec = model_for_task(TaskTier.GENERATION)
     schema = generate_schema_for_prompt()
 
@@ -297,7 +522,8 @@ def build_query_agent(farmer_id: str) -> LlmAgent:
             "about the farmer's own animals or records."
         ),
         model=build_adk_model(TaskTier.GENERATION, model_spec["id"], temperature=model_spec["temperature"]),
-        instruction=_INSTRUCTION_TEMPLATE.format(schema=schema),
+        instruction=_INSTRUCTION_TEMPLATE.format(
+            schema=schema, farm_values=_farm_values_for_prompt(farmer_id, language)),
         tools=[_make_run_sql_query_tool(farmer_id)],
         # Saves the final answer into the session state, so the next turn
         # (and later, other agents) can read what was last answered.
@@ -422,21 +648,72 @@ async def _get_or_create_session(service: BaseSessionService, user_id: str, sess
         return await service.create_session(app_name=_APP_NAME, user_id=user_id, session_id=session_id)
 
 
+# Lookups kept for one answer's data_sets: the last few distinct ones (a
+# retried, identical query counts once). The records card shows up to 3 of
+# them; a few more are kept because a single count adds nothing there.
+_MAX_DATA_SETS = 5
+
+
+def _distinct_lookups(results: "list[dict[str, Any]]") -> "list[dict[str, Any]]":
+    """The turn's successful lookups without repeats (same columns and rows),
+    last _MAX_DATA_SETS, in the order they were made."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in results:
+        key = repr((r.get("columns"), r.get("rows")))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out[-_MAX_DATA_SETS:]
+
+
+def _data_payload(sql_result: "dict[str, Any]", labels_lang: str) -> "dict[str, Any]":
+    """One lookup's rows for the API response.
+
+    Raw data payload stays machine-readable (English column identifiers,
+    native int/float scalars, tag/ID/date strings unchanged) -- reviewers
+    found the previous always-translate behavior corrupted IDs and dates so
+    they no longer round-tripped to the DB. Localized copies for UI display
+    live in data["display"], keyed the same way, so the frontend can pick one
+    or the other without ambiguity. Headings and row digits both follow
+    labels_lang so the whole response is internally consistent in one
+    language (found in deep-review of PR #41)."""
+    raw_data = {
+        "columns": sql_result.get("columns"),
+        "rows": sql_result.get("rows"),
+        "row_count": sql_result.get("row_count"),
+        "truncated": sql_result.get("truncated", False),
+    }
+    if labels_lang in _COLUMN_LABELS:
+        raw_data["display"] = {
+            "columns": _localize_columns(raw_data["columns"], labels_lang),
+            "rows": _localize_numbers(raw_data["rows"], labels_lang),
+        }
+    return raw_data
+
+
 async def _run_query_async(
     query: str,
     farmer_id: str,
     session_id: str | None = None,
     app_language: str | None = None,
 ) -> dict[str, Any]:
-    agent = build_query_agent(farmer_id)
+    lang = detect_language(query)
+    labels_lang = _labels_language(lang, app_language)
+    agent = build_query_agent(farmer_id, _reply_language(lang, labels_lang))
     service = _session_service()
     runner = Runner(agent=agent, app_name=_APP_NAME, session_service=service)
     user_id = f"farmer-{farmer_id}"
     session = await _get_or_create_session(service, user_id, session_id)
-    message = types.Content(role="user", parts=[types.Part(text=query)])
+    message = types.Content(role="user", parts=[types.Part(text=_with_name_notes(query, farmer_id))])
 
     answer_text: str | None = None
     last_successful_result: dict[str, Any] | None = None
+    # Every successful lookup of this turn, in order: a health report needs
+    # several (AI health checks, health problems, pending vaccines), and the
+    # app's records card shows each of them (data_sets below).
+    successful_results: list[dict[str, Any]] = []
 
     try:
         async for event in runner.run_async(
@@ -446,6 +723,7 @@ async def _run_query_async(
             for fr in event.get_function_responses():
                 if fr.name == "run_sql_query" and isinstance(fr.response, dict) and fr.response.get("success"):
                     last_successful_result = fr.response
+                    successful_results.append(fr.response)
             if event.is_final_response() and event.content and event.content.parts:
                 answer_text = "".join(p.text for p in event.content.parts if p.text)
     except LlmCallsLimitExceededError:
@@ -457,41 +735,22 @@ async def _run_query_async(
 
     text_answer, speech_text = _split_text_and_speech(answer_text)
 
-    lang = detect_language(query)
-    labels_lang = _labels_language(lang, app_language)
     text_answer, speech_text = _localize_answer_digits(text_answer, speech_text, labels_lang)
 
     if last_successful_result is None:
         return {"answer": text_answer, "sql": None, "data": None, "speech_text": speech_text}
 
-    # Raw data payload stays machine-readable (English column identifiers,
-    # native int/float scalars, tag/ID/date strings unchanged) -- reviewers
-    # found the previous always-translate behavior corrupted IDs and dates
-    # so they no longer round-tripped to the DB. Localized copies for UI
-    # display live in data["display"], keyed the same way, so the frontend
-    # can pick one or the other without ambiguity.
-    raw_data = {
-        "columns": last_successful_result.get("columns"),
-        "rows": last_successful_result.get("rows"),
-        "row_count": last_successful_result.get("row_count"),
-        "truncated": last_successful_result.get("truncated", False),
-    }
-    # Headings and row digits both follow labels_lang (computed above,
-    # now also used for the text/speech answer's digits) so the whole
-    # response is internally consistent in one language -- not "English
-    # headings over Devanagari digits" when the app's language and the
-    # query's script differ (found in deep-review of PR #41).
-    if labels_lang in _COLUMN_LABELS:
-        raw_data["display"] = {
-            "columns": _localize_columns(raw_data["columns"], labels_lang),
-            "rows": _localize_numbers(raw_data["rows"], labels_lang),
-        }
-    return {
+    raw_data = _data_payload(last_successful_result, labels_lang)
+    result = {
         "answer": text_answer,
         "sql": last_successful_result.get("sql"),
         "data": raw_data,
         "speech_text": speech_text,
     }
+    data_sets = _distinct_lookups(successful_results)
+    if len(data_sets) >= 2:
+        result["data_sets"] = [_data_payload(r, labels_lang) for r in data_sets]
+    return result
 
 
 def process_query_adk(
