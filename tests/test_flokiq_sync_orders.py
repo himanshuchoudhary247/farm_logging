@@ -86,18 +86,21 @@ def test_search_with_a_bad_products_field_returns_an_empty_list(on, monkeypatch)
 
 
 def test_a_200_with_an_unexpected_body_is_logged(on, monkeypatch, caplog):
-    """Real bug, found in deep review: a non-200 status is already logged
-    inside _order_request, but a 200 response with no "storeAssigned" key
-    (e.g. a proxy error page served with status 200 -- the exact case this
-    function's own docstring anticipates) logged nothing anywhere in the
-    chain -- a diagnostic blind spot for whoever has to debug a real
-    incident, since the farmer-facing behaviour (treated as unreachable)
-    was already correct either way."""
+    """A non-200 status is already logged inside _order_request, but a 200
+    response with no "storeAssigned" key (e.g. a proxy error page served
+    with status 200 -- the exact case this function's own docstring
+    anticipates) logged nothing anywhere in the chain -- a diagnostic
+    blind spot for whoever has to debug a real incident, since the
+    farmer-facing behaviour (treated as unreachable) was already correct
+    either way. The key names (never values) are logged for that
+    diagnosis, matching this file's existing care about not logging
+    farmer data."""
     _capture(monkeypatch, _Resp(200, {"unexpected": "shape"}))
     with caplog.at_level("WARNING"):
         assert client.search_products(FARMER, "calcium") is None
     assert "unexpected body shape" in caplog.text
     assert FARMER in caplog.text
+    assert "['unexpected']" in caplog.text
 
 
 def test_a_500_is_not_double_logged_by_the_new_warning(on, monkeypatch, caplog):

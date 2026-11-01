@@ -576,17 +576,16 @@ def search_products(farmer_id: str, search: str = "", limit: int = 5,
     if result["status"] != 200 or "storeAssigned" not in body:
         # An answer without the expected shape (e.g. a proxy error page
         # with status 200) is "could not reach the shop", never "no store".
-        # Real bug, found in deep review: a non-200 status is already
-        # logged inside _order_request, but a 200 with an unexpected body
-        # (no "storeAssigned" key) logged nothing anywhere in this chain --
-        # a diagnostic blind spot for exactly the case this function's own
-        # docstring/comment anticipates, since _browse() (order_supervisor)
-        # now exercises this path on every "no product named" order turn.
+        # A non-200 status is already logged inside _order_request; this is
+        # the one case that wasn't -- a 200 with no "storeAssigned" key, the
+        # exact shape this comment above anticipates. Key names only (never
+        # values, matching this file's existing care about not logging
+        # farmer data) so a real incident is actually debuggable.
         if result["status"] == 200:
             _log.warning(
-                "flokiq_sync search_products farmer=%s got status 200 with an unexpected body shape (no "
-                "storeAssigned key) -- treating as unreachable",
-                farmer_id,
+                "flokiq_sync search_products farmer=%s got status 200 with an unexpected body shape "
+                "(no storeAssigned key, got keys=%s) -- treating as unreachable",
+                farmer_id, sorted(body.keys()) if isinstance(body, dict) else type(body).__name__,
             )
         return None
     products = body.get("products")
