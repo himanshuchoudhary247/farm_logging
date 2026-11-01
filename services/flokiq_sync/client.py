@@ -499,3 +499,116 @@ def _fetch_farm_animals(base: str, key: str, farmer_id: str, timeout_s: float) -
         animals = []
     _log.info("flokiq_sync farm animals found=%d farmer=%s", len(animals), farmer_id)
     return animals, _FARM_ANIMALS_TTL_S
+
+
+# ---------------------------------------------------------------------------
+# Shop orders placed through the chat (main_backend /internal/orders).
+#
+# The order agent (services/order_supervisor) asks main_backend three things:
+# which products this farmer can order (search_products), the exact total for
+# a cart (quote_order) and to create the order with its Razorpay order
+# (create_order). main_backend prices everything from the farmer's own store
+# and never trusts a price from here.
+#
+# Unlike the best-effort sync calls above, an order cannot be "saved locally
+# and synced later": main_backend is the only place it can exist. So these
+# calls return enough for the agent to tell the farmer what happened --
+# quote_order/create_order return {"status": <HTTP status or None>, "body":
+# <parsed JSON or {}>}, where status None means the call never got an answer
+# (sync off or unconfigured, not a main_backend farmer, network error). They
+# never raise.
+# ---------------------------------------------------------------------------
+
+def orders_available(farmer_id: str) -> bool:
+    """True if the order calls below would actually reach main_backend for
+    this farmer: sync enabled, base URL and key set, and a main_backend
+    (UUID) farmer id. Same precondition as every write call in this module."""
+    return _can_sync_for_farmer(farmer_id)
+
+
+def _order_request(method: str, path: str, farmer_id: str, timeout_s: float,
+                   params: Optional[dict[str, Any]] = None,
+                   payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    if not orders_available(farmer_id):
+        return {"status": None, "body": {}}
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+    try:
+        resp = requests.request(
+            method,
+            f"{base}{path}",
+            params=params,
+            json=payload,
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync %s %s failed farmer=%s err=%s", method, path, farmer_id, exc)
+        return {"status": None, "body": {}}
+    try:
+        body = resp.json()
+    except ValueError:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    if resp.status_code >= 400:
+        # The body carries main_backend's reason (e.g. items_unavailable);
+        # no farmer data is logged beyond the id.
+        _log.warning(
+            "flokiq_sync %s %s farmer=%s status=%s reason=%s",
+            method, path, farmer_id, resp.status_code, body.get("reason") or body.get("message"),
+        )
+    return {"status": resp.status_code, "body": body}
+
+
+def search_products(farmer_id: str, search: str = "", limit: int = 5,
+                    timeout_s: float = 5.0) -> Optional[dict[str, Any]]:
+    """GET /internal/orders/products: products the farmer can order now in
+    their own store, each with productId, name, unitPrice, mrp, available and
+    prescriptionRequired. Returns {"storeAssigned": bool, "products": [...]},
+    or None if the call could not be made or failed (the caller should say
+    the shop could not be reached, not "nothing found")."""
+    result = _order_request(
+        "GET", "/internal/orders/products", farmer_id, timeout_s,
+        params={"farmerId": farmer_id, "search": (search or "")[:100], "limit": max(1, min(int(limit), 20))},
+    )
+    body = result["body"]
+    if result["status"] != 200 or "storeAssigned" not in body:
+        # An answer without the expected shape (e.g. a proxy error page
+        # with status 200) is "could not reach the shop", never "no store".
+        return None
+    products = body.get("products")
+    return {
+        "storeAssigned": bool(body.get("storeAssigned")),
+        "products": products if isinstance(products, list) else [],
+    }
+
+
+def quote_order(farmer_id: str, items: list[dict[str, Any]], delivery_address: str = "",
+                timeout_s: float = 8.0) -> dict[str, Any]:
+    """POST /internal/orders/quote: the exact total for `items`
+    ([{"productId", "quantity"}]) and the delivery address that would be
+    used (the farmer's profile address when none is given). Nothing is saved.
+    200 -> body {totalAmount, currency, deliveryAddress, items};
+    409 -> body.reason 'items_unavailable' (body.problems) or 'no_store'."""
+    payload: dict[str, Any] = {"farmerId": farmer_id, "items": items}
+    if delivery_address:
+        payload["deliveryAddress"] = delivery_address[:500]
+    return _order_request("POST", "/internal/orders/quote", farmer_id, timeout_s, payload=payload)
+
+
+def create_order(farmer_id: str, items: list[dict[str, Any]], delivery_address: str = "",
+                 timeout_s: float = 30.0) -> dict[str, Any]:
+    """POST /internal/orders: creates the unpaid order and its Razorpay order.
+    201 (new) or 200 (main_backend reused the same unpaid order, e.g. after
+    a retry) -> body {orderId, orderCode, totalAmount, currency,
+    deliveryAddress, items, payment: {razorpayOrderId, amount, currency}}.
+    409 -> 'items_unavailable' / 'stock_changed' / 'no_store';
+    422 -> 'address_required'; 502 -> 'payment_unavailable' (order saved,
+    a retry reuses it). The timeout is longer than the other calls because
+    main_backend also prepares the order's documents while creating it; a
+    retry after a timeout is safe for the same reason as above."""
+    payload: dict[str, Any] = {"farmerId": farmer_id, "items": items}
+    if delivery_address:
+        payload["deliveryAddress"] = delivery_address[:500]
+    return _order_request("POST", "/internal/orders", farmer_id, timeout_s, payload=payload)
