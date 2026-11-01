@@ -670,27 +670,35 @@ class OrderSupervisor(DraftSupervisor):
     # ------------------------------------------------------------------ steps
 
     def _fetch_products(self, draft: dict[str, Any], farmer_id: str, query: str, limit: int, log_verb: str,
-                        text: str, include_audio: bool) -> tuple[Optional[list[dict[str, Any]]], Optional[dict[str, Any]]]:
+                        text: str, include_audio: bool) -> tuple[str, Optional[list[dict[str, Any]]], Optional[dict[str, Any]]]:
         """The main_backend call shared by _search (query) and _browse (empty
         query): fetch, filter to real product dicts, image-check, cap, log.
-        Returns (products, None) on success, or (None, response) when the
-        caller should return that response immediately (unreachable shop or
-        no store assigned) without doing its own product-list handling."""
+        Returns ("ok", products, None) on success. Returns
+        ("unreachable"/"no_store", None, response) when the caller must
+        return that response immediately -- the leading status string makes
+        the early-exit case impossible to miss even if a caller only checks
+        `products` truthiness (an empty product list and "must return
+        early" are both falsy, so the status is the real signal, not the
+        None-ness of `products`), and lets a caller tell "unreachable"
+        (draft["state"] untouched -- the caller decides) apart from
+        "no_store" (terminal: _end() already set draft["state"] = CANCELLED
+        and saved -- a caller must NOT touch state again after this one)."""
         language = draft["language"]
         found = flokiq_sync.search_products(farmer_id, query, limit=limit)
         if found is None:
-            draft["state"] = SEARCHING
             self._save(draft)
-            return None, self._response(draft, self._message(language, "shop_unreachable"), input_transcript=text,
-                                        include_audio=include_audio)
+            return "unreachable", None, self._response(draft, self._message(language, "shop_unreachable"),
+                                                        input_transcript=text, include_audio=include_audio)
         if not found["storeAssigned"]:
-            return None, self._end(draft, CANCELLED, "no_store", text, include_audio)
+            # _end() already sets draft["state"] = CANCELLED and saves --
+            # a caller must not touch state again after this.
+            return "no_store", None, self._end(draft, CANCELLED, "no_store", text, include_audio)
         products = [
             _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
         ][:limit]
         _log.info("order %s farmer=%s query=%r found=%d with_image=%d", log_verb, farmer_id, query[:60],
                   len(products), sum(1 for p in products if p["image"]))
-        return products, None
+        return "ok", products, None
 
     def _search(self, draft: dict[str, Any], farmer_id: str, query: str, text: str,
                 include_audio: bool) -> Optional[dict[str, Any]]:
@@ -699,8 +707,14 @@ class OrderSupervisor(DraftSupervisor):
         go on to the quantity in this same turn."""
         values = draft["draft"]
         language = draft["language"]
-        products, early = self._fetch_products(draft, farmer_id, query, MAX_CHOICES, "search", text, include_audio)
-        if early is not None:
+        status, products, early = self._fetch_products(draft, farmer_id, query, MAX_CHOICES, "search", text, include_audio)
+        if status != "ok":
+            # Unlike _browse, a search can be triggered mid-CHOOSING (the
+            # farmer typed a different product name while options were
+            # still outstanding) -- leaving state untouched on "unreachable"
+            # means a backend hiccup doesn't silently strand the draft in
+            # SEARCHING with stale options still sitting in it. "no_store"
+            # already set a terminal CANCELLED state inside _fetch_products.
             return early
         if not products:
             values["product"] = None
@@ -731,8 +745,18 @@ class OrderSupervisor(DraftSupervisor):
         search, with no search words."""
         values = draft["draft"]
         language = draft["language"]
-        products, early = self._fetch_products(draft, farmer_id, "", MAX_BROWSE, "browse", text, include_audio)
-        if early is not None:
+        status, products, early = self._fetch_products(draft, farmer_id, "", MAX_BROWSE, "browse", text, include_audio)
+        if status == "unreachable":
+            # Unlike _search, _browse is only ever reached from SEARCHING
+            # (the farmer hasn't named a product yet), so there's no
+            # mid-CHOOSING state to protect -- explicitly re-assert
+            # SEARCHING so a stale state can't linger either way.
+            draft["state"] = SEARCHING
+            self._save(draft)
+            return early
+        if status == "no_store":
+            # _fetch_products already set a terminal CANCELLED state and
+            # saved -- must not touch state again.
             return early
         values["product"] = None
         if not products:

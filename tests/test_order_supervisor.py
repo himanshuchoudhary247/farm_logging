@@ -167,6 +167,28 @@ def test_shop_unreachable_is_said_and_the_conversation_stays_open(sup, monkeypat
     assert r["state"] == "SEARCHING"
 
 
+def test_shop_unreachable_mid_choosing_does_not_strand_the_draft_in_searching(sup, monkeypatch):
+    """Real bug, introduced then caught during a refactor that shared
+    _search/_browse's product-fetch into one _fetch_products helper: the
+    shared helper unconditionally set draft["state"] = SEARCHING on the
+    unreachable path, copying _browse's behaviour onto _search too. But a
+    search can be triggered mid-CHOOSING (the farmer types a different
+    product name while options are still outstanding) -- before this fix,
+    a backend hiccup at that moment left state="SEARCHING" while the stale
+    "options" from the earlier search were still sitting in the draft, an
+    internally inconsistent combination that never existed pre-refactor."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": "calcium"}, {"product_query": "liver tonic"}])
+    first = sup.turn(FARMER, "s1", "calcium", include_audio=False)
+    assert first["state"] == "CHOOSING"
+    backend._answers["search"] = [None]
+    second = sup.turn(FARMER, "s1", "liver tonic", include_audio=False)
+    assert second["response_text"] == service._TEXT["en"]["shop_unreachable"]
+    # Unchanged from before the refactor: a mid-CHOOSING unreachable error
+    # leaves state alone (still CHOOSING here), not forced to SEARCHING.
+    assert second["state"] == "CHOOSING"
+
+
 def test_farmer_without_a_store_is_told_and_the_conversation_ends(sup, monkeypatch):
     Backend(monkeypatch, search=[{"storeAssigned": False, "products": []}])
     _say(sup, [{"product_query": "calcium"}])
