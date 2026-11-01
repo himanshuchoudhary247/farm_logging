@@ -689,11 +689,18 @@ class AppointmentSupervisor(DraftSupervisor):
             resp["options"] = options
         return resp
 
-    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+    def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+             recent_animal: Optional[str] = None) -> dict[str, Any]:
+        """recent_animal (optional): the one stored animal the farmer was
+        talking about in the turn just before ("what breed is KAALI?"), so
+        "book a vet for her" knows which animal. Used only when this turn
+        names no animal and the booking has none yet; the readback shows
+        it, so the farmer can still correct it. The router decides it."""
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self._turn_locked(farmer_id, session_id, text, language, include_audio, recent_animal)
 
-    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True) -> dict[str, Any]:
+    def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
+                     recent_animal: Optional[str] = None) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
         if draft.get("submitted") or draft.get("state") == "CANCELLED":
             # Prior booking on this session_id is either already saved
@@ -762,6 +769,20 @@ class AppointmentSupervisor(DraftSupervisor):
         result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
+
+        # "What breed is KAALI?" then "she is limping, book a vet for her":
+        # the extraction finds no animal in "her" (seen live in en/hi), and the
+        # bot asked for the animal again. Fill in the animal from the turn
+        # before, only when this turn names none and the booking has none.
+        if (
+            recent_animal
+            and not draft.get("animal_verified")
+            and not draft["draft"].get("animal_identifier")
+            and not (turn_entities.get("animal_id") or turn_entities.get("animal_tag") or turn_entities.get("animal_name"))
+        ):
+            turn_entities = {**turn_entities, "animal_name": recent_animal}
+            result = {**result, "entities": turn_entities}
+            _log.info("appointment animal taken from the previous turn session=%s animal=%s", session_id, recent_animal)
 
         # Real gap, found via live testing: a genuine off-topic question
         # mid-booking ("any animal with ram") got forced through this state
