@@ -91,6 +91,152 @@ def test_health_log_sync_is_off_by_default(on, monkeypatch):
     assert calls == []
 
 
+def _capture_get(monkeypatch, resp):
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        return resp
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    return calls
+
+
+@pytest.fixture(autouse=True)
+def _clear_farm_animals_cache():
+    client._farm_animals_cache.clear()
+    yield
+    client._farm_animals_cache.clear()
+
+
+def test_farm_animals_off_by_default_makes_no_call(monkeypatch):
+    monkeypatch.delenv("FLOKIQ_SYNC_ENABLED", raising=False)
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    assert client.get_farm_animals(FARMER) == []
+    assert calls == []
+
+
+def test_farm_animals_demo_farmer_id_is_skipped(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    assert client.get_farm_animals("f-001") == []
+    assert calls == []
+
+
+def test_farm_animals_gets_the_internal_route_with_key(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    result = client.get_farm_animals(FARMER)
+    assert result == [{"uniqueAnimalId": "GAURI"}]
+    call = calls[0]
+    assert call["url"] == f"https://backend.test/v1/internal/farmers/{FARMER}/animals"
+    assert call["headers"] == {"X-Internal-Api-Key": "secret-key"}
+
+
+def test_farm_animals_result_is_cached(on, monkeypatch):
+    calls = _capture_get(monkeypatch, _Resp(200, {"animals": [{"uniqueAnimalId": "GAURI"}]}))
+    client.get_farm_animals(FARMER)
+    client.get_farm_animals(FARMER)
+    assert len(calls) == 1, "a second call within the TTL must be served from cache"
+
+
+def test_farm_animals_http_error_returns_empty_list(on, monkeypatch):
+    _capture_get(monkeypatch, _Resp(500, None, "boom"))
+    assert client.get_farm_animals(FARMER) == []
+
+
+def test_farm_animals_network_error_returns_empty_list(on, monkeypatch):
+    def boom(url, **kwargs):
+        raise client.requests.ConnectionError("down")
+
+    monkeypatch.setattr(client.requests, "get", boom)
+    assert client.get_farm_animals(FARMER) == []
+
+
+@pytest.fixture
+def health_on(on, monkeypatch):
+    monkeypatch.setenv("FLOKIQ_SYNC_HEALTH_LOGS", "true")
+
+
+def test_health_log_demo_farmer_id_is_skipped(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log("f-001", "411001", ["fever"]) is None
+    assert calls == []
+
+
+ANIMAL = "11111111-1111-1111-1111-111111111111"
+
+
+def test_health_log_sends_json_to_internal_route_with_key(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    result = client.create_health_log(
+        FARMER, "411001", ["fever", "not eating"],
+        animal_id=ANIMAL, risk_level="Medium",
+        ai_diagnosis_suggestion="Could be a sign of mastitis.",
+        potential_ailments=["mastitis"], first_aid_advice="Keep hydrated.",
+    )
+    assert result == {"log_id": "h-1"}
+    call = calls[0]
+    assert call["url"] == "https://backend.test/v1/internal/health-logs"
+    assert call["headers"] == {"X-Internal-Api-Key": "secret-key"}
+    assert call["json"] == {
+        "farmerId": FARMER,
+        "pincode": "411001",
+        "symptomsReported": ["fever", "not eating"],
+        "animalId": ANIMAL,
+        "riskLevel": "Medium",
+        "aiDiagnosisSuggestion": "Could be a sign of mastitis.",
+        "potentialAilments": ["mastitis"],
+        "firstAidAdvice": "Keep hydrated.",
+    }
+
+
+def test_health_log_non_uuid_animal_id_is_omitted_not_fatal(health_on, monkeypatch):
+    """Real bug, review-found: animals registered through Chocolate have
+    local, non-UUID ids (e.g. "MLTEST03"). main_backend requires animalId
+    to be a UUID -- sending one of those would 400 the ENTIRE log,
+    dropping real symptoms/AI-diagnosis data over an optional field. The
+    log must still go through, just without the animal link."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    result = client.create_health_log(FARMER, "411001", ["fever"], animal_id="MLTEST03")
+    assert result == {"log_id": "h-1"}
+    assert "animalId" not in calls[0]["json"]
+
+
+def test_health_log_non_pin_pincode_skips_the_call(health_on, monkeypatch):
+    """Real bug, review-found: pincode here can be values["weather_location"],
+    which is sometimes a place name ("Pune") rather than a 6-digit PIN.
+    pincode is NOT NULL on main_backend -- sending a place name would
+    400, so it must be treated the same as a missing pincode (skip)."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log(FARMER, "Pune", ["fever"]) is None
+    assert calls == []
+
+
+def test_health_log_risk_level_is_normalized_to_main_backends_casing(health_on, monkeypatch):
+    """risk_level comes from an LLM; main_backend only accepts the exact
+    casing Low/Medium/High."""
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    client.create_health_log(FARMER, "411001", ["fever"], risk_level="low")
+    assert calls[0]["json"]["riskLevel"] == "Low"
+
+
+def test_health_log_unrecognized_risk_level_is_omitted(health_on, monkeypatch):
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    client.create_health_log(FARMER, "411001", ["fever"], risk_level="critical")
+    assert "riskLevel" not in calls[0]["json"]
+
+
+def test_health_log_missing_key_makes_no_call(health_on, monkeypatch):
+    monkeypatch.delenv("FLOKIQ_INTERNAL_API_KEY")
+    calls = _capture(monkeypatch, _Resp(201, {"log_id": "h-1"}))
+    assert client.create_health_log(FARMER, "411001", ["fever"]) is None
+    assert calls == []
+
+
+def test_health_log_http_error_returns_none(health_on, monkeypatch):
+    _capture(monkeypatch, _Resp(400, None, '{"message":"bad"}'))
+    assert client.create_health_log(FARMER, "411001", ["fever"]) is None
+
+
 def test_notes_name_the_animal_and_issue():
     values = {"animal_name": "GAURI", "species": "goat", "issue": "not eating", "miscellaneous_notes": "since yesterday"}
     assert client.build_appointment_notes(values) == "GAURI (goat): not eating. since yesterday. Booked via Chocolate."
@@ -103,4 +249,26 @@ def test_notes_fall_back_to_symptoms():
 
 def test_notes_are_capped():
     assert len(client.build_appointment_notes({"issue": "x" * 5000})) == 1000
+
+
+def test_will_attempt_sync_true_only_when_everything_create_appointment_needs_is_set(on):
+    """will_attempt_appointment_sync lets a caller distinguish "sync
+    doesn't apply here" from "sync was attempted and failed" -- both of
+    which create_appointment reports identically as None. Must mirror
+    create_appointment's own preconditions exactly."""
+    assert client.will_attempt_appointment_sync(FARMER) is True
+
+
+def test_will_attempt_sync_false_when_disabled(monkeypatch):
+    monkeypatch.delenv("FLOKIQ_SYNC_ENABLED", raising=False)
+    assert client.will_attempt_appointment_sync(FARMER) is False
+
+
+def test_will_attempt_sync_false_when_key_missing(on, monkeypatch):
+    monkeypatch.delenv("FLOKIQ_INTERNAL_API_KEY")
+    assert client.will_attempt_appointment_sync(FARMER) is False
+
+
+def test_will_attempt_sync_false_for_a_local_demo_farmer_id(on):
+    assert client.will_attempt_appointment_sync("f-001") is False
     

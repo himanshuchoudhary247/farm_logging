@@ -47,6 +47,16 @@ KNOWN_AGENTS = {
     "query_agent",
 }
 
+# Every key check_turn() actually reads from `expect`. Real bug, found in
+# deep review: without validating conversation fixtures against this list,
+# a typo'd key (e.g. "reply_contain_any") silently produced zero checks
+# instead of an error -- the exact "regression detector that silently stops
+# detecting regressions" failure mode a test harness exists to prevent.
+KNOWN_EXPECT_KEYS = {
+    "agent", "reply_contains_any", "reply_contains_all", "reply_not_contains",
+    "number", "has_number", "script", "max_ms",
+}
+
 
 def normalize_digits(text: str) -> str:
     """Turn any Unicode decimal digit (१, ௪, ౨ ...) into its ASCII form."""

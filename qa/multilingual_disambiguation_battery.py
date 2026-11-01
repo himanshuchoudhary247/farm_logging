@@ -4,6 +4,10 @@ see .github/workflows/ci.yml). Run this manually against a live local
 server before merging any change that touches appointment_supervisor,
 process_text_input, or the extraction tool schema.
 
+See also evals/ (the automated regression suite this isn't part of --
+evals/README.md explains how the eval tools in this repo relate) and
+scripts/eval_conversations.py (offline, in-process replay).
+
 Usage:
     uvicorn services.api_service.main:app --host 127.0.0.1 --port 8001 &
     python qa/multilingual_disambiguation_battery.py

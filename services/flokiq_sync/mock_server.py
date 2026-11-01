@@ -7,18 +7,14 @@ network call to the actual sandbox, and without a single row of real
 farmer data ever leaving flokiq-sandbox.
 
 Two endpoints:
-  POST /appointments        — real, matches flokiquser's src/lib/apis.ts
-                               exactly (FormData, confirmed against the
-                               actual frontend source, not guessed).
-  POST /health-logs         — PROPOSED, does not exist on the real flokiq
-                               backend yet. flokiquser's apis.ts has no
-                               health-log creation call at all, only a GET
-                               to fetch one and a POST for vaccination
-                               schedules. This is here so we can validate
-                               the payload shape we'd want flokiq's team to
-                               build, against the real health_logs
-                               constraints — not a claim that this URL
-                               exists anywhere else.
+  POST /appointments           — real, matches flokiquser's src/lib/apis.ts
+                                  exactly (FormData, confirmed against the
+                                  actual frontend source, not guessed).
+  POST /internal/health-logs   — matches the real main_backend route
+                                  (main_backend PR #14): JSON body,
+                                  farmerId (not a raw user_id) resolved to
+                                  farmers.userId server-side, same as the
+                                  real controller does.
 
 Run:
     docker compose -f services/flokiq_sync/docker-compose.yml up -d
@@ -35,6 +31,7 @@ from typing import Optional
 
 import pymysql
 from fastapi import FastAPI, Form, HTTPException
+from pydantic import BaseModel
 
 app = FastAPI(title="flokiq mock backend (local mirror DB only)")
 
@@ -80,41 +77,53 @@ def create_appointment(
     return {"id": appt_id, "farmerId": farmerId, "date": date_, "time": time, "status": "pending"}
 
 
-@app.post("/health-logs")
-def create_health_log(
-    user_id: str = Form(...),
-    animal_id: Optional[str] = Form(None),
-    pincode: str = Form(...),
-    symptoms_reported: str = Form(...),  # JSON-encoded list, e.g. '["fever","not eating"]'
-    risk_level: Optional[str] = Form(None),
-    ai_diagnosis_suggestion: Optional[str] = Form(None),
-    potential_ailments: Optional[str] = Form(None),  # JSON-encoded list
-    first_aid_advice: Optional[str] = Form(None),
-):
-    try:
-        json.loads(symptoms_reported)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="symptoms_reported must be a JSON array string")
+class HealthLogBody(BaseModel):
+    farmerId: str
+    pincode: str
+    symptomsReported: list[str]
+    animalId: Optional[str] = None
+    riskLevel: Optional[str] = None
+    aiDiagnosisSuggestion: Optional[str] = None
+    potentialAilments: Optional[list[str]] = None
+    firstAidAdvice: Optional[str] = None
 
-    log_id = str(uuid.uuid4())
-    now = datetime.utcnow()
+
+@app.post("/internal/health-logs")
+def create_health_log(body: HealthLogBody):
+    conn = _conn()
     try:
-        conn = _conn()
         with conn.cursor() as cur:
+            # Same resolution the real main_backend route does: the
+            # caller only ever knows its own farmerId, never main_backend's
+            # internal user id.
+            cur.execute("SELECT userId FROM farmers WHERE id = %s", (body.farmerId,))
+            farmer = cur.fetchone()
+            if farmer is None:
+                raise HTTPException(status_code=404, detail="Farmer not found")
+            user_id = farmer["userId"]
+
+            log_id = str(uuid.uuid4())
+            now = datetime.utcnow()
             cur.execute(
                 """INSERT INTO health_logs
                    (log_id, user_id, animal_id, pincode, symptoms_reported, risk_level,
                     ai_diagnosis_suggestion, potential_ailments, first_aid_advice,
                     log_timestamp, createdAt, updatedAt)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (log_id, user_id, animal_id, pincode, symptoms_reported, risk_level,
-                 ai_diagnosis_suggestion, potential_ailments, first_aid_advice, now, now, now),
+                (
+                    log_id, user_id, body.animalId, body.pincode,
+                    json.dumps(body.symptomsReported), body.riskLevel,
+                    body.aiDiagnosisSuggestion,
+                    json.dumps(body.potentialAilments) if body.potentialAilments is not None else None,
+                    body.firstAidAdvice, now, now, now,
+                ),
             )
         conn.commit()
-        conn.close()
     except pymysql.err.IntegrityError as exc:
         raise HTTPException(status_code=400, detail=f"constraint violation: {exc}")
-    return {"log_id": log_id, "user_id": user_id, "risk_level": risk_level}
+    finally:
+        conn.close()
+    return {"log_id": log_id}
 
 
 @app.get("/_mirror/appointments/{appointment_id}")
