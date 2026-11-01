@@ -26,6 +26,15 @@ Kill switch: CHAT_ORDERS_ENABLED must be "true" (default off, like
 FLOKIQ_SYNC_ENABLED), otherwise the farmer is told ordering through chat
 is not available and nothing is called.
 
+Browsing the store: when the farmer starts an order without naming a
+product ("I want to buy something", the app's Shop pill), the agent shows
+what their own store has in stock right now -- up to MAX_BROWSE products,
+with price and photo -- instead of only asking for a name a farmer may not
+know. Tapping one is the same pick as choosing from search results; typing a
+name still searches. Same main_backend call as a search (an empty search
+lists the store's in-stock products), so nothing new is called and no LLM is
+used for it. CHAT_ORDER_BROWSE_ENABLED=false goes back to just asking.
+
 Product photos: main_backend sends each product's `image` as it stores it
 (products.image, the uploaded file's name, or empty when the product has no
 photo). The app turns it into a link the same way the Shop does
@@ -63,6 +72,9 @@ _TRUTHY = {"1", "true", "yes", "on"}
 MAX_QUANTITY = 10
 # How many matching products are offered at once.
 MAX_CHOICES = 5
+# How many of the store's products are shown when the farmer has not named
+# one yet (two columns of cards in the app; main_backend allows up to 20).
+MAX_BROWSE = 8
 # Quantity pills offered, trimmed to what can actually be ordered.
 _QUANTITY_PILLS = (1, 2, 3, 5, 10)
 # A typed address shorter than this is not treated as an address.
@@ -94,6 +106,14 @@ CANCELLED = "CANCELLED"
 
 def chat_orders_enabled() -> bool:
     return os.getenv("CHAT_ORDERS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def chat_order_browse_enabled() -> bool:
+    """Showing the store's products when an order starts without a product
+    name. On unless CHAT_ORDER_BROWSE_ENABLED is set to something that is not
+    truthy (e.g. "false"); then the agent only asks which product."""
+    value = os.getenv("CHAT_ORDER_BROWSE_ENABLED", "").strip().lower()
+    return not value or value in _TRUTHY
 
 
 def chat_order_images_enabled() -> bool:
@@ -299,6 +319,8 @@ _OTHER_LABEL = {
 
 _TEXT: dict[str, dict[str, str]] = {
     "en": {
+        "browse": "Here is what your store has in stock right now. Tap a product to order it, or type the name of what you need.",
+        "browse_empty": "Your store has nothing in stock to order right now. Please check again later.",
         "welcome": "Which product would you like to order? Tell me its name, for example a medicine, feed or supplement.",
         "unavailable": "Ordering through chat is not available right now. You can order from the Shop in the app.",
         "no_store": "Your account is not linked to a store yet, so I cannot place an order here. Please contact your FlokIQ store.",
@@ -320,6 +342,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "Okay, I cancelled it. Nothing was ordered.",
     },
     "hi": {
+        "browse": "आपकी दुकान में अभी यह सामान उपलब्ध है। ऑर्डर करने के लिए किसी सामान पर टैप करें, या जो चाहिए उसका नाम लिखें।",
+        "browse_empty": "अभी आपकी दुकान में ऑर्डर के लिए कोई सामान स्टॉक में नहीं है। कृपया बाद में फिर देखें।",
         "welcome": "आप कौन सा सामान ऑर्डर करना चाहते हैं? उसका नाम बताइए, जैसे कोई दवा, चारा या सप्लीमेंट।",
         "unavailable": "अभी चैट से ऑर्डर उपलब्ध नहीं है। आप ऐप की शॉप से ऑर्डर कर सकते हैं।",
         "no_store": "आपका खाता अभी किसी दुकान से जुड़ा नहीं है, इसलिए मैं यहाँ ऑर्डर नहीं कर सकता। कृपया अपनी FlokIQ दुकान से संपर्क करें।",
@@ -341,6 +365,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "ठीक है, मैंने रद्द कर दिया। कुछ भी ऑर्डर नहीं हुआ।",
     },
     "mr": {
+        "browse": "तुमच्या दुकानात सध्या या वस्तू उपलब्ध आहेत. ऑर्डर करण्यासाठी एखाद्या वस्तूवर टॅप करा, किंवा हवी असलेल्या वस्तूचे नाव लिहा.",
+        "browse_empty": "सध्या तुमच्या दुकानात ऑर्डरसाठी कोणतीही वस्तू स्टॉकमध्ये नाही. कृपया नंतर पुन्हा पहा.",
         "welcome": "तुम्हाला कोणती वस्तू ऑर्डर करायची आहे? तिचे नाव सांगा, जसे एखादे औषध, चारा किंवा सप्लिमेंट.",
         "unavailable": "सध्या चॅटमधून ऑर्डर उपलब्ध नाही. तुम्ही ॲपमधील शॉपमधून ऑर्डर करू शकता.",
         "no_store": "तुमचे खाते अजून कोणत्याही दुकानाशी जोडलेले नाही, त्यामुळे मी इथे ऑर्डर करू शकत नाही. कृपया तुमच्या FlokIQ दुकानाशी संपर्क करा.",
@@ -362,6 +388,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "ठीक आहे, मी रद्द केले. काहीही ऑर्डर झाले नाही.",
     },
     "ta": {
+        "browse": "உங்கள் கடையில் இப்போது இருப்பில் உள்ளவை இவை. ஆர்டர் செய்ய ஒரு பொருளைத் தட்டவும், அல்லது உங்களுக்கு வேண்டியதன் பெயரை எழுதவும்.",
+        "browse_empty": "இப்போது உங்கள் கடையில் ஆர்டர் செய்ய எந்தப் பொருளும் இருப்பில் இல்லை. பிறகு மீண்டும் பாருங்கள்.",
         "welcome": "நீங்கள் எந்தப் பொருளை ஆர்டர் செய்ய விரும்புகிறீர்கள்? அதன் பெயரைச் சொல்லுங்கள், எ.கா. மருந்து, தீவனம் அல்லது சப்ளிமென்ட்.",
         "unavailable": "இப்போது சாட் மூலம் ஆர்டர் செய்ய முடியாது. ஆப்பில் உள்ள ஷாப்பில் ஆர்டர் செய்யலாம்.",
         "no_store": "உங்கள் கணக்கு இன்னும் எந்தக் கடையுடனும் இணைக்கப்படவில்லை, எனவே இங்கே ஆர்டர் செய்ய முடியாது. உங்கள் FlokIQ கடையைத் தொடர்பு கொள்ளுங்கள்.",
@@ -383,6 +411,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "சரி, ரத்து செய்துவிட்டேன். எதுவும் ஆர்டர் செய்யப்படவில்லை.",
     },
     "te": {
+        "browse": "మీ దుకాణంలో ప్రస్తుతం అందుబాటులో ఉన్నవి ఇవి. ఆర్డర్ చేయడానికి ఒక వస్తువును నొక్కండి, లేదా మీకు కావాల్సిన దాని పేరు రాయండి.",
+        "browse_empty": "ప్రస్తుతం మీ దుకాణంలో ఆర్డర్ చేయడానికి ఏ వస్తువూ స్టాక్‌లో లేదు. తర్వాత మళ్ళీ చూడండి.",
         "welcome": "మీరు ఏ వస్తువును ఆర్డర్ చేయాలనుకుంటున్నారు? దాని పేరు చెప్పండి, ఉదా. మందు, మేత లేదా సప్లిమెంట్.",
         "unavailable": "ప్రస్తుతం చాట్ ద్వారా ఆర్డర్ అందుబాటులో లేదు. యాప్‌లోని షాప్ నుండి ఆర్డర్ చేయవచ్చు.",
         "no_store": "మీ ఖాతా ఇంకా ఏ దుకాణంతోనూ అనుసంధానించబడలేదు, కాబట్టి ఇక్కడ ఆర్డర్ చేయలేను. దయచేసి మీ FlokIQ దుకాణాన్ని సంప్రదించండి.",
@@ -404,6 +434,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "సరే, రద్దు చేశాను. ఏమీ ఆర్డర్ కాలేదు.",
     },
     "kn": {
+        "browse": "ನಿಮ್ಮ ಅಂಗಡಿಯಲ್ಲಿ ಈಗ ಲಭ್ಯವಿರುವುದು ಇವು. ಆರ್ಡರ್ ಮಾಡಲು ಒಂದು ವಸ್ತುವನ್ನು ಒತ್ತಿ, ಅಥವಾ ನಿಮಗೆ ಬೇಕಾದುದರ ಹೆಸರನ್ನು ಬರೆಯಿರಿ.",
+        "browse_empty": "ಈಗ ನಿಮ್ಮ ಅಂಗಡಿಯಲ್ಲಿ ಆರ್ಡರ್ ಮಾಡಲು ಯಾವುದೇ ವಸ್ತು ಸ್ಟಾಕ್‌ನಲ್ಲಿ ಇಲ್ಲ. ನಂತರ ಮತ್ತೆ ನೋಡಿ.",
         "welcome": "ನೀವು ಯಾವ ವಸ್ತುವನ್ನು ಆರ್ಡರ್ ಮಾಡಲು ಬಯಸುತ್ತೀರಿ? ಅದರ ಹೆಸರು ಹೇಳಿ, ಉದಾ. ಔಷಧಿ, ಮೇವು ಅಥವಾ ಸಪ್ಲಿಮೆಂಟ್.",
         "unavailable": "ಈಗ ಚಾಟ್ ಮೂಲಕ ಆರ್ಡರ್ ಲಭ್ಯವಿಲ್ಲ. ಆ್ಯಪ್‌ನ ಶಾಪ್‌ನಿಂದ ಆರ್ಡರ್ ಮಾಡಬಹುದು.",
         "no_store": "ನಿಮ್ಮ ಖಾತೆ ಇನ್ನೂ ಯಾವುದೇ ಅಂಗಡಿಗೆ ಜೋಡಣೆಯಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ ಇಲ್ಲಿ ಆರ್ಡರ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ FlokIQ ಅಂಗಡಿಯನ್ನು ಸಂಪರ್ಕಿಸಿ.",
@@ -425,6 +457,8 @@ _TEXT: dict[str, dict[str, str]] = {
         "cancelled": "ಸರಿ, ರದ್ದು ಮಾಡಿದೆ. ಏನೂ ಆರ್ಡರ್ ಆಗಿಲ್ಲ.",
     },
     "ml": {
+        "browse": "നിങ്ങളുടെ കടയിൽ ഇപ്പോൾ ലഭ്യമായവ ഇവയാണ്. ഓർഡർ ചെയ്യാൻ ഒരു സാധനത്തിൽ ടാപ്പ് ചെയ്യുക, അല്ലെങ്കിൽ വേണ്ടതിന്റെ പേര് എഴുതുക.",
+        "browse_empty": "ഇപ്പോൾ നിങ്ങളുടെ കടയിൽ ഓർഡർ ചെയ്യാൻ ഒരു സാധനവും സ്റ്റോക്കിൽ ഇല്ല. പിന്നീട് വീണ്ടും നോക്കുക.",
         "welcome": "ഏത് സാധനമാണ് നിങ്ങൾ ഓർഡർ ചെയ്യാൻ ആഗ്രഹിക്കുന്നത്? അതിന്റെ പേര് പറയൂ, ഉദാ. മരുന്ന്, തീറ്റ അല്ലെങ്കിൽ സപ്ലിമെന്റ്.",
         "unavailable": "ഇപ്പോൾ ചാറ്റിലൂടെ ഓർഡർ ലഭ്യമല്ല. ആപ്പിലെ ഷോപ്പിൽ നിന്ന് ഓർഡർ ചെയ്യാം.",
         "no_store": "നിങ്ങളുടെ അക്കൗണ്ട് ഇതുവരെ ഒരു കടയുമായും ബന്ധിപ്പിച്ചിട്ടില്ല, അതിനാൽ ഇവിടെ ഓർഡർ ചെയ്യാൻ കഴിയില്ല. ദയവായി നിങ്ങളുടെ FlokIQ കടയുമായി ബന്ധപ്പെടുക.",
@@ -635,6 +669,37 @@ class OrderSupervisor(DraftSupervisor):
 
     # ------------------------------------------------------------------ steps
 
+    def _fetch_products(self, draft: dict[str, Any], farmer_id: str, query: str, limit: int, log_verb: str,
+                        text: str, include_audio: bool) -> tuple[str, Optional[list[dict[str, Any]]], Optional[dict[str, Any]]]:
+        """The main_backend call shared by _search (query) and _browse (empty
+        query): fetch, filter to real product dicts, image-check, cap, log.
+        Returns ("ok", products, None) on success. Returns
+        ("unreachable"/"no_store", None, response) when the caller must
+        return that response immediately -- the leading status string makes
+        the early-exit case impossible to miss even if a caller only checks
+        `products` truthiness (an empty product list and "must return
+        early" are both falsy, so the status is the real signal, not the
+        None-ness of `products`), and lets a caller tell "unreachable"
+        (draft["state"] untouched -- the caller decides) apart from
+        "no_store" (terminal: _end() already set draft["state"] = CANCELLED
+        and saved -- a caller must NOT touch state again after this one)."""
+        language = draft["language"]
+        found = flokiq_sync.search_products(farmer_id, query, limit=limit)
+        if found is None:
+            self._save(draft)
+            return "unreachable", None, self._response(draft, self._message(language, "shop_unreachable"),
+                                                        input_transcript=text, include_audio=include_audio)
+        if not found["storeAssigned"]:
+            # _end() already sets draft["state"] = CANCELLED and saves --
+            # a caller must not touch state again after this.
+            return "no_store", None, self._end(draft, CANCELLED, "no_store", text, include_audio)
+        products = [
+            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
+        ][:limit]
+        _log.info("order %s farmer=%s query=%r found=%d with_image=%d", log_verb, farmer_id, query[:60],
+                  len(products), sum(1 for p in products if p["image"]))
+        return "ok", products, None
+
     def _search(self, draft: dict[str, Any], farmer_id: str, query: str, text: str,
                 include_audio: bool) -> Optional[dict[str, Any]]:
         """Look the product up in the farmer's store. Returns a response to
@@ -642,18 +707,15 @@ class OrderSupervisor(DraftSupervisor):
         go on to the quantity in this same turn."""
         values = draft["draft"]
         language = draft["language"]
-        found = flokiq_sync.search_products(farmer_id, query, limit=MAX_CHOICES)
-        if found is None:
-            self._save(draft)
-            return self._response(draft, self._message(language, "shop_unreachable"), input_transcript=text,
-                                  include_audio=include_audio)
-        if not found["storeAssigned"]:
-            return self._end(draft, CANCELLED, "no_store", text, include_audio)
-        products = [
-            _with_checked_image(p) for p in found["products"] if isinstance(p, dict) and p.get("productId")
-        ][:MAX_CHOICES]
-        _log.info("order search farmer=%s query=%r found=%d with_image=%d", farmer_id, query[:60], len(products),
-                  sum(1 for p in products if p["image"]))
+        status, products, early = self._fetch_products(draft, farmer_id, query, MAX_CHOICES, "search", text, include_audio)
+        if status != "ok":
+            # Unlike _browse, a search can be triggered mid-CHOOSING (the
+            # farmer typed a different product name while options were
+            # still outstanding) -- leaving state untouched on "unreachable"
+            # means a backend hiccup doesn't silently strand the draft in
+            # SEARCHING with stale options still sitting in it. "no_store"
+            # already set a terminal CANCELLED state inside _fetch_products.
+            return early
         if not products:
             values["product"] = None
             values["options"] = []
@@ -667,12 +729,50 @@ class OrderSupervisor(DraftSupervisor):
             return None
         values["product"] = None
         values["options"] = products
+        values["options_source"] = "search"
         draft["state"] = CHOOSING
         self._save(draft)
         listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in products)
         return self._response(
             draft, self._message(language, "choose", options=listed), input_transcript=text,
             include_audio=include_audio, options=self._pills(language, [_choice_label(p) for p in products]),
+        )
+
+    def _browse(self, draft: dict[str, Any], farmer_id: str, text: str,
+                include_audio: bool) -> dict[str, Any]:
+        """The store's in-stock products, offered like search results, when
+        the farmer has not named a product. Same main_backend call as a
+        search, with no search words."""
+        values = draft["draft"]
+        language = draft["language"]
+        status, products, early = self._fetch_products(draft, farmer_id, "", MAX_BROWSE, "browse", text, include_audio)
+        if status == "unreachable":
+            # Unlike _search, _browse is only ever reached from SEARCHING
+            # (the farmer hasn't named a product yet), so there's no
+            # mid-CHOOSING state to protect -- explicitly re-assert
+            # SEARCHING so a stale state can't linger either way.
+            draft["state"] = SEARCHING
+            self._save(draft)
+            return early
+        if status == "no_store":
+            # _fetch_products already set a terminal CANCELLED state and
+            # saved -- must not touch state again.
+            return early
+        values["product"] = None
+        if not products:
+            values["options"] = []
+            draft["state"] = SEARCHING
+            self._save(draft)
+            return self._response(draft, self._message(language, "browse_empty"), input_transcript=text,
+                                  include_audio=include_audio)
+        # Even a single product is offered, not picked: the farmer did not ask for it.
+        values["options"] = products
+        values["options_source"] = "browse"
+        draft["state"] = CHOOSING
+        self._save(draft)
+        return self._response(
+            draft, self._message(language, "browse"), input_transcript=text, include_audio=include_audio,
+            options=self._pills(language, [_choice_label(p) for p in products]),
         )
 
     def _ask_quantity(self, draft: dict[str, Any], text: str, include_audio: bool,
@@ -938,15 +1038,26 @@ class OrderSupervisor(DraftSupervisor):
         product = values.get("product")
         if not product:
             if values.get("options"):
-                # Still choosing: offer the same options again.
+                # Still choosing: offer the same options again. Real bug,
+                # found in deep review: this always used the search-flow
+                # wording ("I found these in your store: ...") even when
+                # the options came from browsing with no product named --
+                # the pills/cards shown are identical either way, but the
+                # intro text didn't match how the farmer actually got here.
                 draft["state"] = CHOOSING
                 self._save(draft)
-                listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in values["options"])
+                pills = self._pills(draft["language"], [_choice_label(p) for p in values["options"]])
+                if values.get("options_source") == "browse":
+                    message = self._message(draft["language"], "browse")
+                else:
+                    listed = ", ".join(f"{_choice_label(p)} ₹{_money(p.get('unitPrice'))}" for p in values["options"])
+                    message = self._message(draft["language"], "choose", options=listed)
                 return self._response(
-                    draft, self._message(draft["language"], "choose", options=listed), input_transcript=text,
-                    include_audio=include_audio,
-                    options=self._pills(draft["language"], [_choice_label(p) for p in values["options"]]),
+                    draft, message, input_transcript=text, include_audio=include_audio, options=pills,
                 )
+            if chat_order_browse_enabled():
+                # No product named yet: show what the store has instead of only asking.
+                return self._browse(draft, farmer_id, text, include_audio)
             draft["state"] = SEARCHING
             self._save(draft)
             return self._response(draft, self._message(draft["language"], "welcome"), input_transcript=text,

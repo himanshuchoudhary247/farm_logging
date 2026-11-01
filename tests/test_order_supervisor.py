@@ -167,6 +167,28 @@ def test_shop_unreachable_is_said_and_the_conversation_stays_open(sup, monkeypat
     assert r["state"] == "SEARCHING"
 
 
+def test_shop_unreachable_mid_choosing_does_not_strand_the_draft_in_searching(sup, monkeypatch):
+    """Real bug, introduced then caught during a refactor that shared
+    _search/_browse's product-fetch into one _fetch_products helper: the
+    shared helper unconditionally set draft["state"] = SEARCHING on the
+    unreachable path, copying _browse's behaviour onto _search too. But a
+    search can be triggered mid-CHOOSING (the farmer types a different
+    product name while options are still outstanding) -- before this fix,
+    a backend hiccup at that moment left state="SEARCHING" while the stale
+    "options" from the earlier search were still sitting in the draft, an
+    internally inconsistent combination that never existed pre-refactor."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": "calcium"}, {"product_query": "liver tonic"}])
+    first = sup.turn(FARMER, "s1", "calcium", include_audio=False)
+    assert first["state"] == "CHOOSING"
+    backend._answers["search"] = [None]
+    second = sup.turn(FARMER, "s1", "liver tonic", include_audio=False)
+    assert second["response_text"] == service._TEXT["en"]["shop_unreachable"]
+    # Unchanged from before the refactor: a mid-CHOOSING unreachable error
+    # leaves state alone (still CHOOSING here), not forced to SEARCHING.
+    assert second["state"] == "CHOOSING"
+
+
 def test_farmer_without_a_store_is_told_and_the_conversation_ends(sup, monkeypatch):
     Backend(monkeypatch, search=[{"storeAssigned": False, "products": []}])
     _say(sup, [{"product_query": "calcium"}])
@@ -242,7 +264,8 @@ def test_cancel_at_any_step_ends_and_the_next_message_starts_fresh(sup, monkeypa
     assert r2["state"] == "CANCELLED"
     assert backend.calls["create"] == []
     r3 = sup.turn(FARMER, "s1", "hello", include_audio=False)
-    assert r3["state"] == "SEARCHING"
+    # A fresh order with no product named shows the store's products.
+    assert r3["state"] == "CHOOSING" and r3["response_text"] == service._TEXT["en"]["browse"]
     assert r3["draft"]["product"] is None
 
 
@@ -368,7 +391,7 @@ def test_a_second_yes_after_ordering_does_not_order_again(sup, monkeypatch):
     sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
     sup.turn(FARMER, "s1", "yes", include_audio=False)
     r = sup.turn(FARMER, "s1", "yes", include_audio=False)
-    assert r["state"] == "SEARCHING"
+    assert r["state"] == "CHOOSING", "a fresh order, showing the store's products"
     assert len(backend.calls["create"]) == 1
 
 
@@ -380,8 +403,9 @@ def test_llm_failure_never_breaks_the_turn(sup, monkeypatch):
 
     monkeypatch.setattr(service, "BedrockTextAdapter", boom)
     r = sup.turn(FARMER, "s1", "something", include_audio=False)
-    assert r["state"] == "SEARCHING"
-    assert r["response_text"] == service._TEXT["en"]["welcome"]
+    # Nothing read from the message: the store's products are shown.
+    assert r["state"] == "CHOOSING"
+    assert r["response_text"] == service._TEXT["en"]["browse"]
 
 
 def test_off_topic_message_is_released_and_the_order_closed(sup, monkeypatch):
@@ -395,7 +419,7 @@ def test_off_topic_message_is_released_and_the_order_closed(sup, monkeypatch):
     assert sup._load("s1", FARMER, "en-IN")["state"] == "CANCELLED"
     # The next order starts fresh.
     r3 = sup.turn(FARMER, "s1", "hello", include_audio=False)
-    assert r3["state"] == "SEARCHING" and r3["draft"]["product"] is None
+    assert r3["state"] == "CHOOSING" and r3["draft"]["product"] is None
 
 
 def test_off_topic_flag_is_ignored_when_the_message_also_answers_the_order(sup, monkeypatch):
@@ -690,7 +714,8 @@ def test_two_yes_taps_at_the_same_moment_place_one_order(sup, monkeypatch):
     for tap in taps:
         tap.join()
     assert len(backend.calls["create"]) == 1
-    assert sorted(r["state"] for r in results) == ["ORDERED", "SEARCHING"]
+    # The tap that lost the race starts a fresh order, which shows the store.
+    assert sorted(r["state"] for r in results) == ["CHOOSING", "ORDERED"]
 
 
 def test_two_sessions_of_one_farmer_keep_separate_orders(sup, monkeypatch):
@@ -710,7 +735,7 @@ def test_another_farmer_with_the_same_session_id_starts_fresh(sup, monkeypatch):
     sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
     other = "9a1b2c3d-0000-4000-8000-000000000002"
     r = sup.turn(other, "s1", "hello", include_audio=False)
-    assert r["state"] == "SEARCHING" and r["draft"]["product"] is None
+    assert r["state"] == "CHOOSING" and r["draft"]["product"] is None
 
 
 def test_at_most_five_products_are_offered_and_ones_without_an_id_are_skipped(sup, monkeypatch):
@@ -1120,6 +1145,27 @@ def test_an_unclear_reply_while_choosing_offers_the_same_options_again(sup, monk
     assert r["state"] == "CHOOSING"
     assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
     assert len(backend.calls["search"]) == 1
+    # The re-offer after a named search uses the "I found these..." wording,
+    # with the price list in the text (the pills alone don't show price here).
+    assert r["response_text"] == service._TEXT["en"]["choose"].format(
+        options="Calcium Gel (1 L) ₹120, Calcium Plus (500 ml) ₹95")
+
+
+def test_an_unclear_reply_while_browsing_offers_the_same_options_with_browse_wording(sup, monkeypatch):
+    """Real bug, found in deep review: the re-offer branch always used the
+    search-flow "I found these in your store: ..." wording, even when the
+    farmer reached CHOOSING by browsing with no product named -- the pills
+    shown are identical either way, but the intro text didn't match how the
+    farmer actually got there."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{}])
+    sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    r = sup.turn(FARMER, "s1", "hmm", include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
+    assert r["response_text"] == service._TEXT["en"]["browse"]
+    assert "I found these in your store" not in r["response_text"]
+    assert len(backend.calls["search"]) == 1
 
 
 def test_search_asks_main_backend_for_at_most_five(sup, monkeypatch):
@@ -1289,3 +1335,137 @@ def test_the_quote_log_says_whether_the_price_varied(sup, monkeypatch):
 ])
 def test_price_varies(unit, quantity, total, varies):
     assert service._price_varies(unit, quantity, total) is varies
+
+
+# ---- browsing the store (no product named) --------------------------------------
+
+LIVER_TONIC = {**CALCIUM, "productId": "33333333-4444-5555-6666-777777777777", "name": "Liver Tonic",
+               "packType": "", "unitPrice": 210, "mrp": 210, "available": 2, "image": "liver.png"}
+
+
+def test_starting_without_a_product_shows_the_store(sup, monkeypatch, caplog):
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS, LIVER_TONIC]}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert r["response_text"] == service._TEXT["en"]["browse"]
+    # One main_backend call: the same product search with no search words.
+    assert backend.calls["search"] == [{"args": (FARMER, ""), "kwargs": {"limit": service.MAX_BROWSE}}]
+    assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)", "Liver Tonic"]
+    # The app draws the cards from these: price, MRP, stock and photo come with each product.
+    assert [p["productId"] for p in r["draft"]["options"]] == [CALCIUM["productId"], CALCIUM_PLUS["productId"],
+                                                                LIVER_TONIC["productId"]]
+    assert r["draft"]["options"][2]["image"] == "liver.png"
+    assert backend.calls["quote"] == []
+    assert "order browse" in caplog.text and "found=3" in caplog.text and "with_image=1" in caplog.text
+
+
+def test_tapping_a_product_from_the_store_goes_to_quantity(sup, monkeypatch):
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {}])
+    sup.turn(FARMER, "s1", "kuch kharidna hai", include_audio=False)
+    r = sup.turn(FARMER, "s1", "Liver Tonic", include_audio=False)  # the card's label, sent as the tap
+    assert r["state"] == "QUANTITY"
+    assert r["draft"]["product"]["productId"] == LIVER_TONIC["productId"]
+    assert r["options"]["choices"] == ["1", "2"], "quantity pills stop at what is in stock"
+    assert len(backend.calls["search"]) == 1, "a tap is a pick, not a new search"
+
+
+def test_typing_a_name_while_browsing_searches(sup, monkeypatch):
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]},
+                                           {"storeAssigned": True, "products": [CALCIUM_PLUS]}])
+    _say(sup, [{}, {"product_query": "calcium plus"}])
+    sup.turn(FARMER, "s1", "I want to buy something", include_audio=False)
+    r = sup.turn(FARMER, "s1", "calcium plus", include_audio=False)
+    assert backend.calls["search"][1]["args"][:2] == (FARMER, "calcium plus")
+    assert r["state"] == "QUANTITY" and r["draft"]["product"]["productId"] == CALCIUM_PLUS["productId"]
+
+
+def test_a_single_product_in_stock_is_offered_not_picked(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [LIVER_TONIC]}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "shop", include_audio=False)
+    assert r["state"] == "CHOOSING" and r["draft"]["product"] is None
+    assert r["options"]["choices"] == ["Liver Tonic"]
+
+
+def test_at_most_max_browse_products_are_shown(sup, monkeypatch):
+    many = [{**CALCIUM, "productId": f"id-{i}", "name": f"Product {i}"} for i in range(service.MAX_BROWSE + 4)]
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [{"name": "No id"}, "junk", *many]}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=False)
+    assert len(r["options"]["choices"]) == service.MAX_BROWSE == len(r["draft"]["options"])
+    assert r["options"]["choices"][0] == "Product 0 (1 L)"
+
+
+def test_an_empty_store_says_so_and_waits(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": []}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=False)
+    assert r["state"] == "SEARCHING"
+    assert r["response_text"] == service._TEXT["en"]["browse_empty"]
+    assert "options" not in r
+
+
+def test_a_shop_that_cannot_be_reached_is_reported_not_called_empty(sup, monkeypatch):
+    Backend(monkeypatch, search=[None])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=False)
+    assert r["state"] == "SEARCHING"
+    assert r["response_text"] == service._TEXT["en"]["shop_unreachable"]
+
+
+def test_no_store_ends_the_order(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": False, "products": []}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=False)
+    assert r["state"] == "CANCELLED"
+    assert r["response_text"] == service._TEXT["en"]["no_store"]
+
+
+def test_browse_switched_off_only_asks(sup, monkeypatch):
+    monkeypatch.setenv("CHAT_ORDER_BROWSE_ENABLED", "false")
+    backend = Backend(monkeypatch)
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=False)
+    assert r["state"] == "SEARCHING"
+    assert r["response_text"] == service._TEXT["en"]["welcome"]
+    assert backend.calls["search"] == []
+
+
+@pytest.mark.parametrize("value, on", [("", True), ("true", True), ("1", True), ("false", False), ("0", False),
+                                       ("off", False)])
+def test_browse_switch_values(monkeypatch, value, on):
+    monkeypatch.setenv("CHAT_ORDER_BROWSE_ENABLED", value)
+    assert service.chat_order_browse_enabled() is on
+
+
+@pytest.mark.parametrize("lang", ["en", "hi", "mr", "ta", "te", "kn", "ml"])
+def test_browse_is_said_in_every_language(sup, monkeypatch, lang):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM]}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", language=f"{lang}-IN", include_audio=False)
+    assert r["response_text"] == service._TEXT[lang]["browse"]
+    assert service._TEXT[lang]["browse_empty"]
+
+
+def test_browse_reply_is_spoken_for_a_voice_turn(sup, monkeypatch):
+    spoken = []
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (spoken.append(text) or b"mp3", None))
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}])
+    r = sup.turn(FARMER, "s1", "buy", include_audio=True)
+    # Short to hear: it does not read out every product (the cards show them).
+    assert spoken == [service._TEXT["en"]["browse"]] and r["response_audio_base64"]
+
+
+def test_a_product_out_of_stock_after_browsing_goes_back_to_the_store(sup, monkeypatch):
+    sold_out = {**LIVER_TONIC, "available": 0}
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, sold_out]},
+                                           {"storeAssigned": True, "products": [CALCIUM]}])
+    _say(sup, [{}, {}, {}])
+    sup.turn(FARMER, "s1", "buy", include_audio=False)
+    r = sup.turn(FARMER, "s1", "Liver Tonic", include_audio=False)
+    assert r["state"] == "SEARCHING" and "Liver Tonic" in r["response_text"]
+    r = sup.turn(FARMER, "s1", "ok", include_audio=False)
+    assert r["state"] == "CHOOSING" and len(backend.calls["search"]) == 2
