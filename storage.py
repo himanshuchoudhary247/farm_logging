@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Optional, TypeVar
@@ -22,6 +25,8 @@ from models import (
 )
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR_ENV = "FARMER_CHAT_DATA_DIR"
 
@@ -109,12 +114,43 @@ def _load_json_list(path: Path) -> list[Any]:
     return _migrate_rows(path.name, rows)
 
 
+# Windows only: os.replace fails with PermissionError (WinError 5 / 32) when
+# another process or thread holds the target file open for a moment --
+# antivirus or the search indexer scanning a just-written file, or a reader
+# that opened it without a lock. Found by the evals suite (evals/): draft
+# saves failed with "[WinError 5] Access is denied" and the chat turn
+# returned HTTP 500 (registration on 16 Oct, booking on 17 Oct). A short
+# retry gets past it. Linux and macOS never hit this, so there a
+# PermissionError is a real permission problem and is raised at once.
+_RETRY_REPLACE_ON_PERMISSION_ERROR = os.name == "nt"
+_REPLACE_ATTEMPTS = 5
+_REPLACE_FIRST_WAIT_S = 0.05
+
+
+def replace_file(tmp: Path, path: Path) -> None:
+    """os.replace(tmp, path), retried briefly on Windows while another
+    process holds the target open. Waits 0.05 + 0.1 + 0.2 + 0.4 s at most,
+    then raises the last error unchanged. Any other error is raised at once."""
+    for attempt in range(1, _REPLACE_ATTEMPTS + 1):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError as exc:
+            if not _RETRY_REPLACE_ON_PERMISSION_ERROR or attempt == _REPLACE_ATTEMPTS:
+                raise
+            logger.warning(
+                "replace_file retry %d/%d for %s: %s",
+                attempt, _REPLACE_ATTEMPTS - 1, path.name, exc,
+            )
+            time.sleep(_REPLACE_FIRST_WAIT_S * (2 ** (attempt - 1)))
+
+
 def atomic_write_json(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     data = json.dumps(obj, indent=2, ensure_ascii=False)
     tmp.write_text(data, encoding="utf-8")
-    tmp.replace(path)
+    replace_file(tmp, path)
 
 
 def purge_stale_files(directory: Path, max_age_days: float, suffix: str = ".json") -> int:

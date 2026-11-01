@@ -58,6 +58,7 @@ from services.cache_refresh import (
 )
 from services.advisory import generate_personalized_recommendation, build_farmer_profile, infer_pin_code
 from services.advisory.llm_advisory import generate_llm_advisory, summarize_livestock
+from services.farm_summary import SUPPORTED_LANGUAGES as FARM_SUMMARY_LANGUAGES, build_farm_summary
 from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
 from storage import get_data_dir
@@ -938,6 +939,50 @@ def personalized_advisory(farmer_id: str, req: PersonalizedAdvisoryRequest) -> d
         "personalized": personalized,
         "advisory": advisory,
     }
+
+
+@app.get("/farmers/{farmer_id}/summary")
+def farm_summary(
+    farmer_id: str,
+    language: str = Query(default="en"),
+    include_audio: bool = Query(default=False),
+    _auth: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """Farm Summary card: weather, active animal count, pending vaccinations,
+    AI suggestion in the farmer's language, optional audio. Each part fails
+    on its own (named in "errors"); see services/farm_summary/service.py."""
+    # Real bug, found in deep review: an unrecognized language used to be
+    # silently coerced to English by build_farm_summary's own
+    # normalize_language -- the same "silently passed through" failure mode
+    # chat_turn's own language check was added to prevent (see the comment
+    # there citing PR #41). Reject it explicitly instead.
+    #
+    # Real bug, found in a second deep-review pass: this checked the raw
+    # `language` against the bare-code tuple ("en", "hi", ...) without first
+    # stripping a region tag, while every other endpoint's SUPPORTED_LANGUAGES
+    # (and this module's own normalize_language()) expects/accepts the
+    # region-tagged form ("en-IN", "hi-IN", ...) the app actually sends --
+    # so a normal client request for "hi-IN" got spuriously rejected with
+    # 400 here, even though build_farm_summary would have handled it fine.
+    # Normalize the same way normalize_language() does before checking, so
+    # a real region-tagged language still works and only a genuinely
+    # unsupported one (e.g. "fr") is rejected.
+    if language.split("-")[0].strip().lower() not in FARM_SUMMARY_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
+    try:
+        return build_farm_summary(
+            farmer_id,
+            language=language,
+            include_audio=include_audio,
+        )
+    except Exception as exc:
+        # build_farm_summary never returns None (an unknown farmer_id gets
+        # an empty card by design, not a 404 -- see load_farm_data's
+        # docstring), so there is no real "not found" path here. This is a
+        # backstop for any future unguarded failure inside farm_summary,
+        # not a currently-reachable branch.
+        _log.warning("farm summary route failed farmer=%s: %s", farmer_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Farm summary temporarily unavailable") from exc
 
 
 @app.post("/farmers/{farmer_id}/voice/health-log")

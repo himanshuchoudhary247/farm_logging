@@ -30,6 +30,7 @@ from google.genai import types
 
 from services.animal_registration import default_supervisor as _animal_registration_supervisor
 from services.appointment_supervisor import default_supervisor as _appointment_supervisor
+from services.a2ui.widgets import widget_for
 from services.chat_orchestrator.intents import VALID_INTENTS, build_route_instruction
 from services.llm_service.bedrock_adapter import TaskTier, model_for_task
 from services.query_agent.adk_agent import process_query_adk
@@ -99,6 +100,13 @@ def _envelope(agent: str, intent: "str | None", result: dict[str, Any], reply_te
         farmer_id, session_id, agent, intent, text[:200], reply_text[:200],
     )
     envelope: dict[str, Any] = {"agent": agent, "intent": intent, "result": result, "reply_text": reply_text}
+    # A widget for this reply as A2UI (services/a2ui) -- the booking and
+    # new-animal registration forms, the weather forecast card and the farm
+    # records card for query answers. Additive: the reply above is unchanged
+    # and apps that do not know "a2ui" ignore it.
+    widget = widget_for(agent, farmer_id, session_id, result, language)
+    if widget:
+        envelope["a2ui"] = widget
     if include_audio and "response_audio_base64" not in result:
         spoken = (speech_text if speech_text is not None else reply_text).strip()
         if spoken:
@@ -193,6 +201,31 @@ def _looks_like_pin(text: str) -> bool:
     return compact.isascii() and compact.isdigit() and len(compact) == 6
 
 
+def _looks_like_attempted_pin(text: str) -> bool:
+    """A bare number close enough to a PIN that, in a weather conversation,
+    the farmer was plainly trying to type one -- including a typo.
+
+    Separate from _looks_like_pin because the two answer different questions.
+    _looks_like_pin asks "is this a usable PIN?"; this asks "was a PIN what
+    they meant?". A mistyped PIN used to fail the first test, fall through to
+    the classifier, and reach query_agent, which replied "I see you've entered
+    a number (46111), but I'm not sure what information you're looking for" --
+    leaving the farmer with no idea they were one digit short. Routing it to
+    weather instead lets the agent that owns PIN codes say what is actually
+    wrong.
+
+    5-8 digits: catches one digit dropped (5) or doubled (7) from a 6-digit
+    PIN, with margin to 8; narrow enough that a bare 4-digit year ("2026")
+    still classifies normally. Real bug, found adding tests for this
+    function: the range originally started at 4, which silently defeated
+    that exact claim -- a bare "2026" sent on the turn right after any
+    weather turn would have matched and been routed to weather instead of
+    being classified.
+    """
+    compact = "".join(ch for ch in (text or "") if not ch.isspace())
+    return compact.isascii() and compact.isdigit() and 5 <= len(compact) <= 8
+
+
 def _weather_session_key(farmer_id: str, session_id: str) -> str:
     return f"{farmer_id}:{session_id}:weather_pending"
 # The weather and query agents pick their reply language from the text
@@ -239,9 +272,16 @@ def _run_weather(farmer_id: str, session_id: str, text: str, intent: "str | None
     # different error, it asked for the PIN anyway, and the PIN then went
     # to query_agent (seen live).
     if result.get("error") and asks < _MAX_LOCATION_ASKS:
-        update_session(weather_key, {"awaiting_location": True, "asks": asks})
+        update_session(weather_key, {"awaiting_location": True, "asks": asks, "last_was_weather": True})
     else:
-        update_session(weather_key, {"awaiting_location": False})
+        # last_was_weather is set even on SUCCESS, which awaiting_location is
+        # not. A farmer who gets a weather answer for the PIN on their profile
+        # and then types a different bare PIN is asking for that place's
+        # weather -- but the success path cleared every weather flag, so the
+        # PIN was classified from scratch, looked like a bare number, and went
+        # to query_agent ("I see you've entered a number..."). Seen live in the
+        # Weather Advisory pill flow.
+        update_session(weather_key, {"awaiting_location": False, "last_was_weather": True})
     reply = weather["answer"] or _reply_text("weather_alert", result)
     return _envelope("weather_alert", intent, result, reply, farmer_id, session_id, text, include_audio, language, weather.get("speech_text"))
 
@@ -299,19 +339,36 @@ def route_turn_adk(
 
     weather_key = _weather_session_key(farmer_id, session_id)
     weather_state = get_session(weather_key)
-    if weather_state.get("awaiting_location"):
+
+    # Sticky after ANY weather turn, not only one that failed to find a
+    # location.
+    #
+    # awaiting_location covers "weather asked for a PIN and is still waiting".
+    # It misses the other half: weather ANSWERED (the farmer has a PIN on
+    # file), and the next message is a follow-up that only makes sense as one
+    # -- a bare PIN, or a bare place name. Those were classified from scratch,
+    # looked like a number or a stray proper noun, and went to query_agent,
+    # which answered "You have 2 animals on your farm" to "Pune".
+    #
+    # One-shot: cleared on use below, and re-armed by _run_weather on each
+    # weather turn, so weather is sticky for exactly the turn after it spoke
+    # and never beyond. The disambiguation that follows is the existing,
+    # already-tested logic -- a genuine data question still escapes to
+    # query_agent via the probe, and a different request goes to its own
+    # agent.
+    if weather_state.get("awaiting_location") or weather_state.get("last_was_weather"):
         # Sticky while weather is still waiting for a location, capped at
         # _MAX_LOCATION_ASKS asks in a row (see _run_weather): clear first;
         # _run_weather re-arms only if it asks again and the cap allows,
         # so a farmer who has moved on is never locked into weather.
-        update_session(weather_key, {"awaiting_location": False})
+        update_session(weather_key, {"awaiting_location": False, "last_was_weather": False})
         # A bare PIN goes straight to weather. Anything else is classified:
         # a location answer ("Pune") comes back as weather or query and stays
         # with weather, but a different request ("register a goat", "book a
         # vet") goes to its own agent. Seen live: "register a goat" sent while
         # weather waited for the PIN was answered by weather, used up an ask,
         # and the PIN that followed went to query_agent.
-        sticky_intent = "weather" if _looks_like_pin(text) else asyncio.run(_classify_intent_async(text))
+        sticky_intent = "weather" if _looks_like_attempted_pin(text) else asyncio.run(_classify_intent_async(text))
         if sticky_intent == "query" and _allowed("query"):
             # Real bug, found in whole-branch review: "query" here used to
             # mean only "the classifier called a bare location reply

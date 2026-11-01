@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -102,9 +103,20 @@ def update_session(session_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
             session.update(data)
             tmp = path.with_suffix(path.suffix + ".tmp")
             tmp.write_text(json.dumps(session, ensure_ascii=False), encoding="utf-8")
-            tmp.replace(path)
+            # Retries briefly on Windows when a reader has the file open --
+            # see storage.replace_file.
+            from storage import replace_file
+            replace_file(tmp, path)
         return session
-    except Exception:
+    except Exception as exc:
+        # Used to be silent: a failed disk write vanished here, and the next
+        # get_session() read the old file back -- the lost updates seen in
+        # test_concurrent_updates_do_not_lose_sibling_fields on Windows.
+        # The memory fallback stays; now it is logged (hashed id, no raw id).
+        logging.getLogger(__name__).warning(
+            "voice session %s kept in memory, disk write failed: %s",
+            hashlib.sha1(session_id.encode("utf-8")).hexdigest()[:10], exc,
+        )
         with _MEMORY_LOCK:
             session = _MEMORY_FALLBACK.setdefault(session_id, dict(_DEFAULT_SESSION))
             session.update(data)
