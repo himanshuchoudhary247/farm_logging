@@ -36,27 +36,30 @@ def test_weather_gets_the_app_language(monkeypatch):
 
 def test_first_location_ask_waits_for_the_pin(monkeypatch):
     _, state = _run(monkeypatch, {"error": "no_location"})
-    assert state == {"awaiting_location": True, "asks": 1}
+    assert state == {"awaiting_location": True, "asks": 1, "last_was_weather": True}
 
 
 def test_second_ask_still_waits(monkeypatch):
     # "weather?" -> PIN asked -> "will it rain?" -> PIN asked again:
     # the next message (the PIN) must still go to weather.
     _, state = _run(monkeypatch, {"error": "no_location"}, previous_asks=1)
-    assert state == {"awaiting_location": True, "asks": 2}
+    assert state == {"awaiting_location": True, "asks": 2, "last_was_weather": True}
 
 
 def test_stops_waiting_after_the_cap(monkeypatch):
     _, state = _run(monkeypatch, {"error": "no_location"}, previous_asks=adk_router._MAX_LOCATION_ASKS - 1)
-    assert state == {"awaiting_location": False}
+    assert state == {"awaiting_location": False, "last_was_weather": True}
 
 
 def test_real_weather_result_clears_the_wait(monkeypatch):
+    # "clears the wait" (awaiting_location), but last_was_weather is now
+    # armed by this same successful turn -- that's the whole point of the
+    # fix: the next bare PIN/place name still gets one more shot at weather.
     _, state = _run(monkeypatch, {"pin": "411001", "weather": {"summary": "Hot"}})
-    assert state == {"awaiting_location": False}
+    assert state == {"awaiting_location": False, "last_was_weather": True}
 
 def test_place_not_found_error_also_waits_for_the_pin(monkeypatch):
     _, state = _run(monkeypatch, {"error": "Could not find that place"})
-    assert state == {"awaiting_location": True, "asks": 1}
+    assert state == {"awaiting_location": True, "asks": 1, "last_was_weather": True}
 
     
