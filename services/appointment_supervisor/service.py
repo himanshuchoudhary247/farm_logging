@@ -191,16 +191,53 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def process_query(text: str, farmer_id: str) -> dict[str, Any]:
-    """Thin wrapper around query_agent.adk_agent.process_query_adk (the
-    off-topic-probe call in turn(), below). A real module-level function --
-    not a re-exported name -- so tests can monkeypatch service.process_query
-    the same way they always have. The import is deferred to call time:
-    adk_agent.py pulls in google.adk at module load (needs Python 3.10+),
-    and this file must stay importable under an older interpreter for
-    every other code path that never reaches this probe."""
-    from services.query_agent.adk_agent import process_query_adk
-    return process_query_adk(text, farmer_id)
+def _try_mid_draft_escape(text: str, farmer_id: str, session_id: str, language: str) -> Optional[dict[str, Any]]:
+    """Thin wrapper around mid_draft_escape.try_switch -- the off-topic
+    probe turn() calls whenever a turn fails to advance the draft (nothing
+    new extracted for whatever is currently pending). A real module-level
+    function, not a re-exported name, so tests can monkeypatch
+    service._try_mid_draft_escape the same way they always patched
+    service.process_query before this was generalized to every COLLECTING
+    turn (previously: CONFIRMING-only) and to weather (previously: query
+    only). The import is deferred to call time: mid_draft_escape.py pulls
+    in query_agent/weather_alert's adk_agent modules, which need
+    google.adk at module load (Python 3.10+), and this file must stay
+    importable under an older interpreter for every other code path that
+    never reaches this probe."""
+    from services.chat_orchestrator.mid_draft_escape import try_switch
+    return try_switch(text, farmer_id, session_id, language)
+
+
+# Furthest ahead a booking may be. A date outside today..today+365 is
+# treated as "not provided" and re-asked (see _valid_appointment_date).
+_MAX_APPOINTMENT_DAYS_AHEAD = 365
+
+
+def _now_ist() -> datetime:
+    """Current date and time in India (IST, UTC+5:30)."""
+    from datetime import timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=5, minutes=30)))
+
+
+def _today_ist():
+    """Today's date in India -- the same "today" the extraction prompt's
+    calendar is built from (bedrock_adapter.build_prompt)."""
+    return _now_ist().date()
+
+
+def _appointment_day(value: Any):
+    """'today' / 'tomorrow' / 'yesterday' or a real YYYY-MM-DD -> that
+    date (IST). Anything else -> None."""
+    if not isinstance(value, str):
+        return None
+    from datetime import timedelta
+    relative = {"today": 0, "tomorrow": 1, "yesterday": -1}
+    if value in relative:
+        return _today_ist() + timedelta(days=relative[value])
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _valid_appointment_date(value: Any) -> bool:
@@ -209,16 +246,25 @@ def _valid_appointment_date(value: Any) -> bool:
     not a guarantee -- this is the deterministic backstop. Rejects
     anything that isn't 'today'/'tomorrow'/'yesterday' or a real
     YYYY-MM-DD calendar date, so a bad guess gets treated as "not
-    provided" (re-asked) instead of silently stored."""
-    if not isinstance(value, str):
+    provided" (re-asked) instead of silently stored.
+
+    Also rejects a booking date before today or more than
+    _MAX_APPOINTMENT_DAYS_AHEAD days ahead (IST). A visit can't be booked
+    in the past, and "fever since yesterday" must not become the booking
+    date. Only bookings use this check -- health logs and birth dates
+    keep accepting past dates."""
+    day = _appointment_day(value)
+    if day is None:
         return False
-    if value in ("today", "tomorrow", "yesterday"):
-        return True
-    try:
-        datetime.strptime(value, "%Y-%m-%d")
-        return True
-    except ValueError:
+    from datetime import timedelta
+    today = _today_ist()
+    if day < today or day > today + timedelta(days=_MAX_APPOINTMENT_DAYS_AHEAD):
+        import logging
+        logging.getLogger(__name__).warning(
+            "appointment date rejected (outside today..+%d days): %s",
+            _MAX_APPOINTMENT_DAYS_AHEAD, value)
         return False
+    return True
 
 
 def _valid_appointment_time(value: Any) -> bool:
@@ -232,6 +278,28 @@ def _valid_appointment_time(value: Any) -> bool:
         return True
     except ValueError:
         return False
+
+
+# Kill switch for the check below: APPOINTMENT_PAST_TIME_CHECK=0 turns it off.
+_PAST_TIME_CHECK_ENV = "APPOINTMENT_PAST_TIME_CHECK"
+
+
+def _time_already_passed(date_value: Any, time_value: Any) -> bool:
+    """True when the booking is for today (IST) at a time that is already
+    over, e.g. "today at 5 pm" said at 7 pm. _valid_appointment_date and
+    _valid_appointment_time each check one value alone, so neither can see
+    this. The current minute still counts as not passed."""
+    import os
+    if os.getenv(_PAST_TIME_CHECK_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return False
+    if _appointment_day(date_value) != _today_ist():
+        return False
+    try:
+        wanted = datetime.strptime(str(time_value), "%H:%M").time()
+    except ValueError:
+        return False
+    now = _now_ist()
+    return (wanted.hour, wanted.minute) < (now.hour, now.minute)
 
 
 _ANIMAL_MATCH_TOOL_SPEC = {
@@ -438,6 +506,16 @@ class AppointmentSupervisor(DraftSupervisor):
                 continue
             target[key] = value
 
+        # Date and time are each valid on their own, but together they can
+        # still point to a time today that is already over. Checked after
+        # the loop, on what the draft now holds, so it works whichever turn
+        # brought the date or the time. The time is dropped (re-asked), the
+        # same way a past date is.
+        if target.get("time") and _time_already_passed(target.get("date"), target.get("time")):
+            _log.warning("appointment time rejected (already passed today): date=%s time=%s",
+                         target.get("date"), target.get("time"))
+            target.pop("time", None)
+
         # animal_tag/animal_name/animal_id are the extraction schema's
         # fields for a bare ear-tag, a name, or an internal record id --
         # REQUIRED_FIELDS only checks animal_identifier, so one of them
@@ -486,6 +564,47 @@ class AppointmentSupervisor(DraftSupervisor):
                 target["animal_identifier"] = raw_animal_ref
         if target.get("issue") and not target.get("symptoms"):
                 target["symptoms"] = [target["issue"]]
+
+    @staticmethod
+    def _names_new_animal(draft: dict[str, Any], entities: dict[str, Any]) -> bool:
+        """True when this turn's extraction names an animal other than the
+        one already verified. Compared case-insensitively against the
+        verified name/tag, its id, and what the farmer first called it, so
+        repeating the same animal in other case or script is not a change."""
+        ref = entities.get("animal_id") or entities.get("animal_tag") or entities.get("animal_name")
+        if not ref or not draft.get("animal_verified"):
+            return False
+        values = draft["draft"]
+        known = {
+            str(v).strip().casefold()
+            for v in (values.get("animal_identifier"), values.get("animal_id"), draft.get("animal_said"))
+            if v
+        }
+        return str(ref).strip().casefold() not in known
+
+    @staticmethod
+    def _changes_a_booking_field(draft: dict[str, Any], entities: dict[str, Any]) -> bool:
+        """True when this turn's extraction carries a usable value for
+        issue/symptoms/duration/severity/date/time that differs from what
+        the draft already holds. Values that _copy_entities would refuse
+        (a past date, an invalid time, a time already over today) do not
+        count -- they would change nothing."""
+        values = draft["draft"]
+        for field in ("issue", "symptoms", "duration", "severity", "date", "time"):
+            value = entities.get(field)
+            if value in (None, "", []) or value == values.get(field):
+                continue
+            if field == "date" and _appointment_day(value) is None:
+                continue
+            if field == "date" and _appointment_day(value) < _today_ist():
+                continue
+            if field == "time" and (
+                not _valid_appointment_time(value)
+                or _time_already_passed(entities.get("date") or values.get("date"), value)
+            ):
+                continue
+            return True
+        return False
 
     def _missing(self, draft: dict[str, Any]) -> list[str]:
         values = draft["draft"]
@@ -679,11 +798,57 @@ class AppointmentSupervisor(DraftSupervisor):
             )
         else:
             answers_expected_field = bool(expected_field) and bool(turn_entities.get(expected_field))
-        if awaiting_confirmation and confirmation_signal == "no" and not answers_expected_field:
-            probe = process_query(text, farmer_id)
-            if probe.get("sql") and probe.get("data"):
+        # Real gap, found live testing this exact fix: gating on
+        # confirmation_signal=="no" specifically missed a genuinely
+        # off-topic question that the model didn't confidently call "no"
+        # either -- "will it rain tomorrow?" at CONFIRMING came back with
+        # no signal at all (neither yes nor no), so the escape never ran
+        # and the farmer just got the same summary echoed back. Broadened
+        # to anything short of an explicit "yes": a real correction turn
+        # still reaches the model classifying it as "appointment" (not
+        # query/weather), try_switch correctly returns None for that, and
+        # control falls through to the normal correction handling below
+        # exactly as before -- this only adds a probe, never changes the
+        # outcome for a genuine correction.
+        # Real bug, found in deep review: "cancel" is a valid confirmation_signal
+        # value too, so a bare `!= "yes"` gate also matched it and ran BEFORE the
+        # dedicated cancel handler below -- an explicit cancel at this checkpoint
+        # could be swallowed by a truthy escape result instead of actually
+        # cancelling the booking. Excluded here the same way answers_expected_field
+        # already excludes a real field answer.
+        #
+        # A "no" at the final readback can carry the fix itself ("no, not
+        # that animal, the other one", "no, make it tomorrow"). Handled as a
+        # bare "no", that correction was lost: either the farmer was asked
+        # "What would you like to correct?" after already saying it, or the
+        # text went to the off-topic escape above, which could find the named
+        # animal in the database and answer with its details instead of
+        # continuing the booking. So when the "no" brings a new value (a
+        # different animal, or a changed issue/date/time), apply it now:
+        # skip the escape and confirm("no") and take the normal merge path,
+        # which re-verifies a new animal and reads the booking back again.
+        # A bare "no" and an off-topic question behave as before.
+        names_new_animal = self._names_new_animal(draft, turn_entities)
+        corrects_in_place = (
+            awaiting_confirmation
+            and confirmation_signal == "no"
+            and (names_new_animal or self._changes_a_booking_field(draft, turn_entities))
+        )
+        if corrects_in_place:
+            _log.info(
+                "appointment correction in place session=%s new_animal=%s",
+                session_id, names_new_animal,
+            )
+        if (
+            awaiting_confirmation and confirmation_signal not in {"yes", "cancel"}
+            and not answers_expected_field and not corrects_in_place
+        ):
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
                 self._save(draft)
-                return self._response(draft, probe.get("answer") or "", input_transcript=text, include_audio=include_audio)
+                pending_prompt = self._message(draft["language"], "correct", summary=self._summary(draft))
+                reply = f"{escape['answer']} {pending_prompt}".strip()
+                return self._response(draft, reply, input_transcript=text, include_audio=include_audio)
 
         # "cancel" must be honored regardless of state -- same bug class as
         # every other confirmation_signal check in this method: it was only
@@ -696,7 +861,7 @@ class AppointmentSupervisor(DraftSupervisor):
             self._save(draft)
             return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
-        if awaiting_confirmation and confirmation_signal in {"yes", "no"}:
+        if awaiting_confirmation and confirmation_signal in {"yes", "no"} and not corrects_in_place:
             self._save(draft)
             return self.confirm(farmer_id, session_id, confirmation_signal, include_audio=include_audio)
         if state == "READY_TO_SUBMIT" and confirmation_signal in {"yes", "submit"}:
@@ -753,7 +918,13 @@ class AppointmentSupervisor(DraftSupervisor):
             turn_entities.get(f) not in (None, "", [])
             for f in ("issue", "symptoms", "duration", "severity", "date", "time", "miscellaneous_notes")
         )
-        if confirmation_signal == "no" and draft.get("animal_verified") and not answers_expected_field and not corrects_other_field:
+        if (
+            confirmation_signal == "no"
+            and draft.get("animal_verified")
+            and not answers_expected_field
+            and not corrects_other_field
+            and not corrects_in_place
+        ):
             draft["draft"]["animal_identifier"] = None
             draft["draft"].pop("animal_id", None)
             draft["draft"].pop("animal_tag", None)
@@ -780,6 +951,10 @@ class AppointmentSupervisor(DraftSupervisor):
             animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
             matched, candidates = _verify_animal(identifier, animals)
             if matched:
+                # What the farmer actually called the animal (any script or
+                # spelling) -- kept so a later turn repeating it is not
+                # mistaken for a different animal (see _names_new_animal).
+                draft["animal_said"] = identifier
                 draft["draft"]["animal_id"] = matched.id
                 draft["draft"]["animal_identifier"] = matched.tag_or_name
                 draft["animal_verified"] = True
@@ -842,6 +1017,18 @@ class AppointmentSupervisor(DraftSupervisor):
             else:
                 message = self._message(draft["language"], "welcome")
                 options = None
+            # General version of the CONFIRMING-only off-topic probe above:
+            # "nothing new extracted while a field is still pending" is the
+            # same signal here, mid-COLLECTING, that confirmation_signal=="no"
+            # was there -- a turn that doesn't advance the draft at all is
+            # exactly the shape of a farmer asking something unrelated
+            # ("how many animals do I have") instead of answering. Re-state
+            # the same `message` it was about to send anyway as the
+            # pending-question reminder (Q4), so the booking isn't silently
+            # dropped after the farmer's real question is answered.
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
+                message = f"{escape['answer']} {message}".strip()
             self._save(draft)
             return self._response(draft, message, input_transcript=text, include_audio=include_audio, options=options)
 
@@ -1187,3 +1374,4 @@ class AppointmentSupervisor(DraftSupervisor):
         draft["draft"].setdefault("attachments", []).append(attachment)
         self._save(draft)
         return {"session_id": session_id, "attachments": draft["draft"]["attachments"], "draft": draft["draft"]}
+
