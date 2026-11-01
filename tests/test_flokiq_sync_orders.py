@@ -85,6 +85,32 @@ def test_search_with_a_bad_products_field_returns_an_empty_list(on, monkeypatch)
     assert client.search_products(FARMER, "calcium") == {"storeAssigned": True, "products": []}
 
 
+def test_a_200_with_an_unexpected_body_is_logged(on, monkeypatch, caplog):
+    """Real bug, found in deep review: a non-200 status is already logged
+    inside _order_request, but a 200 response with no "storeAssigned" key
+    (e.g. a proxy error page served with status 200 -- the exact case this
+    function's own docstring anticipates) logged nothing anywhere in the
+    chain -- a diagnostic blind spot for whoever has to debug a real
+    incident, since the farmer-facing behaviour (treated as unreachable)
+    was already correct either way."""
+    _capture(monkeypatch, _Resp(200, {"unexpected": "shape"}))
+    with caplog.at_level("WARNING"):
+        assert client.search_products(FARMER, "calcium") is None
+    assert "unexpected body shape" in caplog.text
+    assert FARMER in caplog.text
+
+
+def test_a_500_is_not_double_logged_by_the_new_warning(on, monkeypatch, caplog):
+    """The new warning is specifically for a 200 with the wrong shape --
+    _order_request already logs any non-200 status a few lines above, so
+    this path must not also fire for a 500 (which would produce a
+    confusing double warning for the same single failure)."""
+    _capture(monkeypatch, _Resp(500, {"message": "boom"}))
+    with caplog.at_level("WARNING"):
+        assert client.search_products(FARMER, "calcium") is None
+    assert "unexpected body shape" not in caplog.text
+
+
 def test_quote_posts_items_and_returns_status_and_body(on, monkeypatch):
     body = {"totalAmount": 240, "currency": "INR", "deliveryAddress": "Pune", "items": []}
     calls = _capture(monkeypatch, _Resp(200, body))
