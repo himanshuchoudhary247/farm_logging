@@ -545,7 +545,7 @@ def test_query_agent_turn_returns_every_lookup_as_data_sets(farm, monkeypatch):
             return SimpleNamespace(id="s", events=[])
 
     monkeypatch.setattr(adk_agent, "Runner", FakeRunner)
-    monkeypatch.setattr(adk_agent, "build_query_agent", lambda farmer_id: None)
+    monkeypatch.setattr(adk_agent, "build_query_agent", lambda farmer_id, language=None: None)
     monkeypatch.setattr(adk_agent, "_session_service", lambda: FakeSessions())
     out = asyncio.run(adk_agent._run_query_async("health report", FID, app_language="en-IN"))
     assert out["answer"] == "Here is the health report." and out["speech_text"] == "Two animals need care."
@@ -576,7 +576,7 @@ def test_one_lookup_turn_has_no_data_sets(farm, monkeypatch):
             return SimpleNamespace(id="s", events=[])
 
     monkeypatch.setattr(adk_agent, "Runner", FakeRunner)
-    monkeypatch.setattr(adk_agent, "build_query_agent", lambda farmer_id: None)
+    monkeypatch.setattr(adk_agent, "build_query_agent", lambda farmer_id, language=None: None)
     monkeypatch.setattr(adk_agent, "_session_service", lambda: FakeSessions())
     out = asyncio.run(adk_agent._run_query_async("my animals", FID, app_language="en-IN"))
     assert "data_sets" not in out and out["data"]["row_count"] == 3
