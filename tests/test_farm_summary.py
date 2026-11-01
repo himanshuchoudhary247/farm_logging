@@ -457,6 +457,21 @@ def test_summary_route_rejects_unsupported_language(tmp_path, monkeypatch, api_m
     assert exc_info.value.status_code == 400
 
 
+def test_summary_route_accepts_region_tagged_language(tmp_path, monkeypatch, api_main):
+    """Real bug, found in a second deep-review pass: the rejection check
+    above compared the raw `language` param against the bare-code tuple
+    ("en", "hi", ...) without stripping a region tag first, while every
+    other endpoint's SUPPORTED_LANGUAGES (and this module's own
+    normalize_language()) expects the region-tagged form ("en-IN", "hi-IN",
+    ...) the app actually sends -- so a normal client request for "hi-IN"
+    was being spuriously rejected with 400 even though build_farm_summary
+    would have handled it fine."""
+    _seed(tmp_path, monkeypatch)
+    monkeypatch.setattr(llm_advisory, "generate_llm_advisory", _llm_ok([]))
+    out = api_main.farm_summary(FARMER, language="hi-IN", include_audio=False, _auth=None)
+    assert out["language"] == "hi"
+
+
 # --- data-loading / counting / vaccination failure isolation ---
 
 def test_load_farm_data_failure_keeps_the_card_and_other_errors_independent(tmp_path, monkeypatch, sources):

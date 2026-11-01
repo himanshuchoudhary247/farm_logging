@@ -956,7 +956,18 @@ def farm_summary(
     # normalize_language -- the same "silently passed through" failure mode
     # chat_turn's own language check was added to prevent (see the comment
     # there citing PR #41). Reject it explicitly instead.
-    if language not in FARM_SUMMARY_LANGUAGES:
+    #
+    # Real bug, found in a second deep-review pass: this checked the raw
+    # `language` against the bare-code tuple ("en", "hi", ...) without first
+    # stripping a region tag, while every other endpoint's SUPPORTED_LANGUAGES
+    # (and this module's own normalize_language()) expects/accepts the
+    # region-tagged form ("en-IN", "hi-IN", ...) the app actually sends --
+    # so a normal client request for "hi-IN" got spuriously rejected with
+    # 400 here, even though build_farm_summary would have handled it fine.
+    # Normalize the same way normalize_language() does before checking, so
+    # a real region-tagged language still works and only a genuinely
+    # unsupported one (e.g. "fr") is rejected.
+    if language.split("-")[0].strip().lower() not in FARM_SUMMARY_LANGUAGES:
         raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
     try:
         return build_farm_summary(
