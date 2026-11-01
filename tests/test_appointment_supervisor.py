@@ -1017,11 +1017,11 @@ def test_new_animal_is_not_sent_to_the_off_topic_probe(tmp_path, monkeypatch):
     _gauri_moti(monkeypatch)
     calls = []
 
-    def probe(query, farmer_id):
-        calls.append(query)
-        return {"answer": "MOTI is a Sirohi goat", "sql": "SELECT 1", "data": [{"name": "MOTI"}]}
+    def escape(text, farmer_id, session_id, language):
+        calls.append(text)
+        return {"intent": "query", "answer": "MOTI is a Sirohi goat"}
 
-    monkeypatch.setattr(service, "process_query", probe)
+    monkeypatch.setattr(service, "_try_mid_draft_escape", escape)
     _, result = _readback_then(monkeypatch, tmp_path, "s-moti-probe", {"animal_name": "MOTI"}, language="kn-IN")
     assert calls == []
     assert result["draft"]["animal_id"] == "a-moti"
@@ -1058,11 +1058,11 @@ def test_no_that_repeats_the_same_animal_in_another_script_is_a_bare_no(tmp_path
 def test_off_topic_question_at_readback_still_goes_to_the_probe(tmp_path, monkeypatch):
     _gauri_moti(monkeypatch)
     monkeypatch.setattr(
-        service, "process_query",
-        lambda query, farmer_id: {"answer": "You have 14 goats", "sql": "SELECT 1", "data": [{"n": 14}]},
+        service, "_try_mid_draft_escape",
+        lambda text, farmer_id, session_id, language: {"intent": "query", "answer": "You have 14 goats"},
     )
     _, result = _readback_then(monkeypatch, tmp_path, "s-offtopic", {})
-    assert result["response_text"] == "You have 14 goats"
+    assert "You have 14 goats" in result["response_text"]
     assert result["draft"]["animal_id"] == "a-gauri"
 
 

@@ -104,13 +104,13 @@ def test_booking_readback_correction_switches_the_animal(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [GAURI, MOTI])
     probe_calls = []
 
-    def probe(query, farmer_id):
-        # The off-topic probe would find the named animal in the database
+    def probe(text, farmer_id, session_id, language):
+        # The off-topic escape would find the named animal in the database
         # and answer with its details instead of continuing the booking.
-        probe_calls.append(query)
-        return {"answer": "MOTI is a Sirohi goat", "sql": "SELECT 1", "data": [{"name": "MOTI"}]}
+        probe_calls.append(text)
+        return {"intent": "query", "answer": "MOTI is a Sirohi goat"}
 
-    monkeypatch.setattr(service, "process_query", probe)
+    monkeypatch.setattr(service, "_try_mid_draft_escape", probe)
     supervisor = service.AppointmentSupervisor(tmp_path)
 
     first = supervisor.turn("f-001", "booking-1", "GAURI has fever, day after tomorrow 10 am", "en-IN")
