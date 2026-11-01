@@ -56,40 +56,54 @@ def _has_value_or_unavailable(entities: Dict[str, Any], field: str) -> bool:
     return field in unavailable
 
 
+def _stored_animals(farmer_id: Optional[str]) -> list:
+    """Stored animals, narrowed to this farmer's when any are found.
+    Empty list if the animal store can't be read."""
+    try:
+        animals = load_animals()
+    except Exception:
+        return []
+    if farmer_id:
+        scoped = [a for a in animals if a.farmer_id == farmer_id]
+        if scoped:
+            return scoped
+    return animals
+
+
+def _match_stored_animal(animals: list, animal_id: Any = None, name: Any = None):
+    """The stored animal an extracted id or name/tag refers to: exact id,
+    then exact name/tag (case-insensitive), then the closest spelling
+    (difflib, cutoff 0.75). None when nothing matches."""
+    wanted_id = str(animal_id or "").strip().lower()
+    wanted_name = str(name or "").strip().lower()
+    if wanted_id:
+        match = next((a for a in animals if a.id.lower() == wanted_id), None)
+        if match:
+            return match
+    if wanted_name:
+        by_name = {a.tag_or_name.lower(): a for a in animals}
+        if wanted_name in by_name:
+            return by_name[wanted_name]
+        fuzzy = get_close_matches(wanted_name, list(by_name.keys()), n=1, cutoff=0.75)
+        if fuzzy:
+            return by_name[fuzzy[0]]
+    return None
+
+
 def _prefill_animal_details(entities: Dict[str, Any]) -> Dict[str, Any]:
     """Enrich a farmer's known animal profile once the LLM has identified an
     animal_id, animal_name, or animal_tag. Matches by exact id/name and falls
     back to fuzzy name matching (difflib) — no text scanning, this only
     compares already-extracted entity values against stored records."""
-    preferred_farmer_id = entities.get("farmer_id")
-
-    try:
-        animals = load_animals()
-    except Exception:
-        return entities
-
-    if preferred_farmer_id:
-        scoped = [a for a in animals if a.farmer_id == preferred_farmer_id]
-        if scoped:
-            animals = scoped
-
+    animals = _stored_animals(entities.get("farmer_id"))
     if not animals:
         return entities
 
-    animal_id = str(entities.get("animal_id") or "").strip().lower()
-    animal_name = str(entities.get("animal_name") or entities.get("animal_tag") or "").strip().lower()
-
-    match = None
-    if animal_id:
-        match = next((a for a in animals if a.id.lower() == animal_id), None)
-    if not match and animal_name:
-        by_name = {a.tag_or_name.lower(): a for a in animals}
-        match = by_name.get(animal_name)
-        if not match:
-            fuzzy = get_close_matches(animal_name, list(by_name.keys()), n=1, cutoff=0.75)
-            if fuzzy:
-                match = by_name[fuzzy[0]]
-
+    match = _match_stored_animal(
+        animals,
+        animal_id=entities.get("animal_id"),
+        name=entities.get("animal_name") or entities.get("animal_tag"),
+    )
     if not match:
         return entities
 
@@ -107,6 +121,55 @@ def _prefill_animal_details(entities: Dict[str, Any]) -> Dict[str, Any]:
     entities.setdefault("animal_record_mode", "existing")
 
     return entities
+
+
+# Fields _prefill_animal_details copies from a stored animal record. They
+# all describe that one animal.
+_ANIMAL_PROFILE_KEYS = (
+    "animal_id", "animal_tag", "animal_name", "species", "breed",
+    "age_years", "feeding_details", "animal_record_mode",
+)
+
+
+def _forget_replaced_animal(cached: Dict[str, Any], turn_entities: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop the cached animal's stored-record fields when the current turn
+    names a different animal.
+
+    Why: the session cache carries the animal resolved in an earlier turn,
+    including its animal_id, and _prefill_animal_details trusts animal_id
+    before the name. So when a farmer corrected the animal ("not that one,
+    the other one"), the new name was matched back to the OLD animal's id
+    and overwritten with the old name -- the correction never reached the
+    caller. Seen in a booking flow, where the confirmed booking kept the
+    wrong animal.
+
+    The cache is left as it is when:
+      * this turn names no animal, or gives an animal_id of its own;
+      * the cached animal is not a stored record (animal_record_mode is not
+        "existing") -- e.g. a new animal being registered, whose species /
+        breed / age are the farmer's own words and must survive a rename;
+      * the new name resolves to the SAME stored animal (other case, a
+        small spelling slip).
+    Otherwise -- the new name is another stored animal, or matches none --
+    the old record is dropped. The farmer's words win; _prefill_animal_details
+    then resolves the new name, and callers that verify the animal (e.g.
+    appointment_supervisor) check it with their own matching."""
+    cached_id = cached.get("animal_id")
+    if not cached_id or cached.get("animal_record_mode") != "existing":
+        return cached
+    if turn_entities.get("animal_id"):
+        return cached
+    new_ref = turn_entities.get("animal_name") or turn_entities.get("animal_tag")
+    if not new_ref:
+        return cached
+    match = _match_stored_animal(_stored_animals(cached.get("farmer_id")), name=new_ref)
+    if match is not None and match.id == cached_id:
+        return cached
+    _log.info(
+        "animal replaced in session: cached_id=%s new_ref=%r resolves_to=%s",
+        cached_id, new_ref, getattr(match, "id", None),
+    )
+    return {k: v for k, v in cached.items() if k not in _ANIMAL_PROFILE_KEYS}
 
 
 def _sync_animal_intent(intent: Optional[str], entities: Dict[str, Any]) -> Optional[str]:
@@ -378,6 +441,7 @@ def process_text_input(
     elif not intent:
         intent = llm_intent
 
+    entities = _forget_replaced_animal(entities, llm_entities)
     entities.update(llm_entities)
     if llm_unavailable:
         entities = _mark_fields_unavailable(entities, list(llm_unavailable))
@@ -442,3 +506,4 @@ def process_text_input(
 def process_voice(audio_bytes: bytes, session_id: str = "default") -> Dict[str, Any]:
     text = transcribe_audio(audio_bytes)
     return process_text_input(text, session_id=session_id)
+

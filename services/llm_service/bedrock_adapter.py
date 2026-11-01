@@ -390,6 +390,9 @@ def build_prompt(text: str, context: Optional[Dict[str, Any]] = None) -> str:
     tomorrow = (today + timedelta(days=1)).isoformat()
     calendar = _date_calendar(today)
     calendar_line = f"\n{calendar}" if calendar else ""
+    weekdays = _weekday_lookup(today)
+    if weekdays:
+        calendar_line += f"\n{weekdays}"
 
     return f"""User: "{text}"
 Context: intent={json.dumps(session_intent)} entities={json.dumps(session_entities, ensure_ascii=False)} pending={json.dumps(pending_questions, ensure_ascii=False)}
@@ -424,6 +427,99 @@ def _date_calendar(today) -> str:
         label = f" ({_DAY_LABELS[offset]})" if offset in _DAY_LABELS else ""
         days.append(f"{day.isoformat()} {_WEEKDAYS[day.weekday()]}{label}")
     return f"Calendar (next {_CALENDAR_DAYS} days): " + "; ".join(days)
+
+
+# The farmer's words for each weekday, so a weekday said in any supported
+# language maps straight to a date. Found by the evals suite: with only the
+# English names in the calendar, Malayalam "വ്യാഴാഴ്ച" (Thursday) kept coming
+# back as Wednesday's date -- the model had to translate the word first and
+# got that step wrong. Weekday names are fixed vocabulary (like the species
+# words in the query agent), not data about any farmer. Index = weekday()
+# (0 = Monday). The full spoken form is used (Tamil -கிழமை, Malayalam
+# -ആഴ്ച): that is how farmers say and type the day. Same kill switch as
+# the calendar.
+_WEEKDAY_WORDS = (
+    ("सोमवार", "திங்கள்கிழமை", "సోమవారం", "ಸೋಮವಾರ", "തിങ്കളാഴ്ച"),
+    ("मंगलवार", "मंगळवार", "செவ்வாய்க்கிழமை", "మంగళవారం", "ಮಂಗಳವಾರ", "ചൊവ്വാഴ്ച"),
+    ("बुधवार", "புதன்கிழமை", "బుధవారం", "ಬುಧವಾರ", "ബുധനാഴ്ച"),
+    ("गुरुवार", "बृहस्पतिवार", "வியாழக்கிழமை", "గురువారం", "ಗುರುವಾರ", "വ്യാഴാഴ്ച"),
+    ("शुक्रवार", "வெள்ளிக்கிழமை", "శుక్రవారం", "ಶುಕ್ರವಾರ", "വെള്ളിയാഴ്ച"),
+    ("शनिवार", "சனிக்கிழமை", "శనివారం", "ಶನಿವಾರ", "ശനിയാഴ്ച"),
+    ("रविवार", "इतवार", "ஞாயிற்றுக்கிழமை", "ఆదివారం", "ಭಾನುವಾರ", "ರವಿವಾರ", "ഞായറാഴ്ച"),
+)
+
+
+def _weekday_lookup(today) -> str:
+    """'Weekday dates (first date after today): Monday = 2026-10-19
+    (सोमवार, ...); ...' or '' when the calendar is turned off. "After
+    today" matches the date rule in the extraction schema ('Monday' = the
+    first date after today with that weekday)."""
+    if os.getenv(_CALENDAR_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return ""
+    from datetime import timedelta
+    parts = []
+    for weekday, name in enumerate(_WEEKDAYS):
+        ahead = (weekday - today.weekday()) % 7 or 7
+        day = today + timedelta(days=ahead)
+        parts.append(f"{name} = {day.isoformat()} ({', '.join(_WEEKDAY_WORDS[weekday])})")
+    return "Weekday dates (first date after today): " + "; ".join(parts)
+
+
+# Backstop for the weekday table above. Found by the evals suite: even with
+# the table in the prompt, the model returned Wednesday's date for Malayalam
+# "വ്യാഴാഴ്ച" (Thursday) 6 times out of 6, while other days and languages
+# were right -- a prompt can't fix a word the model consistently misreads.
+# When the farmer names exactly one weekday and the extracted date is a
+# different weekday within the next two weeks, the date is moved to that
+# weekday (same week: the first one after today; the week after, if the
+# model's date was a week or more ahead). It uses the same weekday words as
+# the prompt, never changes 'today'/'tomorrow' or dates further out, and is
+# logged. EXTRACTION_WEEKDAY_CHECK=0 turns it off.
+_WEEKDAY_CHECK_ENV = "EXTRACTION_WEEKDAY_CHECK"
+_WEEKDAY_CHECK_DAYS = 14
+
+
+def _today_ist_date():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Asia/Kolkata")).date()
+
+
+def _weekday_named(text: str) -> Optional[int]:
+    """weekday() of the one weekday the text names (any supported language,
+    or English), or None when it names none or more than one."""
+    found = set()
+    for token in (word.strip(".,!?;:()[]\"'") for word in (text or "").lower().split()):
+        for index, english in enumerate(_WEEKDAYS):
+            # startswith: case endings stick to the word (गुरुवारी, ಗುರುವಾರದಂದು).
+            if token.startswith(english.lower()) or any(token.startswith(w) for w in _WEEKDAY_WORDS[index]):
+                found.add(index)
+    return found.pop() if len(found) == 1 else None
+
+
+def _check_weekday_date(text: str, entities: Dict[str, Any], today=None) -> Dict[str, Any]:
+    if os.getenv(_WEEKDAY_CHECK_ENV, "1").strip().lower() in ("0", "false", "no", "off"):
+        return entities
+    value = entities.get("date")
+    if not isinstance(value, str):
+        return entities
+    from datetime import date as _date, timedelta
+    try:
+        day = _date.fromisoformat(value)
+    except ValueError:
+        return entities  # 'today', 'tomorrow', or not a date
+    named = _weekday_named(text)
+    if named is None or day.weekday() == named:
+        return entities
+    today = today or _today_ist_date()
+    if not (today < day <= today + timedelta(days=_WEEKDAY_CHECK_DAYS)):
+        return entities
+    fixed = today + timedelta(days=(named - today.weekday()) % 7 or 7)
+    if day >= today + timedelta(days=7):
+        fixed += timedelta(days=7)  # the model meant next week; keep that week
+    _log.warning("extraction date %s is a %s but the farmer said %s; using %s",
+                 value, _WEEKDAYS[day.weekday()], _WEEKDAYS[named], fixed.isoformat())
+    return {**entities, "date": fixed.isoformat()}
 # already-typed arguments — no JSON-in-text to parse, no _safe_json_parse
 # strategies, no _coerce_confidence/_coerce_list shims. Verified working on
 # DeepSeek V3, Nova Micro, and Ministral 14B via converse toolConfig.
@@ -522,6 +618,9 @@ _EXTRACTION_TOOL_SPEC = {
                     "type": "string",
                     "description": (
                         "'today', 'tomorrow', 'yesterday', or an ISO date YYYY-MM-DD. "
+                        "A word for today, tomorrow or yesterday in any language or script "
+                        "(e.g. आज, இன்று, ఈరోజు, ಇಂದು, ഇന്ന് for today) is written as 'today', "
+                        "'tomorrow' or 'yesterday'. "
                         "Any other day the farmer names, in any language, must be written "
                         "as the ISO date found in the Calendar line -- look it up there, "
                         "never count days yourself: day after tomorrow (e.g. परसों, परवा, "
@@ -700,7 +799,7 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     confirmation_signal = tool_input.pop("confirmation_signal", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
-    entities = tool_input
+    entities = _check_weekday_date(text, tool_input)
 
     return {
         "intent": intent,
@@ -1060,3 +1159,4 @@ def generate_health_recommendation(
     except Exception as exc:
         _log.warning("generate_health_recommendation failed: %s", exc)
         return {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""}
+
