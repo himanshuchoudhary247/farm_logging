@@ -166,6 +166,17 @@ def _number_in_text(text: str) -> Optional[int]:
     return number if 1 <= number <= MAX_QUANTITY else None
 
 
+def _same_message(a: str, b: str) -> bool:
+    """True when two messages say the same thing word for word, ignoring
+    case, extra spaces, end punctuation and the invisible joiners (ZWJ/ZWNJ)
+    that Indic keyboards add or leave out -- a tap on Retry, a second tap on
+    a pill, or the farmer sending their request again."""
+    def norm(text: str) -> str:
+        visible = (text or "").replace("\u200c", "").replace("\u200d", "")
+        return " ".join(visible.split()).casefold().strip(" .,!?;:।॥")
+    return bool(norm(a)) and norm(a) == norm(b)
+
+
 def _money(value: Any) -> str:
     """Rupees for display: whole amounts without decimals (240), others with
     two (240.50)."""
@@ -256,7 +267,8 @@ _ORDER_TOOL_SPEC = {
                         "order -- e.g. the weather, a sick animal, booking a vet, or a question "
                         "about their animals or records. false for anything to do with the order "
                         "(a product, a number, an address, yes/no, a price question, a question "
-                        "about delivery or payment)."
+                        "about delivery or payment, or a general wish to buy or see the "
+                        "products, such as 'I want to buy something')."
                     ),
                 },
                 "confirmation_signal": {
@@ -294,7 +306,8 @@ Examples (what goes into record_order_turn):
 12) Just asked how many | Farmer: "what does it cost?" -> {} -- about the order, not off topic
 13) Nothing known yet | Farmer: "5 mineral mixture packet bhej do" -> {product_query: 'mineral mixture', quantity: 5}
 14) Nothing known yet | Farmer: "liver tonic chahiye 3" -> {product_query: 'liver tonic', quantity: 3}
-15) Just asked how many | Farmer: "haan ji" -> {confirmation_signal: 'yes'} -- a yes is not a number, no quantity"""
+15) Just asked how many | Farmer: "haan ji" -> {confirmation_signal: 'yes'} -- a yes is not a number, no quantity
+16) OPTIONS: 1. Calcium Gel (1 L), 2. Liver Tonic | Farmer: "I want to buy something for my farm" -> {} -- a general wish to buy is about the order, not off topic"""
 
 
 _YES_NO = {
@@ -1015,6 +1028,17 @@ class OrderSupervisor(DraftSupervisor):
         # that also carried anything for the order (a product, a pick, a
         # number, an address or a yes/no).
         nothing_for_order = not signal and not changed and quantity is None and not query and not picked and not address
+        # The message that started this order, sent again (Retry, a second
+        # tap on the pill, a reply that never reached the screen), is about
+        # this order whatever the LLM read from it: never let it go. It
+        # falls through to the step the order is on, e.g. the same product
+        # options again. No classifier call is spent on it either.
+        history = draft["transcript_history"]
+        repeats_opening = nothing_for_order and len(history) > 1 and _same_message(history[0], text)
+        if repeats_opening:
+            _log.info("order kept repeated opening message farmer=%s state=%s off_topic=%s",
+                      farmer_id, state, off_topic)
+            nothing_for_order = False
         topic = None
         if nothing_for_order and not off_topic:
             # The LLM does not always flag it, so ask the router's

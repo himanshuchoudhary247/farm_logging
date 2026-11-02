@@ -1469,3 +1469,135 @@ def test_a_product_out_of_stock_after_browsing_goes_back_to_the_store(sup, monke
     assert r["state"] == "SEARCHING" and "Liver Tonic" in r["response_text"]
     r = sup.turn(FARMER, "s1", "ok", include_audio=False)
     assert r["state"] == "CHOOSING" and len(backend.calls["search"]) == 2
+
+
+# ---- the opening message sent again (Retry, a second tap, a reply that never showed) ----
+
+STARTER = "I want to buy something for my farm"
+
+
+def test_starter_sent_again_while_browsing_shows_the_store_again(sup, monkeypatch, caplog):
+    """Found in local testing: the first reply never reached the screen, the
+    farmer sent the pill's starter again, the LLM read it as off topic and the
+    order let it go -- the query agent then told the farmer to buy elsewhere.
+    The same message again is about this order: the same products come back,
+    and no classifier call is spent on it."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    asked = []
+    sup.topic_check = lambda text: asked.append(text) or "query"
+    _say(sup, [{}, {"off_topic": True}])
+    r1 = sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    assert r1["state"] == "CHOOSING"
+    asked_before = len(asked)
+    caplog.set_level("INFO")
+    r2 = sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    assert "released" not in r2
+    assert r2["state"] == "CHOOSING"
+    assert r2["response_text"] == service._TEXT["en"]["browse"]
+    assert r2["options"]["choices"] == r1["options"]["choices"] == ["Calcium Gel (1 L)", "Liver Tonic"]
+    assert len(backend.calls["search"]) == 1, "the same options are offered again, the store is not asked twice"
+    assert len(asked) == asked_before, "no classifier call for the repeat"
+    assert "order kept repeated opening message" in caplog.text and "off_topic=True" in caplog.text
+
+
+@pytest.mark.parametrize("again", [
+    "i want to buy something for my farm", "  I want  to buy something for my farm?! ", STARTER + ".",
+])
+def test_the_same_starter_with_other_case_spaces_or_punctuation_counts_as_the_same(sup, monkeypatch, again):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {"off_topic": True}])
+    sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    r = sup.turn(FARMER, "s1", again, include_audio=False)
+    assert "released" not in r and r["state"] == "CHOOSING"
+
+
+def test_a_repeated_starter_in_hindi_is_kept_too(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {"off_topic": True}])
+    starter = "मुझे अपने फार्म के लिए कुछ खरीदना है"
+    sup.turn(FARMER, "s1", starter, language="hi-IN", include_audio=False)
+    r = sup.turn(FARMER, "s1", starter, language="hi-IN", include_audio=False)
+    assert "released" not in r and r["state"] == "CHOOSING"
+    assert r["response_text"] == service._TEXT["hi"]["browse"]
+
+
+def test_a_different_off_topic_message_while_browsing_is_still_let_go(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {"off_topic": True}])
+    sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    r = sup.turn(FARMER, "s1", "will it rain tomorrow?", include_audio=False)
+    assert r["released"] is True and r["state"] == "CANCELLED"
+
+
+def test_a_different_message_for_another_agent_is_still_let_go_by_the_classifier(sup, monkeypatch):
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    sup.topic_check = lambda text: "weather"
+    _say(sup, [{}, {}])
+    sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    r = sup.turn(FARMER, "s1", "kal barish hogi kya?", include_audio=False)
+    assert r["released"] is True and r["topic"] == "weather"
+
+
+def test_starter_sent_again_after_a_product_was_picked_keeps_the_order_on_its_step(sup, monkeypatch):
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {}, {"off_topic": True}])
+    sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    r2 = sup.turn(FARMER, "s1", "Calcium Gel (1 L)", include_audio=False)
+    assert r2["state"] == "QUANTITY"
+    r3 = sup.turn(FARMER, "s1", STARTER, include_audio=False)
+    assert "released" not in r3
+    assert r3["state"] == "QUANTITY"
+    assert r3["draft"]["product"]["productId"] == CALCIUM["productId"]
+    assert backend.calls["quote"] == []
+
+
+def test_the_first_message_alone_is_never_counted_as_a_repeat(sup, monkeypatch):
+    """A one-message history has nothing to repeat: an off-topic first
+    message is let go as before."""
+    Backend(monkeypatch)
+    _say(sup, [{"off_topic": True}])
+    r = sup.turn(FARMER, "s1", "will it rain tomorrow?", include_audio=False)
+    assert r["released"] is True
+
+
+@pytest.mark.parametrize("a, b, same", [
+    (STARTER, STARTER, True),
+    (STARTER, "i want to buy something for my farm!", True),
+    (STARTER, " I  want to buy something for my farm ", True),
+    ("कुछ खरीदना है।", "कुछ खरीदना है", True),
+    # Kannada starter with and without the zero-width non-joiner a keyboard may drop
+    ("ನನ್ನ ಫಾರ್ಮ್\u200cಗೆ ಕೆಲವು ವಸ್ತುಗಳನ್ನು ಖರೀದಿಸಬೇಕು", "ನನ್ನ ಫಾರ್ಮ್ಗೆ ಕೆಲವು ವಸ್ತುಗಳನ್ನು ಖರೀದಿಸಬೇಕು", True),
+    ("\u200c", "\u200d", False),
+    (STARTER, "I want to buy something", False),
+    (STARTER, "will it rain tomorrow?", False),
+    ("", "", False),
+    ("?", "!", False),
+    (None, None, False),
+])
+def test_same_message(a, b, same):
+    assert service._same_message(a, b) is same
+
+
+def test_extraction_prompt_says_a_general_wish_to_buy_is_not_off_topic():
+    assert "a general wish to buy is about the order, not off topic" in service._ORDER_SYSTEM
+    off_topic = service._ORDER_TOOL_SPEC["inputSchema"]["json"]["properties"]["off_topic"]["description"]
+    assert "a general wish to buy" in off_topic
+
+
+@pytest.mark.parametrize("lang, starter", [
+    ("kn-IN", "ನನ್ನ ಫಾರ್ಮ್\u200cಗೆ ಕೆಲವು ವಸ್ತುಗಳನ್ನು ಖರೀದಿಸಬೇಕು"),
+    ("te-IN", "నా ఫారం కోసం కొన్ని వస్తువులు కొనాలి"),
+    ("ta-IN", "என் பண்ணைக்கு சில பொருட்கள் வாங்க வேண்டும்"),
+    ("ml-IN", "എന്റെ ഫാമിനായി കുറച്ച് സാധനങ്ങൾ വാങ്ങണം"),
+    ("mr-IN", "मला माझ्या शेतासाठी काही साहित्य खरेदी करायचे आहे"),
+])
+def test_the_app_starter_repeated_is_kept_in_every_language(sup, monkeypatch, lang, starter):
+    """The pill starters the app sends (pillStarterTranslations.ts), sent
+    again with the LLM calling them off topic: the cards come back in that
+    language."""
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, LIVER_TONIC]}])
+    _say(sup, [{}, {"off_topic": True}])
+    sup.turn(FARMER, "s1", starter, language=lang, include_audio=False)
+    r = sup.turn(FARMER, "s1", starter + " ?", language=lang, include_audio=False)
+    assert "released" not in r and r["state"] == "CHOOSING"
+    assert r["response_text"] == service._TEXT[lang.split("-")[0]]["browse"]
