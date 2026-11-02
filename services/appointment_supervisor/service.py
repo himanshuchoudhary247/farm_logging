@@ -240,6 +240,43 @@ def _appointment_day(value: Any):
         return None
 
 
+# A symptom entry with at most this many words left after taking out the
+# other symptoms it repeats is only a joining word ("and", "और", "ಮತ್ತು") --
+# the whole entry is a combination of symptoms already listed.
+_SYMPTOM_JOINER_MAX_WORDS = 1
+
+
+def _distinct_symptoms(items: list[Any]) -> list[str]:
+    """The symptoms list with repeats taken out: the same symptom again (any
+    case or spacing), and an entry that only joins two or more symptoms
+    already in the list ("fever and not eating" next to "fever" and "not
+    eating", which happens when a farmer taps symptom pills and also types
+    them). An entry that adds anything of its own ("fever since yesterday")
+    is kept. Order is kept. Works the same in every language: it compares
+    the entries with each other, not with a word list."""
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = " ".join(str(item or "").split())
+        key = text.casefold()
+        if text and key not in seen:
+            seen.add(key)
+            cleaned.append(text)
+    keys = [c.casefold() for c in cleaned]
+    kept = []
+    for text, key in zip(cleaned, keys):
+        inside = [other for other in keys if other != key and other in key]
+        if len(inside) >= 2:
+            rest = key
+            for other in sorted(inside, key=len, reverse=True):
+                rest = rest.replace(other, " ")
+            words = [w for w in rest.split() if any(ch.isalnum() for ch in w)]
+            if len(words) <= _SYMPTOM_JOINER_MAX_WORDS:
+                continue
+        kept.append(text)
+    return kept
+
+
 def _valid_appointment_date(value: Any) -> bool:
     """Real bug, found live: the extraction schema now instructs the model
     not to guess a date from ambiguous input, but a prompt instruction is
@@ -504,6 +541,10 @@ class AppointmentSupervisor(DraftSupervisor):
             # never let this generic loop touch them.
             if key in ("animal_id", "animal_tag", "animal_name"):
                 continue
+            if key == "symptoms" and isinstance(value, list):
+                value = _distinct_symptoms(value)
+                if not value:
+                    continue
             target[key] = value
 
         # Date and time are each valid on their own, but together they can

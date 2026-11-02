@@ -1250,3 +1250,42 @@ def test_cancel_at_confirming_is_not_swallowed_by_the_escape_probe(tmp_path, mon
     )
     second = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "cancel, by the way how many animals do I have", "en-IN")
     assert second["state"] == "CANCELLED"
+
+
+# ---- duplicate symptoms (pills tapped and the same symptoms typed) ----
+
+@pytest.mark.parametrize("items, expected", [
+    (["fever", "not eating", "fever and not eating"], ["fever", "not eating"]),
+    (["Fever", "fever", " FEVER "], ["Fever"]),
+    (["fever", "not eating", "fever, not eating"], ["fever", "not eating"]),
+    (["बुखार", "खाना नहीं खा रहा", "बुखार और खाना नहीं खा रहा"], ["बुखार", "खाना नहीं खा रहा"]),
+    (["ಜ್ವರ", "ತಿನ್ನುತ್ತಿಲ್ಲ", "ಜ್ವರ ಮತ್ತು ತಿನ್ನುತ್ತಿಲ್ಲ"], ["ಜ್ವರ", "ತಿನ್ನುತ್ತಿಲ್ಲ"]),
+    # adds something of its own -> kept
+    (["fever", "not eating", "fever and not eating since yesterday"],
+     ["fever", "not eating", "fever and not eating since yesterday"]),
+    (["बुखार", "खाना नहीं खा रहा", "बुखार और खाना नहीं खा रहा कल से"],
+     ["बुखार", "खाना नहीं खा रहा", "बुखार और खाना नहीं खा रहा कल से"]),
+    # only one other symptom inside -> a real, more specific symptom, kept
+    (["fever", "high fever"], ["fever", "high fever"]),
+    (["cough"], ["cough"]),
+    (["", None, "  "], []),
+])
+def test_distinct_symptoms(items, expected):
+    assert service._distinct_symptoms(items) == expected
+
+
+def test_pills_and_typed_symptoms_are_stored_once(tmp_path, monkeypatch):
+    """Found in local testing: tapping the "Fever" and "Not eating" pills and
+    also typing "fever and not eating" stored and read back
+    "fever, not eating, fever and not eating"."""
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"issue": "fever", "symptoms": ["fever", "not eating", "fever and not eating"]}},
+    )
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    result = supervisor.turn("demo-farmer", "session-dupe-symptoms", "Fever, Not eating, fever and not eating", "en-IN")
+    assert result["draft"]["symptoms"] == ["fever", "not eating"]
+    assert "fever and not eating" not in result["response_text"]
