@@ -144,13 +144,13 @@ class _Farmer:
 
 def test_farm_pin_is_used_when_no_location_is_saved(monkeypatch):
     tool, seen = _tool(monkeypatch, farmer=_Farmer(""), farm_pin="411001")
-    assert tool("") == {"pin": "411001"}
+    assert tool("")["pin"] == "411001"
     assert seen["farm_pin_asked"] == FARMER
 
 
 def test_app_farmer_missing_from_local_store_still_gets_the_farm_pin(monkeypatch):
     tool, seen = _tool(monkeypatch, farmer=None, farm_pin="411001")
-    assert tool("") == {"pin": "411001"}
+    assert tool("")["pin"] == "411001"
 
 
 def test_saved_weather_location_wins_over_the_farm_pin(monkeypatch):

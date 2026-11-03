@@ -22,6 +22,7 @@ import os
 import threading
 import time
 from collections import OrderedDict
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
 from google.adk.agents import LlmAgent
@@ -47,6 +48,7 @@ Rules:
 - Keep your answer short, 1-3 sentences.
 - If the tool result includes "your_farm", make the advice specific to this farmer's own animals (species, young animals, recent health issues). Never name medicines or doses; if an animal is sick, tell them to consult a vet. Without "your_farm", give general advice.
 - Recent health issues in "your_farm" are recorded for the farm as a whole, not for a species or age group: never say which animals have them.
+- The tool result's "day_labels" names today, tomorrow and the day after tomorrow by date. Match the day the farmer asks about, in any language or spelling (day after tomorrow: परसों, परवा, ನಾಡಿದ್ದು / ನಾಡದ್ದು, ఎల్లుండి, நாளை மறுநாள், മറ്റന്നാൾ), to that date and answer from that date's forecast -- never give tomorrow's forecast for the day after tomorrow.
 - Base your answer only on the data the tool returns. Never invent numbers, prices, or facts not present in the data.
 - If the data doesn't contain what the farmer asked, say so simply, then give the closest relevant fact from the data instead of repeating an unrelated summary.
 - Never mention JSON, fields, tools, or any technical/database terms in your answer -- speak like a farm advisor.
@@ -97,6 +99,22 @@ def _farm_context(farmer_id: str) -> Optional[dict[str, Any]]:
     return result
 
 
+# India Standard Time, as a fixed offset: no time-zone database needed (Windows
+# has none without the tzdata package), and India has no daylight saving.
+_IST = timezone(timedelta(hours=5, minutes=30))
+_DAY_LABELS = ("today", "tomorrow", "day after tomorrow")
+
+
+def _day_labels(today: Optional[date] = None) -> dict[str, str]:
+    """{"2026-11-03": "today", "2026-11-04": "tomorrow", "2026-11-05": "day
+    after tomorrow"} for the farmer's calendar (IST). The forecast lists days
+    by date only, so without this the model had to work out which date a day
+    word means -- and read Kannada "ನಾಡದ್ದು" (day after tomorrow) as tomorrow,
+    giving the wrong day's rain."""
+    today = today or datetime.now(_IST).date()
+    return {(today + timedelta(days=i)).isoformat(): label for i, label in enumerate(_DAY_LABELS)}
+
+
 def _make_get_weather_context_tool(farmer_id: str):
     def get_weather_context(location: str = "") -> dict[str, Any]:
         """Fetch weather, seasonal-advisory, and feed-market data for a location.
@@ -128,10 +146,15 @@ def _make_get_weather_context_tool(farmer_id: str):
             data = get_pincode_data(loc)
         except Exception as exc:
             return {"error": str(exc)}
+        if not isinstance(data, dict):
+            return data  # nothing to add labels to; passed through as before
         farm = _farm_context(farmer_id)
         # A new dict: the pincode data is cached and shared by all farmers,
         # so this farmer's details must never be written into it.
-        return {**data, "your_farm": farm} if farm else data
+        result = {**data, "day_labels": _day_labels()}
+        if farm:
+            result["your_farm"] = farm
+        return result
 
     return get_weather_context
 

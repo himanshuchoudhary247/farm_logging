@@ -535,7 +535,7 @@ def _check_weekday_date(text: str, entities: Dict[str, Any], today=None) -> Dict
 # turns it off.
 _DAY_AFTER_TOMORROW_ENV = "EXTRACTION_DAY_AFTER_TOMORROW_CHECK"
 _DAY_AFTER_TOMORROW_WORDS = (
-    "day after tomorrow", "परसों", "परवा", "நாளை மறுநாள்", "ఎల్లుండి", "ನಾಡಿದ್ದು", "മറ്റന്നാൾ",
+    "day after tomorrow", "परसों", "परवा", "நாளை மறுநாள்", "ఎల్లుండి", "ನಾಡಿದ್ದು", "ನಾಡದ್ದು", "മറ്റന്നാൾ",
 )
 
 
@@ -718,7 +718,7 @@ _EXTRACTION_TOOL_SPEC = {
                         "Any other day the farmer names, in any language, must be written "
                         "as the ISO date found in the Calendar line -- look it up there, "
                         "never count days yourself: day after tomorrow (e.g. परसों, परवा, "
-                        "நாளை மறுநாள், ఎల్లుండి, ನಾಡಿದ್ದು, മറ്റന്നാൾ); a weekday ('Monday', "
+                        "நாளை மறுநாள், ఎల్లుండి, ನಾಡಿದ್ದು / ನಾಡದ್ದು, മറ്റന്നാൾ); a weekday ('Monday', "
                         "'next Monday', 'सोमवार को') is the first date after today with that "
                         "weekday; 'in N days' is today plus N; a day of the month ('the "
                         "20th', '20 तारीख') is the next date with that day number -- this "
