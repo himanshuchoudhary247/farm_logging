@@ -1250,3 +1250,60 @@ def test_cancel_at_confirming_is_not_swallowed_by_the_escape_probe(tmp_path, mon
     )
     second = supervisor.turn("demo-farmer", "session-cancel-not-swallowed", "cancel, by the way how many animals do I have", "en-IN")
     assert second["state"] == "CANCELLED"
+
+
+def test_booking_for_an_animal_added_in_the_app_is_saved(tmp_path, monkeypatch):
+    """Found in local testing: an animal the farmer added in the app (only in
+    main_backend, never in the local store) matched fine during the booking
+    chat, then the final "yes" failed with "Animal not found for this farmer"
+    (HTTP 404 in the app). Real storage here, not mocked appends -- the old
+    submit tests mocked append_health_log/append_appointment, which is how
+    this slipped through."""
+    monkeypatch.setenv("FARMER_CHAT_DATA_DIR", str(tmp_path / "data"))
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer", lambda farmer_id: [])
+    monkeypatch.setattr(
+        service.flokiq_sync, "get_farm_animals",
+        lambda farmer_id: [{"id": "app-animal-1", "uniqueAnimalId": "DEMO-1233", "species": "goat"}],
+    )
+    monkeypatch.setattr(
+        service, "process_text_input",
+        lambda text, session_id, pending_questions_override=None: {
+            "entities": {"animal_identifier": "DEMO-1233", "issue": "fever", "date": "2026-09-20", "time": "11:00"}},
+    )
+    monkeypatch.setattr(
+        service, "generate_health_recommendation",
+        lambda **k: {"diagnosis_suggestion": "", "potential_ailments": [], "first_aid_advice": ""},
+    )
+    monkeypatch.setattr(service, "append_ai_health_log", lambda **k: None)
+    monkeypatch.setattr(service.flokiq_sync, "create_health_log", lambda **k: None)
+    monkeypatch.setattr(service.flokiq_sync, "create_appointment", lambda **k: None)
+
+    supervisor = service.AppointmentSupervisor(tmp_path)
+    first = supervisor.turn("demo-farmer", "session-app-booking", "DEMO-1233 has fever, 20 Sept 11 am", "en-IN")
+    assert first["draft"]["animal_id"] == "app-animal-1"
+    supervisor.confirm("demo-farmer", "session-app-booking", "yes")
+    result = supervisor.submit("demo-farmer", "session-app-booking")
+
+    assert result["status"] == "submitted"
+    assert result["health_log"]["animal_id"] == "app-animal-1"
+    assert result["appointment"]["animal_id"] == "app-animal-1"
+
+
+def test_storage_still_refuses_an_animal_that_is_not_the_farmers(tmp_path, monkeypatch):
+    """The ids passed in are the only extra animals accepted: an animal that is
+    neither in the local store nor among them is still refused."""
+    import storage
+    monkeypatch.setenv("FARMER_CHAT_DATA_DIR", str(tmp_path))
+    with pytest.raises(ValueError, match="Animal not found"):
+        storage.append_health_log("demo-farmer", "someone-elses-animal", "fever", {}, "")
+    with pytest.raises(ValueError, match="Animal not found"):
+        storage.append_health_log("demo-farmer", "someone-elses-animal", "fever", {}, "", known_animal_ids={"app-animal-1"})
+    log = storage.append_health_log("demo-farmer", "app-animal-1", "fever", {}, "", known_animal_ids={"app-animal-1"})
+    assert log.animal_id == "app-animal-1"
+    with pytest.raises(ValueError, match="Animal not found"):
+        storage.append_appointment("demo-farmer", "2026-09-20", "11:00", animal_id="someone-elses-animal")
+    appt = storage.append_appointment("demo-farmer", "2026-09-20", "11:00", health_log_id=log.id,
+                                      animal_id="app-animal-1", known_animal_ids={"app-animal-1"})
+    assert appt.animal_id == "app-animal-1"

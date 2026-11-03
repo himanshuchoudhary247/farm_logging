@@ -6,7 +6,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Iterable, Optional, TypeVar
 
 from filelock import FileLock
 
@@ -532,8 +532,9 @@ def append_health_log(
     issue: str,
     params: dict[str, Any],
     notes: str,
+    known_animal_ids: Optional[Iterable[str]] = None,
 ) -> HealthLog:
-    if not ensure_farmer_animal(farmer_id, animal_id):
+    if not _animal_is_farmers(farmer_id, animal_id, known_animal_ids):
         raise ValueError("Animal not found for this farmer")
     path = _path("health_logs.json")
 
@@ -612,8 +613,9 @@ def append_appointment(
     animal_id: Optional[str] = None,
     issue_summary: str = "",
     triage: Optional[dict[str, Any]] = None,
+    known_animal_ids: Optional[Iterable[str]] = None,
 ) -> Appointment:
-    if animal_id is not None and not ensure_farmer_animal(farmer_id, animal_id):
+    if animal_id is not None and not _animal_is_farmers(farmer_id, animal_id, known_animal_ids):
         raise ValueError("Animal not found for this farmer")
 
     if health_log_id is not None:
@@ -774,6 +776,18 @@ def ensure_farmer_animal(farmer_id: str, animal_id: str) -> bool:
         if a.id == animal_id:
             return True
     return False
+
+
+def _animal_is_farmers(farmer_id: str, animal_id: str, known_animal_ids: Optional[Iterable[str]] = None) -> bool:
+    """The animal is in this farmer's local store, or among the ids the
+    caller already checked as this farmer's -- e.g. the animals the farmer
+    added in the app, which merge_app_animals reads from main_backend and
+    which are never in the local store. Without the second part, a booking
+    for an app-added animal matched fine in the chat and then failed at the
+    very last step ("Animal not found for this farmer")."""
+    if known_animal_ids is not None and animal_id in set(known_animal_ids):
+        return True
+    return ensure_farmer_animal(farmer_id, animal_id)
 
 
 def load_vaccination_records() -> list[VaccinationRecord]:

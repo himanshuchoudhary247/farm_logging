@@ -1230,6 +1230,10 @@ class AppointmentSupervisor(DraftSupervisor):
                 message = self._message(draft["language"], "animal_not_found", identifier=bad_identifier, animals=animal_names)
             prompt = self._message(draft["language"], "yes_missing", field=self._message(draft["language"], "missing_animal_identifier"))
             return self._response(draft, message, include_audio=include_audio, options=_animal_options(draft["language"], shown), prompt=prompt)
+        # The animals this booking was matched against -- the local store AND
+        # the ones the farmer added in the app (merge_app_animals above) --
+        # so saving accepts an app-added animal the chat already matched.
+        known_animal_ids = {a.id for a in animals}
         health = append_health_log(farmer_id, animal_id, str(values.get("issue")), {
             "symptoms": values.get("symptoms", []),
             "duration": values.get("duration"),
@@ -1237,8 +1241,8 @@ class AppointmentSupervisor(DraftSupervisor):
             "temperature_c": values.get("temperature_c"),
             "current_medication": values.get("current_medication"),
             "attachments": values.get("attachments", []),
-        }, str(values.get("miscellaneous_notes") or values.get("notes") or ""))
-        appointment = append_appointment(farmer_id, str(values.get("date")), str(values.get("time")), str(values.get("doctor_id") or ""), str(values.get("miscellaneous_notes") or ""), health.id, animal_id, str(values.get("issue")), values)
+        }, str(values.get("miscellaneous_notes") or values.get("notes") or ""), known_animal_ids=known_animal_ids)
+        appointment = append_appointment(farmer_id, str(values.get("date")), str(values.get("time")), str(values.get("doctor_id") or ""), str(values.get("miscellaneous_notes") or ""), health.id, animal_id, str(values.get("issue")), values, known_animal_ids=known_animal_ids)
         draft["draft"]["animal_id"] = animal_id
         draft["health_log_id"] = health.id
         draft["appointment_id"] = appointment.id
