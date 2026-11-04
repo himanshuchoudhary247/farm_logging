@@ -88,14 +88,52 @@ def _animal_choices(animals: Iterable[Any], offered: Iterable[str], current: str
     return names[:MAX_ANIMAL_CHOICES]
 
 
+def _problem_prefill(draft: dict[str, Any], symptoms: list[str],
+                     aliases: Optional[dict[str, str]]) -> tuple[list[str], str]:
+    """The chips to show selected and the text for the "Other problem" box,
+    from what the booking already holds: its issue and every symptom.
+
+    A value is a chip when it matches a chip's label (any case) or one of
+    `aliases` (the booking's own English symptom words -> the chip label in
+    the farmer's language). Everything else goes to the box, joined with
+    ", ", leaving out a value already contained in a longer one."""
+    by_label = {s.lower(): s for s in symptoms}
+    by_alias = {k.lower(): v for k, v in (aliases or {}).items() if v in symptoms}
+    values = [_clean(draft.get("issue"))]
+    raw_symptoms = draft.get("symptoms")
+    if isinstance(raw_symptoms, list):
+        values += [_clean(s) for s in raw_symptoms if isinstance(s, str)]
+    selected: list[str] = []
+    other: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        chip = by_label.get(value.lower()) or by_alias.get(value.lower())
+        if chip:
+            if chip not in selected:
+                selected.append(chip)
+        elif value.lower() not in {o.lower() for o in other}:
+            other.append(value)
+    other = [o for o in other if not any(o.lower() in x.lower() and o != x for x in other)]
+    return selected, ", ".join(other)
+
+
 def build_booking_widget(result: dict[str, Any], language: str, animals: Iterable[Any] = (),
-                         symptom_choices: Iterable[str] = (), surface_id: str = "booking") -> Optional[list[dict]]:
+                         symptom_choices: Iterable[str] = (), surface_id: str = "booking",
+                         symptom_aliases: Optional[dict[str, str]] = None) -> Optional[list[dict]]:
     """A2UI v0.9 messages for the booking form, or None when no form should
     be shown (booking not collecting, missing or malformed result).
 
     `result` is appointment_supervisor's turn result (state, draft,
     missing_fields, options). Values already given are filled in so the
-    farmer only completes what is missing."""
+    farmer only completes what is missing.
+
+    Several problem chips can be picked at once (an animal can have fever
+    and stop eating together); the Book button sends them all in the same
+    single chat message, so the booking still reads them with its one
+    extraction call. symptom_aliases (optional) maps the booking's own
+    symptom words to the chip labels, so problems already given show as
+    selected chips in any language."""
     if not isinstance(result, dict) or result.get("state") not in _FORM_STATES:
         return None
     if not result.get("missing_fields"):
@@ -114,13 +152,13 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
     animal_names = _animal_choices(animals, offered, current_animal)
     symptoms = [s for s in symptom_choices if _clean(s)]
 
-    issue = _clean(draft.get("issue"))
+    problems, other_problem = _problem_prefill(draft, symptoms, symptom_aliases)
     date = _clean(draft.get("date"))
     time = _clean(draft.get("time"))
     data = {
         "animal": [current_animal] if current_animal else [],
-        "problem": [issue] if issue and issue in symptoms else [],
-        "other_problem": issue if issue and issue not in symptoms else "",
+        "problem": problems,
+        "other_problem": other_problem,
         "date": date if _DATE_RE.match(date) else "",
         "time": time if _TIME_RE.match(time) else "",
     }
@@ -159,9 +197,10 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
         {"id": "book_text", "component": "Text", "text": text["book"]},
     ]
     if symptoms:
+        # No maxAllowedSelections: any number of problems can be picked.
         components.append({"id": "problem", "component": "ChoicePicker",
                            "options": [{"label": s, "value": s} for s in symptoms],
-                           "selections": {"path": "/booking/problem"}, "maxAllowedSelections": 1})
+                           "selections": {"path": "/booking/problem"}})
 
     return surface_messages(surface_id, components, "/booking", data)
 
@@ -174,13 +213,16 @@ def booking_widget_for(farmer_id: str, session_id: str, result: dict[str, Any], 
     try:
         # Same animal list and symptom pills the booking flow itself uses,
         # so the form offers exactly what the booking will accept.
-        from services.appointment_supervisor.service import _symptom_options
+        from services.appointment_supervisor.service import _SYMPTOM_KEYS, _symptom_options
         from services.flokiq_sync import client as flokiq_sync
         from storage import animals_for_farmer, merge_app_animals
 
         animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
         symptoms = _symptom_options(language).get("choices") or []
-        messages = build_booking_widget(result, language, animals, symptoms, surface_id=f"booking-{session_id}")
+        # _symptom_options lists the chips in _SYMPTOM_KEYS order.
+        aliases = dict(zip(_SYMPTOM_KEYS, symptoms)) if len(symptoms) == len(_SYMPTOM_KEYS) else None
+        messages = build_booking_widget(result, language, animals, symptoms, surface_id=f"booking-{session_id}",
+                                        symptom_aliases=aliases)
     except Exception as exc:  # the reply must never fail because of the widget
         _log.warning("a2ui booking widget skipped farmer=%s err=%s", farmer_id, exc)
         return None
