@@ -36,6 +36,9 @@ Config (env, same precedence pattern as the rest of this app):
   FLOKIQ_INTERNAL_API_KEY   the same value as INTERNAL_API_KEY on main_backend.
   FLOKIQ_SYNC_HEALTH_LOGS   "true" to also call POST /internal/health-logs,
                             on top of FLOKIQ_SYNC_ENABLED.
+  FLOKIQ_SYNC_ANIMALS       "true" to also create animals registered through
+                            the chatbot in main_backend (create_animal), on
+                            top of FLOKIQ_SYNC_ENABLED.
 """
 from __future__ import annotations
 
@@ -67,6 +70,10 @@ def is_enabled() -> bool:
 
 def _health_logs_enabled() -> bool:
     return os.getenv("FLOKIQ_SYNC_HEALTH_LOGS", "").lower() in _TRUTHY
+
+
+def _animals_enabled() -> bool:
+    return os.getenv("FLOKIQ_SYNC_ANIMALS", "").lower() in _TRUTHY
 
 
 def _base_url() -> Optional[str]:
@@ -499,6 +506,116 @@ def _fetch_farm_animals(base: str, key: str, farmer_id: str, timeout_s: float) -
         animals = []
     _log.info("flokiq_sync farm animals found=%d farmer=%s", len(animals), farmer_id)
     return animals, _FARM_ANIMALS_TTL_S
+
+
+# Values main_backend's animals table accepts (its POST validation).
+_ANIMAL_SPECIES = {"goat", "sheep"}
+_ANIMAL_SEX = {"male", "female"}
+_ANIMAL_STATUS = {"active", "sold", "deceased", "culled", "pregnant", "sick"}
+_ANIMAL_TAG_TYPES = {"visual", "rfid", "tattoo", "microchip"}
+_ANIMAL_TEXT_FIELDS = (
+    "breed", "current_location", "official_tag_number", "acquisition_source", "sire_id", "dam_id",
+)
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_MAX_TEXT = 255
+_MAX_WEIGHT_KG = 2000.0
+
+
+def will_attempt_animal_sync(farmer_id: str) -> bool:
+    """True if create_animal would call main_backend for this farmer right
+    now: FLOKIQ_SYNC_ANIMALS on, plus everything _can_sync_for_farmer
+    checks."""
+    return _animals_enabled() and _can_sync_for_farmer(farmer_id)
+
+
+def build_animal_payload(values: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """The POST body for a registration draft's values, in main_backend's
+    field names. Only values main_backend accepts are sent: an empty value,
+    an unknown status or tag type, a date that is not YYYY-MM-DD, or a weight
+    that is not a positive number is left out rather than sent and rejected
+    (each of those fields is optional there). None when a required field
+    (ID, species, sex) is missing or not a value main_backend accepts."""
+    tag = str(values.get("unique_animal_id") or "").strip()
+    species = str(values.get("species") or "").strip().lower()
+    sex = str(values.get("sex") or "").strip().lower()
+    if not tag or len(tag) > _MAX_TEXT or species not in _ANIMAL_SPECIES or sex not in _ANIMAL_SEX:
+        return None
+    payload: dict[str, Any] = {"unique_animal_id": tag, "species": species, "sex": sex}
+    for key in _ANIMAL_TEXT_FIELDS:
+        text = str(values.get(key) or "").strip()
+        if text:
+            payload[key] = text[:_MAX_TEXT]
+    status = str(values.get("status") or "").strip().lower()
+    if status in _ANIMAL_STATUS:
+        payload["status"] = status
+    tag_type = str(values.get("official_tag_type") or "").strip().lower()
+    if tag_type in _ANIMAL_TAG_TYPES:
+        payload["official_tag_type"] = tag_type
+    for key in ("birth_date", "acquisition_date"):
+        day = str(values.get(key) or "").strip()
+        if _ISO_DATE_RE.match(day):
+            payload[key] = day
+    try:
+        weight = float(str(values.get("initial_weight_kg") or "").strip())
+    except ValueError:
+        weight = 0.0
+    if 0 < weight <= _MAX_WEIGHT_KG:
+        payload["initial_weight_kg"] = weight
+    return payload
+
+
+def create_animal(farmer_id: str, values: dict[str, Any], timeout_s: float = 5.0) -> dict[str, Any]:
+    """POST /internal/farmers/{farmer_id}/animals on main_backend, so an
+    animal registered through the chatbot also shows in the app. Never
+    raises. Returns {"status": ..., "animal": <main_backend animal or None>}:
+
+      "skipped"          sync does not apply (off, unconfigured, a local
+                         demo farmer id) -- nothing was attempted
+      "synced"           created, or already there for this farm (200)
+      "tag_taken"        the ID belongs to another animal in main_backend
+      "tag_number_taken" the official tag number belongs to another animal
+      "failed"           anything else: network error, no farm, rejected
+    """
+    if not will_attempt_animal_sync(farmer_id):
+        return {"status": "skipped", "animal": None}
+    payload = build_animal_payload(values)
+    if payload is None:
+        _log.warning("flokiq_sync create_animal failed farmer=%s -- required values missing or invalid", farmer_id)
+        return {"status": "failed", "animal": None}
+    base = (_base_url() or "").rstrip("/")
+    key = os.getenv("FLOKIQ_INTERNAL_API_KEY", "")
+
+    try:
+        resp = requests.post(
+            f"{base}/internal/farmers/{farmer_id}/animals",
+            json=payload,
+            headers={"X-Internal-Api-Key": key},
+            timeout=timeout_s,
+        )
+    except requests.RequestException as exc:
+        _log.warning("flokiq_sync create_animal failed farmer=%s err=%s", farmer_id, exc)
+        return {"status": "failed", "animal": None}
+
+    try:
+        body = resp.json() or {}
+    except ValueError:
+        body = {}
+    if resp.status_code in (200, 201):
+        # The app list changed: drop this farmer's cached copy so the next
+        # lookup sees the new animal straight away.
+        with _farm_animals_lock:
+            _farm_animals_cache.pop(farmer_id, None)
+        _log.info("flokiq_sync animal synced id=%s farmer=%s", body.get("id"), farmer_id)
+        return {"status": "synced", "animal": body}
+    reason = body.get("reason") if isinstance(body, dict) else None
+    if resp.status_code == 409 and reason in ("tag_taken", "tag_number_taken"):
+        _log.info("flokiq_sync animal %s farmer=%s", reason, farmer_id)
+        return {"status": reason, "animal": None}
+    _log.warning(
+        "flokiq_sync create_animal failed farmer=%s status=%s body=%s",
+        farmer_id, resp.status_code, resp.text[:200],
+    )
+    return {"status": "failed", "animal": None}
 
 
 # ---------------------------------------------------------------------------

@@ -327,6 +327,8 @@ _TEXT = {
         "no": "What would you like to correct?",
         "cancelled": "Registration cancelled, nothing was saved.",
         "submitted": "{identifier} has been registered successfully.",
+        "id_taken": "The ID '{identifier}' is already used for another animal in the app. Please give a different ID.",
+        "submitted_sync_failed": "{identifier} has been registered in Chocolate, but I could not add it to the app right now. Please add it in the app too.",
     },
     "hi": {
         "welcome": "एक नया पशु दर्ज करते हैं। कृपया पशु आईडी, प्रजाति (बकरी या भेड़), नस्ल और लिंग बताएं।",
@@ -341,6 +343,8 @@ _TEXT = {
         "no": "आप क्या सुधारना चाहते हैं?",
         "cancelled": "पंजीकरण रद्द कर दिया गया, कुछ भी सेव नहीं हुआ।",
         "submitted": "{identifier} सफलतापूर्वक पंजीकृत हो गया है।",
+        "id_taken": "आईडी '{identifier}' ऐप में पहले से किसी दूसरे पशु के लिए इस्तेमाल हो रही है। कृपया अलग आईडी बताएं।",
+        "submitted_sync_failed": "{identifier} चॉकलेट में पंजीकृत हो गया है, लेकिन अभी ऐप में नहीं जुड़ पाया। कृपया इसे ऐप में भी जोड़ें।",
     },
     "mr": {
         "welcome": "नवीन जनावराची नोंदणी करूया. कृपया जनावराचा आयडी, प्रजाती (शेळी किंवा मेंढी), जात आणि लिंग सांगा.",
@@ -355,6 +359,8 @@ _TEXT = {
         "no": "तुम्हाला काय दुरुस्त करायचे आहे?",
         "cancelled": "नोंदणी रद्द केली, काहीही सेव्ह झाले नाही.",
         "submitted": "{identifier} ची नोंदणी यशस्वीरित्या झाली आहे.",
+        "id_taken": "'{identifier}' हा आयडी ॲपमध्ये आधीच दुसऱ्या जनावरासाठी वापरला आहे. कृपया दुसरा आयडी सांगा.",
+        "submitted_sync_failed": "{identifier} ची नोंदणी चॉकलेटमध्ये झाली आहे, पण आत्ता ॲपमध्ये जोडता आले नाही. कृपया ॲपमध्येही जोडा.",
     },
     "ta": {
         "welcome": "ஒரு புதிய விலங்கை பதிவு செய்வோம். விலங்கு ஐடி, இனம் (ஆடு அல்லது செம்மறியாடு), இனவகை மற்றும் பாலினம் தெரிவிக்கவும்.",
@@ -369,6 +375,8 @@ _TEXT = {
         "no": "எதை திருத்த வேண்டும்?",
         "cancelled": "பதிவு ரத்து செய்யப்பட்டது, எதுவும் சேமிக்கப்படவில்லை.",
         "submitted": "{identifier} வெற்றிகரமாக பதிவு செய்யப்பட்டது.",
+        "id_taken": "'{identifier}' ஐடி ஆப்பில் ஏற்கனவே வேறொரு விலங்குக்கு பயன்படுத்தப்பட்டுள்ளது. வேறு ஐடி தெரிவிக்கவும்.",
+        "submitted_sync_failed": "{identifier} சாக்லேட்டில் பதிவு செய்யப்பட்டது, ஆனால் இப்போது ஆப்பில் சேர்க்க முடியவில்லை. ஆப்பிலும் சேர்க்கவும்.",
     },
     "te": {
         "welcome": "కొత్త జంతువును నమోదు చేద్దాం. దయచేసి జంతువు ఐడి, జాతి (మేక లేదా గొర్రె), బ్రీడ్ మరియు లింగం చెప్పండి.",
@@ -383,6 +391,8 @@ _TEXT = {
         "no": "మీరు దేన్ని సరిచేయాలనుకుంటున్నారు?",
         "cancelled": "నమోదు రద్దు చేయబడింది, ఏమీ సేవ్ కాలేదు.",
         "submitted": "{identifier} విజయవంతంగా నమోదు చేయబడింది.",
+        "id_taken": "'{identifier}' ఐడి యాప్‌లో ఇప్పటికే వేరే జంతువుకు ఉపయోగించబడింది. దయచేసి వేరే ఐడి చెప్పండి.",
+        "submitted_sync_failed": "{identifier} చాక్లెట్‌లో నమోదు చేయబడింది, కానీ ఇప్పుడు యాప్‌లో చేర్చలేకపోయాను. దయచేసి యాప్‌లో కూడా చేర్చండి.",
     },
     "kn": {
         "welcome": "ಹೊಸ ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸೋಣ. ದಯವಿಟ್ಟು ಪ್ರಾಣಿ ಐಡಿ, ಪ್ರಭೇದ (ಮೇಕೆ ಅಥವಾ ಕುರಿ), ತಳಿ ಮತ್ತು ಲಿಂಗವನ್ನು ತಿಳಿಸಿ.",
@@ -397,6 +407,8 @@ _TEXT = {
         "no": "ನೀವು ಏನನ್ನು ಸರಿಪಡಿಸಲು ಬಯಸುವಿರಿ?",
         "cancelled": "ನೋಂದಣಿ ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ, ಏನೂ ಉಳಿಸಲಾಗಿಲ್ಲ.",
         "submitted": "{identifier} ಯಶಸ್ವಿಯಾಗಿ ನೋಂದಾಯಿಸಲಾಗಿದೆ.",
+        "id_taken": "'{identifier}' ಐಡಿ ಆ್ಯಪ್‌ನಲ್ಲಿ ಈಗಾಗಲೇ ಬೇರೊಂದು ಪ್ರಾಣಿಗೆ ಬಳಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಬೇರೆ ಐಡಿ ತಿಳಿಸಿ.",
+        "submitted_sync_failed": "{identifier} ಚಾಕಲೇಟ್‌ನಲ್ಲಿ ನೋಂದಾಯಿಸಲಾಗಿದೆ, ಆದರೆ ಈಗ ಆ್ಯಪ್‌ಗೆ ಸೇರಿಸಲು ಆಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಆ್ಯಪ್‌ನಲ್ಲಿಯೂ ಸೇರಿಸಿ.",
     },
     "ml": {
         "welcome": "പുതിയ മൃഗത്തെ രജിസ്റ്റർ ചെയ്യാം. ദയവായി മൃഗത്തിന്റെ ഐഡി, വർഗ്ഗം (ആട് അല്ലെങ്കിൽ ചെമ്മരിയാട്), ഇനം, ലിംഗം എന്നിവ പറയൂ.",
@@ -411,6 +423,8 @@ _TEXT = {
         "no": "എന്താണ് തിരുത്തേണ്ടത്?",
         "cancelled": "രജിസ്ട്രേഷൻ റദ്ദാക്കി, ഒന്നും സേവ് ചെയ്തിട്ടില്ല.",
         "submitted": "{identifier} വിജയകരമായി രജിസ്റ്റർ ചെയ്തു.",
+        "id_taken": "'{identifier}' എന്ന ഐഡി ആപ്പിൽ ഇതിനകം മറ്റൊരു മൃഗത്തിന് ഉപയോഗിച്ചിട്ടുണ്ട്. ദയവായി മറ്റൊരു ഐഡി പറയൂ.",
+        "submitted_sync_failed": "{identifier} ചോക്ലേറ്റിൽ രജിസ്റ്റർ ചെയ്തു, പക്ഷേ ഇപ്പോൾ ആപ്പിൽ ചേർക്കാനായില്ല. ദയവായി ആപ്പിലും ചേർക്കൂ.",
     },
 }
 
@@ -909,6 +923,22 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         if missing:
             raise ValueError("Registration requires the required fields before submission")
 
+        # main_backend first, then the local store, so the app and the chat
+        # do not end up disagreeing about this animal:
+        # - the ID is taken there by another animal: nothing is saved, and a
+        #   different ID is asked for, the same way a local duplicate is;
+        # - main_backend could not be reached or refused it: saved here as
+        #   before, and the farmer is told it is not in the app;
+        # - sync off or not a main_backend farmer: saved here as before.
+        app_sync = flokiq_sync.create_animal(farmer_id, values)
+        if app_sync["status"] == "tag_taken":
+            identifier = str(values["unique_animal_id"])
+            draft["draft"]["unique_animal_id"] = None
+            draft["state"] = "COLLECTING"
+            self._save(draft)
+            message = self._message(draft["language"], "id_taken", identifier=identifier)
+            return self._response(draft, message, include_audio=include_audio)
+
         try:
             animal = append_animal(
                 farmer_id=farmer_id,
@@ -939,11 +969,17 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         draft["state"] = "SUBMITTED"
         draft["submitted"] = True
         draft["animal_id"] = animal.id
+        draft["app_sync"] = app_sync["status"]
         self._save(draft)
         clear_session(f"{farmer_id}:{session_id}")
-        message = self._message(draft["language"], "submitted", identifier=animal.tag_or_name)
+        sync_failed = app_sync["status"] in ("failed", "tag_number_taken")
+        message = self._message(
+            draft["language"], "submitted_sync_failed" if sync_failed else "submitted",
+            identifier=animal.tag_or_name,
+        )
         return {
             "status": "submitted",
+            "app_sync": app_sync["status"],
             "animal": animal.model_dump(),
             **self._response(draft, message, include_audio=include_audio),
         }
