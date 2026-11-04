@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import copy
 import logging
+import os
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
@@ -17,7 +19,7 @@ from services.common.draft_supervisor import (
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
-from services.voice_agent.session_store import clear_session
+from services.voice_agent.session_store import clear_session, get_session, update_session
 from services.voice_agent.tts import synthesize_speech
 from storage import (
     append_ai_health_log,
@@ -56,6 +58,8 @@ _TEXT = {
         "missing_issue": "the animal issue and symptoms",
         "missing_date": "the preferred appointment date",
         "missing_time": "the preferred appointment time",
+        "animal_choices": "Your registered animals are: {animals}. Which animal is this appointment for?",
+        "no_animals_yet": "You do not have any animals registered yet. Please register an animal first, or ask a human vet directly.",
     },
     "hi": {
         "welcome": "नमस्ते। कृपया पशु का नाम या टैग, समस्या और लक्षण, तथा अपॉइंटमेंट की पसंदीदा तारीख और समय बताएं।",
@@ -74,6 +78,8 @@ _TEXT = {
         "missing_issue": "पशु की समस्या और लक्षण",
         "missing_date": "अपॉइंटमेंट की तारीख",
         "missing_time": "अपॉइंटमेंट का समय",
+        "animal_choices": "आपके पंजीकृत पशु हैं: {animals}। यह अपॉइंटमेंट किस पशु के लिए है?",
+        "no_animals_yet": "आपके नाम पर अभी कोई पशु पंजीकृत नहीं है। कृपया पहले एक पशु पंजीकृत करें।",
     },
     "mr": {
         "welcome": "नमस्कार. कृपया जनावराचे नाव किंवा टॅग, समस्या आणि लक्षणे, तसेच अपॉइंटमेंटची पसंतीची तारीख आणि वेळ सांगा.",
@@ -92,6 +98,8 @@ _TEXT = {
         "missing_issue": "जनावराची समस्या आणि लक्षणे",
         "missing_date": "अपॉइंटमेंटची तारीख",
         "missing_time": "अपॉइंटमेंटची वेळ",
+        "animal_choices": "तुमची नोंदणीकृत जनावरे: {animals}. ही अपॉइंटमेंट कोणत्या जनावरासाठी आहे?",
+        "no_animals_yet": "तुमच्या नावावर अजून कोणतेही जनावर नोंदणीकृत नाही. कृपया आधी एखादे जनावर नोंदणी करा.",
     },
     "ml": {
         "welcome": "നമസ്കാരം. ദയവായി മൃഗത്തിന്റെ പേര് അല്ലെങ്കിൽ ടാഗ്, പ്രശ്നവും ലക്ഷണങ്ങളും, അപ്പോയിന്റ്മെന്റിന് ഇഷ്ടമുള്ള തീയതിയും സമയവും പറയൂ.",
@@ -110,6 +118,8 @@ _TEXT = {
         "missing_issue": "മൃഗത്തിന്റെ പ്രശ്നവും ലക്ഷണങ്ങളും",
         "missing_date": "അപ്പോയിന്റ്മെന്റ് തീയതി",
         "missing_time": "അപ്പോയിന്റ്മെന്റ് സമയം",
+        "animal_choices": "നിങ്ങൾ രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ: {animals}. ഈ അപ്പോയിന്റ്മെന്റ് ഏത് മൃഗത്തിനാണ്?",
+        "no_animals_yet": "നിങ്ങളുടെ പേരിൽ ഇതുവരെ ഒരു മൃഗവും രജിസ്റ്റർ ചെയ്തിട്ടില്ല. ആദ്യം ഒരു മൃഗത്തെ രജിസ്റ്റർ ചെയ്യൂ.",
     },
     "ta": {
         "welcome": "வணக்கம். விலங்கின் பெயர் அல்லது குறிச்சொல், பிரச்சினை மற்றும் அறிகுறிகள், விருப்பமான சந்திப்பு தேதி மற்றும் நேரத்தைச் சொல்லுங்கள்.",
@@ -128,6 +138,8 @@ _TEXT = {
         "missing_issue": "விலங்கின் பிரச்சினை மற்றும் அறிகுறிகள்",
         "missing_date": "சந்திப்பு தேதி",
         "missing_time": "சந்திப்பு நேரம்",
+        "animal_choices": "உங்கள் பதிவு செய்யப்பட்ட விலங்குகள்: {animals}. இந்த சந்திப்பு எந்த விலங்குக்கு?",
+        "no_animals_yet": "உங்கள் பெயரில் இதுவரை எந்த விலங்கும் பதிவு செய்யப்படவில்லை. முதலில் ஒரு விலங்கைப் பதிவு செய்யவும்.",
     },
     "te": {
         "welcome": "నమస్కారం. జంతువు పేరు లేదా ట్యాగ్, సమస్య మరియు లక్షణాలు, మీకు కావలసిన అపాయింట్‌మెంట్ తేదీ మరియు సమయాన్ని చెప్పండి.",
@@ -146,6 +158,8 @@ _TEXT = {
         "missing_issue": "జంతువు సమస్య మరియు లక్షణాలు",
         "missing_date": "అపాయింట్‌మెంట్ తేదీ",
         "missing_time": "అపాయింట్‌మెంట్ సమయం",
+        "animal_choices": "మీ నమోదిత జంతువులు: {animals}. ఈ అపాయింట్‌మెంట్ ఏ జంతువు కోసం?",
+        "no_animals_yet": "మీ పేరు మీద ఇంకా ఏ జంతువు నమోదు కాలేదు. దయచేసి ముందుగా ఒక జంతువును నమోదు చేయండి.",
     },
     "kn": {
         "welcome": "ನಮಸ್ಕಾರ. ಪ್ರಾಣಿಯ ಹೆಸರು ಅಥವಾ ಟ್ಯಾಗ್, ಸಮಸ್ಯೆ ಮತ್ತು ಲಕ್ಷಣಗಳು, ನಿಮ್ಮ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ದಿನಾಂಕ ಮತ್ತು ಸಮಯವನ್ನು ತಿಳಿಸಿ.",
@@ -164,6 +178,8 @@ _TEXT = {
         "missing_issue": "ಪ್ರಾಣಿಯ ಸಮಸ್ಯೆ ಮತ್ತು ಲಕ್ಷಣಗಳು",
         "missing_date": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ದಿನಾಂಕ",
         "missing_time": "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಸಮಯ",
+        "animal_choices": "ನಿಮ್ಮ ನೋಂದಾಯಿತ ಪ್ರಾಣಿಗಳು: {animals}. ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಯಾವ ಪ್ರಾಣಿಗಾಗಿ?",
+        "no_animals_yet": "ನಿಮ್ಮ ಹೆಸರಿನಲ್ಲಿ ಇನ್ನೂ ಯಾವುದೇ ಪ್ರಾಣಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ಮೊದಲು ಒಂದು ಪ್ರಾಣಿಯನ್ನು ನೋಂದಾಯಿಸಿ.",
     },
 }
 
@@ -206,6 +222,15 @@ def _try_mid_draft_escape(text: str, farmer_id: str, session_id: str, language: 
     never reaches this probe."""
     from services.chat_orchestrator.mid_draft_escape import try_switch
     return try_switch(text, farmer_id, session_id, language)
+
+
+def _side_question_check_enabled() -> bool:
+    """Kill switch for reading the extraction call's side_question and
+    wants_options flags in a booking. On unless APPOINTMENT_SIDE_QUESTION_CHECK
+    is set to 0/false/off/no; off restores the earlier behaviour, where a
+    turn's extracted values were always copied into the draft."""
+    value = os.getenv("APPOINTMENT_SIDE_QUESTION_CHECK", "on").strip().lower()
+    return value not in {"0", "false", "off", "no"}
 
 
 # Furthest ahead a booking may be. A date outside today..today+365 is
@@ -640,6 +665,57 @@ class AppointmentSupervisor(DraftSupervisor):
             parts.append(f"{labels['notes']}: {values['miscellaneous_notes']}")
         return "; ".join(parts) or "no appointment details yet"
 
+    def _pending_prompt(self, draft: dict[str, Any]) -> tuple[str, Optional[dict], bool]:
+        """The booking question to ask again after a side question was
+        answered, with its choices, and whether it is the readback the
+        farmer confirms with yes/no. Follows the state the draft is in: the
+        submit question when ready, the correction question while
+        correcting, the readback at the final check, otherwise the field
+        still missing (the full welcome when nothing has been given yet)."""
+        lang = draft["language"]
+        state = draft.get("state")
+        if state == "READY_TO_SUBMIT":
+            return self._message(lang, "ready"), None, False
+        if state == "CORRECTING":
+            return self._message(lang, "no"), None, False
+        if not self._has_any_info(draft["draft"]):
+            return self._message(lang, "welcome"), None, False
+        missing = self._missing(draft)
+        field = draft.get("expected_field")
+        if field not in REQUIRED_FIELDS:
+            field = missing[0] if missing else None
+        if field is None:
+            return self._message(lang, "correct", summary=self._summary(draft)), None, True
+        options = _symptom_options(lang) if field == "issue" else None
+        prompt = self._message(lang, "yes_missing", field=self._message(lang, f"missing_{field}"))
+        return prompt, options, False
+
+    def _show_animal_choices(self, draft: dict[str, Any], farmer_id: str, session_id: str, text: str,
+                             entities: dict[str, Any], include_audio: bool) -> dict[str, Any]:
+        """The farmer asked to see their animals instead of naming one.
+        Lists them as choices (at most five, the same pills shown when a
+        named animal is not found) and asks for the animal again. Anything
+        else the turn gave (an issue, a date) is still kept."""
+        self._copy_entities(draft, entities)
+        animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
+        lang = draft["language"]
+        draft["state"] = "COLLECTING"
+        draft["expected_field"] = "animal_identifier"
+        prompt = self._message(lang, "yes_missing", field=self._message(lang, "missing_animal_identifier"))
+        self._save(draft)
+        _log.info("appointment animal choices shown count=%d session=%s", len(animals), session_id)
+        if not animals:
+            return self._response(
+                draft, self._message(lang, "no_animals_yet"), input_transcript=text,
+                include_audio=include_audio, prompt=prompt,
+            )
+        shown = animals[:5]
+        message = self._message(lang, "animal_choices", animals=", ".join(a.tag_or_name for a in shown))
+        return self._response(
+            draft, message, input_transcript=text, include_audio=include_audio,
+            options=_animal_options(lang, shown), prompt=prompt,
+        )
+
     def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET, speech: Any = _UNSET) -> dict[str, Any]:
         language = draft["language"]
         # Real bug, found live: audio always spoke `text`, the fused
@@ -766,7 +842,12 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             pending = None
 
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        # The extraction session as it was before this turn, kept so that a
+        # side question answered below leaves no trace there either (see the
+        # side-question branch). None when that check is switched off.
+        extraction_key = f"{farmer_id}:{session_id}"
+        extraction_before = copy.deepcopy(get_session(extraction_key)) if _side_question_check_enabled() else None
+        result = process_text_input(text, session_id=extraction_key, pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
@@ -783,6 +864,58 @@ class AppointmentSupervisor(DraftSupervisor):
             turn_entities = {**turn_entities, "animal_name": recent_animal}
             result = {**result, "entities": turn_entities}
             _log.info("appointment animal taken from the previous turn session=%s animal=%s", session_id, recent_animal)
+
+        # "I don't remember the name, show me the options" while the animal
+        # is still unknown: list the farmer's animals as choices instead of
+        # asking for the name again. The extraction call marks such a turn
+        # (wants_options) in any language.
+        check_on = extraction_before is not None
+        names_animal_this_turn = bool(
+            turn_entities.get("animal_id") or turn_entities.get("animal_tag") or turn_entities.get("animal_name")
+        )
+        if (
+            check_on
+            and result.get("wants_options")
+            and confirmation_signal != "cancel"
+            and not draft.get("animal_verified")
+            and not draft["draft"].get("animal_identifier")
+            and not names_animal_this_turn
+        ):
+            return self._show_animal_choices(draft, farmer_id, session_id, text, turn_entities, include_audio)
+
+        # A question about something else in the middle of a booking ("wait,
+        # what is the weather today?" while the date is asked) used to have
+        # its date/time words saved as the booking's own values, and the
+        # question went unanswered: the escapes further down only run when
+        # nothing new was extracted. The extraction call now marks such a
+        # turn (side_question). The escape is tried first. When it really
+        # answers, the draft and the extraction session stay exactly as
+        # they were before this turn, and the pending booking question is
+        # asked again. When it does not, the turn carries on as before, so
+        # a real answer that was marked by mistake is not lost.
+        escape_tried = False
+        if check_on and result.get("side_question") and confirmation_signal not in {"yes", "submit", "cancel"}:
+            escape_tried = True
+            waiting_for = draft.get("expected_field") or state
+            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            if escape:
+                update_session(extraction_key, {
+                    "intent": extraction_before.get("intent"),
+                    "entities": extraction_before.get("entities") or {},
+                    "pending_questions": extraction_before.get("pending_questions") or [],
+                })
+                _log.info(
+                    "appointment side question answered field=%s intent=%s session=%s",
+                    waiting_for, escape.get("intent"), session_id,
+                )
+                prompt, options, is_readback = self._pending_prompt(draft)
+                self._save(draft)
+                reply = f"{escape['answer']} {prompt}".strip()
+                return self._response(
+                    draft, reply, input_transcript=text, include_audio=include_audio,
+                    options=options, prompt=None if is_readback else prompt,
+                )
+            _log.info("appointment side question not accepted field=%s session=%s", waiting_for, session_id)
 
         # Real gap, found via live testing: a genuine off-topic question
         # mid-booking ("any animal with ram") got forced through this state
@@ -863,6 +996,7 @@ class AppointmentSupervisor(DraftSupervisor):
         if (
             awaiting_confirmation and confirmation_signal not in {"yes", "cancel"}
             and not answers_expected_field and not corrects_in_place
+            and not escape_tried
         ):
             escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
             if escape:
@@ -1047,7 +1181,9 @@ class AppointmentSupervisor(DraftSupervisor):
             # the same `message` it was about to send anyway as the
             # pending-question reminder (Q4), so the booking isn't silently
             # dropped after the farmer's real question is answered.
-            escape = _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
+            # Already tried above for a turn marked as a side question --
+            # not asked a second time for the same text.
+            escape = None if escape_tried else _try_mid_draft_escape(text, farmer_id, session_id, draft["language"])
             if escape:
                 message = f"{escape['answer']} {message}".strip()
             self._save(draft)

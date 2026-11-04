@@ -480,6 +480,10 @@ def process_text_input(
     return {
         "intent": intent,
         "confirmation_signal": llm_response.get("confirmation_signal"),
+        # Per-message flags, not entities: never merged into the session.
+        # Only appointment_supervisor reads them today.
+        "side_question": llm_response.get("side_question") is True,
+        "wants_options": llm_response.get("wants_options") is True,
         "target_tables": tables,
         "entities": entities,
         "disambiguation": {

@@ -793,6 +793,32 @@ _EXTRACTION_TOOL_SPEC = {
                         "question can actually be answered, not misread as 'no'."
                     ),
                 },
+                "side_question": {
+                    "type": "boolean",
+                    "description": (
+                        "ONLY set this when the Context block's pending_questions is not "
+                        "empty. True when the farmer, instead of answering the pending "
+                        "question, asks about something else (the weather, their animals' "
+                        "records, prices, anything not answering it) -- in any language. "
+                        "A date, time or animal word inside such a question belongs to the "
+                        "question, not to the pending field: 'what is the weather today?' "
+                        "asked for the appointment date is a side question, not the date "
+                        "'today'. Still fill the entity fields exactly as you normally "
+                        "would; this flag only marks the message. False (or omitted) when "
+                        "the farmer answers the pending question, even briefly or as a "
+                        "question ('tomorrow?', 'kal?'), corrects a value, or confirms, "
+                        "rejects or cancels."
+                    ),
+                },
+                "wants_options": {
+                    "type": "boolean",
+                    "description": (
+                        "True when pending_questions asks for the animal and the farmer "
+                        "says they don't know or remember which animal, or asks to see "
+                        "their animals or the choices, without naming an animal -- in any "
+                        "language. Omit otherwise."
+                    ),
+                },
             },
         }
     },
@@ -843,6 +869,19 @@ _TOOL_SYSTEM_PROMPT = (
     "-> {animal_tag: '1122'} — a bare number answering a question about the "
     "tag/ID is the tag/ID, not an issue or symptom, even with zero other "
     "context.\n"
+    "10) User: \"wait, what is the weather today?\" | pending_questions: "
+    "[\"appointment date\"] -> {side_question: true, date: 'today'}"
+    " — the farmer asked about something else; side_question "
+    "marks it even though a date word appears.\n"
+    "11) User: \"शाम 7 बजे बारिश होगी क्या?\" | pending_questions: "
+    "[\"appointment time\"] -> {side_question: true, time: '19:00'} — a "
+    "question about the rain, not the booking time.\n"
+    "12) User: \"ನಾಳೆ ಬೆಳಿಗ್ಗೆ 10 ಗಂಟೆಗೆ\" | pending_questions: "
+    "[\"appointment date\"] -> {date: 'tomorrow', time: '10:00'} — a real "
+    "answer, so side_question is omitted.\n"
+    "13) User: \"naam yaad nahi, options dikhao\" | pending_questions: "
+    "[\"animal ID or animal name/tag\"] -> {wants_options: true} — no animal "
+    "named, the farmer wants to pick from their animals.\n"
     "\n"
     "STRICT NO-GUESS RULE: a field with no corresponding word anywhere in "
     "the farmer's utterance must be left out of the tool call entirely — "
@@ -891,6 +930,8 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
     follow_up_question = tool_input.pop("follow_up_question", None)
     confidence = tool_input.pop("confidence", None)
     confirmation_signal = tool_input.pop("confirmation_signal", None)
+    side_question = tool_input.pop("side_question", None)
+    wants_options = tool_input.pop("wants_options", None)
     # Whatever's left in tool_input is the entities dict — every key was
     # declared in the tool schema, so no coercion or key-check needed.
     entities = _fill_missing_tomorrow(text, _check_day_after_tomorrow(text, _check_weekday_date(text, tool_input)))
@@ -903,6 +944,8 @@ def call_bedrock(text: str, context: Optional[Dict[str, Any]] = None):
         "missing_fields": [],
         "follow_up_questions": [follow_up_question] if follow_up_question else [],
         "confidence": float(confidence) if isinstance(confidence, (int, float)) else 0.0,
+        "side_question": side_question is True,
+        "wants_options": wants_options is True,
         "_raw": result.get("text"),
     }
 
