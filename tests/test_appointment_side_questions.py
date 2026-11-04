@@ -79,7 +79,8 @@ def test_weather_question_while_date_asked_is_answered_and_date_not_taken(tmp_pa
     assert out["missing_fields"] == ["date", "time"]
     assert out["response_text"].startswith(WEATHER_ANSWER["answer"])
     assert out["response_text"].endswith("Please provide the preferred appointment date.")
-    assert out["prompt_text"] == "Please provide the preferred appointment date."
+    # The app shows prompt_text in the bubble: it must carry the answer too.
+    assert out["prompt_text"] == out["response_text"]
     assert len(escape_calls) == 1
     # The extraction session forgets the side question too, so "today" does
     # not come back on the next turn.
@@ -117,6 +118,7 @@ def test_weather_question_while_time_asked_does_not_set_the_time(tmp_path, monke
     assert "time" not in out["draft"]
     assert out["missing_fields"] == ["time"]
     assert out["response_text"].endswith("Please provide the preferred appointment time.")
+    assert out["prompt_text"].startswith(WEATHER_ANSWER["answer"])
 
 
 def test_marked_side_question_without_an_answer_keeps_the_old_behaviour(tmp_path, monkeypatch):
@@ -198,6 +200,7 @@ def test_side_question_when_ready_to_submit_asks_to_submit_again(tmp_path, monke
     out = sup.turn(FARMER, "s-ready", "how many goats do I have?", "en-IN", include_audio=False)
     assert out["state"] == "READY_TO_SUBMIT"
     assert out["response_text"].endswith("Would you like to submit this appointment?")
+    assert out["prompt_text"] == out["response_text"]
 
 
 def test_side_question_before_anything_is_given_repeats_the_welcome(tmp_path, monkeypatch):
@@ -221,6 +224,7 @@ def test_show_options_lists_the_farmers_animals(tmp_path, monkeypatch):
     out = sup.turn(FARMER, "s-opts", "I don't remember the name, can you show me options?", "en-IN", include_audio=False)
     assert out["options"]["choices"] == ["Lakshmi", "Kaali", "Moti"]
     assert "Lakshmi, Kaali, Moti" in out["response_text"]
+    assert out["prompt_text"] == out["response_text"]
     assert out["draft"]["issue"] == "fever"
     assert "animal_identifier" in out["missing_fields"]
 
@@ -238,6 +242,7 @@ def test_show_options_with_no_animals_says_so(tmp_path, monkeypatch):
 
     out = sup.turn(FARMER, "s-none", "show me my animals", "en-IN", include_audio=False)
     assert out["response_text"] == sup._message("en-IN", "no_animals_yet")
+    assert out["prompt_text"] == out["response_text"]
     assert "options" not in out
 
 

@@ -704,16 +704,20 @@ class AppointmentSupervisor(DraftSupervisor):
         prompt = self._message(lang, "yes_missing", field=self._message(lang, "missing_animal_identifier"))
         self._save(draft)
         _log.info("appointment animal choices shown count=%d session=%s", len(animals), session_id)
+        # prompt_text is what the app shows in the bubble, so it is the whole
+        # message (the list of animals), not only "please provide the animal".
+        # The app draws the choices from the booking form's animal list, which
+        # puts these animals first, or as pills when no form is shown.
         if not animals:
+            message = self._message(lang, "no_animals_yet")
             return self._response(
-                draft, self._message(lang, "no_animals_yet"), input_transcript=text,
-                include_audio=include_audio, prompt=prompt,
+                draft, message, input_transcript=text, include_audio=include_audio, prompt=message,
             )
         shown = animals[:5]
         message = self._message(lang, "animal_choices", animals=", ".join(a.tag_or_name for a in shown))
         return self._response(
             draft, message, input_transcript=text, include_audio=include_audio,
-            options=_animal_options(lang, shown), prompt=prompt,
+            options=_animal_options(lang, shown), prompt=message,
         )
 
     def _response(self, draft: dict[str, Any], text: str, input_transcript: str | None = None, include_audio: bool = True, options: Optional[dict] = None, prompt: Any = _UNSET, speech: Any = _UNSET) -> dict[str, Any]:
@@ -911,9 +915,13 @@ class AppointmentSupervisor(DraftSupervisor):
                 prompt, options, is_readback = self._pending_prompt(draft)
                 self._save(draft)
                 reply = f"{escape['answer']} {prompt}".strip()
+                # prompt_text is what the app shows in the bubble, so it
+                # carries the answer too. At the readback it stays None, as
+                # after any readback: the app then shows response_text with
+                # the yes/no buttons.
                 return self._response(
                     draft, reply, input_transcript=text, include_audio=include_audio,
-                    options=options, prompt=None if is_readback else prompt,
+                    options=options, prompt=None if is_readback else reply,
                 )
             _log.info("appointment side question not accepted field=%s session=%s", waiting_for, session_id)
 
