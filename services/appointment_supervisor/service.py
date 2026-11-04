@@ -408,6 +408,24 @@ Which one (if any) does the farmer mean?"""
         return None, []
 
 
+def _merged_reference(identifier: str, local_animals: list, animals: list) -> str:
+    """The identifier to verify against the merged animal list.
+
+    An animal registered through Chocolate is also created in main_backend,
+    and merge_app_animals keeps main_backend's copy (with main_backend's id)
+    in place of the local one with the same tag. The extraction step can
+    still name the animal by its local record's id, which is then in no list
+    the booking checks. That local id is turned into the animal's tag; any
+    other identifier is returned unchanged."""
+    wanted = str(identifier).strip().lower()
+    if any(wanted in {str(a.id).lower(), str(a.tag_or_name).lower()} for a in animals):
+        return identifier
+    for a in local_animals:
+        if str(a.id).lower() == wanted:
+            return a.tag_or_name
+    return identifier
+
+
 def _verify_animal(identifier: str, animals: list) -> tuple[Optional[Any], list]:
     """Shared by the early-verification step in turn() and submit()'s
     defensive fallback. Exact match (case-insensitive) first, then the LLM
@@ -969,7 +987,9 @@ class AppointmentSupervisor(DraftSupervisor):
         # once verified it's skipped for the rest of this booking.
         identifier = draft["draft"].get("animal_identifier")
         if identifier and not draft.get("animal_verified"):
-            animals = merge_app_animals(farmer_id, animals_for_farmer(farmer_id), flokiq_sync.get_farm_animals(farmer_id))
+            local_animals = animals_for_farmer(farmer_id)
+            animals = merge_app_animals(farmer_id, local_animals, flokiq_sync.get_farm_animals(farmer_id))
+            identifier = _merged_reference(identifier, local_animals, animals)
             matched, candidates = _verify_animal(identifier, animals)
             if matched:
                 # What the farmer actually called the animal (any script or
