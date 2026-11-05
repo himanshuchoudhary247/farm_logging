@@ -28,7 +28,9 @@ from typing import Callable, Optional
 from services.image_agent.base import TASKS, ImageAgent
 from services.image_agent.stub import StubImageAgent
 
-_log = logging.getLogger(__name__)
+# A child of the "api" logger, so these lines print in the same terminal as
+# the other route logs (main.py gives "api" its handler and INFO level).
+_log = logging.getLogger("api.image_agent")
 
 _OFF = {"off", "0", "false", "no", "none"}
 

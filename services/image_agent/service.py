@@ -14,7 +14,9 @@ from services.common.draft_supervisor import SUPPORTED_LANGUAGES
 from services.image_agent.base import ImageRequest
 from services.image_agent.registry import get_agent, normalize_task
 
-_log = logging.getLogger(__name__)
+# A child of the "api" logger, so these lines print in the same terminal as
+# the other route logs (main.py gives "api" its handler and INFO level).
+_log = logging.getLogger("api.image_agent")
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_TEXT_CHARS = 1000
