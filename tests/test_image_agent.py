@@ -33,7 +33,8 @@ def _turn(**overrides):
 
 
 @pytest.mark.parametrize("content_type,image", [("image/jpeg", JPEG), ("image/jpg", JPEG), ("image/png", PNG),
-                                                ("image/webp", WEBP), ("image/jpeg; charset=binary", JPEG)])
+                                                ("image/webp", WEBP), ("image/jpeg; charset=binary", JPEG)],
+                         ids=["jpeg", "jpg", "png", "webp", "jpeg_with_params"])
 def test_accepted_photos_get_the_reply_shape_chat_turn_uses(content_type, image):
     out = _turn(content_type=content_type, image=image)
     assert out["agent"] == "image_agent"
@@ -52,7 +53,7 @@ def test_accepted_photos_get_the_reply_shape_chat_turn_uses(content_type, image)
     ("image/png", b"not a photo at all", 415),
     ("image/jpeg", b"", 400),
     ("image/jpeg", JPEG[:3] + b"\x00" * MAX_IMAGE_BYTES, 413),
-])
+], ids=["gif", "pdf", "no_type", "jpg_is_really_png", "not_a_photo", "empty", "too_large"])
 def test_bad_uploads_are_refused_before_any_agent_runs(content_type, image, status, monkeypatch):
     called = []
     monkeypatch.setattr(registry, "get_agent", lambda task: called.append(task))
