@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from utils.env_check import validate_env
 
@@ -61,6 +61,7 @@ from services.advisory.llm_advisory import generate_llm_advisory, summarize_live
 from services.farm_summary import SUPPORTED_LANGUAGES as FARM_SUMMARY_LANGUAGES, build_farm_summary
 from services.appointment_supervisor import default_supervisor as appointment_supervisor, SUPPORTED_LANGUAGES
 from services.chat_orchestrator.adk_router import route_turn_adk
+from services.image_agent import MAX_IMAGE_BYTES, ImageTurnError, handle_image_turn
 from storage import get_data_dir
 
 
@@ -723,6 +724,35 @@ async def chat_voice_turn(
         raise HTTPException(status_code=400 if "not found" not in str(exc).lower() else 404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Audio processing failed: {exc}")
+
+
+@app.post("/farmers/{farmer_id}/chat/image-turn")
+async def chat_image_turn(
+    farmer_id: str,
+    session_id: str = Form(...),
+    language: str = Form("en-IN"),
+    text: str = Form(""),
+    task: str = Form("general"),
+    image: UploadFile = File(...),
+    _auth: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """A photo with an optional question (multipart form). task is what the
+    app's suggestion chip asked for (general / health / breed / weight /
+    count). The answer comes from the photo agent chosen in
+    services/image_agent/registry.py -- the placeholder stub until real
+    agents exist -- in the same {agent, intent, result, reply_text} shape
+    /chat/turn returns. Does not touch any booking or registration draft."""
+    import asyncio
+
+    # One byte over the limit is enough to know it is too large; the rest of
+    # an oversized upload is never read into memory.
+    data = await image.read(MAX_IMAGE_BYTES + 1)
+    try:
+        return await asyncio.to_thread(
+            handle_image_turn, farmer_id, session_id, language, text, task, image.content_type or "", data,
+        )
+    except ImageTurnError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")
