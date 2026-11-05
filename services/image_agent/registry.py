@@ -47,6 +47,9 @@ _cache_lock = threading.Lock()
 def normalize_task(task: Optional[str]) -> str:
     """The task as one of TASKS; anything else is "general"."""
     value = (task or "").strip().lower()
+    if value and value not in TASKS:
+        _log.info("image_agent unknown task=%r -- using general", value)
+        return "general"
     return value if value in TASKS else "general"
 
 

@@ -9,11 +9,7 @@ from services.image_agent import registry, service
 from services.image_agent.base import TASKS, ImageAgent, ImageRequest, ImageResult
 from services.image_agent.service import MAX_IMAGE_BYTES, ImageTurnError, handle_image_turn
 from services.image_agent.stub import StubImageAgent
-
-# The first bytes of real files of each format, padded like a small photo.
-JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 2000
-PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 2000
-WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 2000
+from tests.image_fixtures import JPEG, PNG, WEBP
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +52,7 @@ def test_accepted_photos_get_the_reply_shape_chat_turn_uses(content_type, image)
 ], ids=["gif", "pdf", "no_type", "jpg_is_really_png", "not_a_photo", "empty", "too_large"])
 def test_bad_uploads_are_refused_before_any_agent_runs(content_type, image, status, monkeypatch):
     called = []
-    monkeypatch.setattr(registry, "get_agent", lambda task: called.append(task))
+    monkeypatch.setattr(service, "get_agent", lambda task: called.append(task))
     with pytest.raises(ImageTurnError) as err:
         _turn(content_type=content_type, image=image)
     assert err.value.status_code == status

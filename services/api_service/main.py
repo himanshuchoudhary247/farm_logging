@@ -83,6 +83,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Per-path Content-Length ceilings, checked before Starlette parses any
+# multipart body. Routes that declare their own upload cap below (5 MB
+# photos, 10 MB audio) still rely on it for the real check -- Starlette's
+# multipart parser has no size cap on file parts, so without this a client
+# could have its whole upload parsed and spooled to a temp file before the
+# app ever reads a byte of it. A missing/understated Content-Length header
+# still falls through to this check uncaught; nginx's client_max_body_size
+# in front of this service is the real backstop for that case.
+_MAX_BODY_BYTES_BY_PATH_PREFIX = {
+    "/chat/image-turn": 6 * 1024 * 1024,
+    "/chat/voice/turn": 11 * 1024 * 1024,
+}
+
+
+@app.middleware("http")
+async def _reject_oversized_uploads(request: Request, call_next):
+    for suffix, limit in _MAX_BODY_BYTES_BY_PATH_PREFIX.items():
+        if request.url.path.endswith(suffix):
+            declared = request.headers.get("content-length")
+            if declared is not None and declared.isdigit() and int(declared) > limit:
+                return Response(
+                    content=json.dumps({"detail": "Upload is larger than this endpoint allows"}),
+                    status_code=413,
+                    media_type="application/json",
+                )
+            break
+    return await call_next(request)
+
 
 # FARMER_CHAT_API_KEY: shared-secret gate on the voice/chat surface (the
 # endpoints a server-to-server caller like flokiq's backend would hit).
@@ -741,7 +769,12 @@ async def chat_image_turn(
     count). The answer comes from the photo agent chosen in
     services/image_agent/registry.py -- the placeholder stub until real
     agents exist -- in the same {agent, intent, result, reply_text} shape
-    /chat/turn returns. Does not touch any booking or registration draft."""
+    /chat/turn returns. Does not touch any booking or registration draft.
+
+    This code never writes the photo to disk -- but Starlette's own
+    multipart parser may spool an upload over ~1 MB to a transient OS temp
+    file while parsing the request, independent of anything below; that
+    file is auto-deleted once the request completes."""
     import asyncio
 
     # One byte over the limit is enough to know it is too large; the rest of
@@ -753,6 +786,13 @@ async def chat_image_turn(
         )
     except ImageTurnError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    except Exception as exc:
+        # Same parity gap found in appointment_voice_text and chat_turn: every
+        # sibling route here catches broadly so a future agent failure (e.g.
+        # a real agent's constructor loading a model/credential) degrades to
+        # a clean 500 instead of a raw, traceback-leaking one.
+        _log.exception("chat_image_turn failed farmer=%s session=%s", farmer_id, session_id)
+        raise HTTPException(status_code=500, detail="Something went wrong processing that photo. Please try again.")
 
 
 @app.post("/farmers/{farmer_id}/appointments/voice/text")

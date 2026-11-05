@@ -12,8 +12,8 @@ import os
 import pytest
 
 from services.image_agent import registry
+from tests.image_fixtures import JPEG
 
-JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 2000
 URL = "/farmers/f-1/chat/image-turn"
 
 
@@ -63,3 +63,26 @@ def test_switched_off_is_503(client, monkeypatch):
 def test_session_id_is_required(client):
     res = client.post(URL, data={"language": "en-IN"}, files={"image": ("p.jpg", JPEG, "image/jpeg")})
     assert res.status_code == 422
+
+
+def test_an_unexpected_failure_is_a_clean_500_not_a_raw_traceback(client, monkeypatch):
+    from services.api_service import main
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("agent construction blew up")
+
+    monkeypatch.setattr(main, "handle_image_turn", boom)
+    res = _post(client)
+    assert res.status_code == 500
+    assert "agent construction blew up" not in res.text
+    assert res.json()["detail"] == "Something went wrong processing that photo. Please try again."
+
+
+def test_a_declared_content_length_over_the_cap_is_413_before_parsing(client):
+    oversized = JPEG + b"\x00" * (6 * 1024 * 1024)
+    res = client.post(
+        URL,
+        data={"session_id": "s-1", "language": "hi-IN", "text": "", "task": "count"},
+        files={"image": ("photo.jpg", oversized, "image/jpeg")},
+    )
+    assert res.status_code == 413
