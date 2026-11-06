@@ -1469,3 +1469,27 @@ def test_a_product_out_of_stock_after_browsing_goes_back_to_the_store(sup, monke
     assert r["state"] == "SEARCHING" and "Liver Tonic" in r["response_text"]
     r = sup.turn(FARMER, "s1", "ok", include_audio=False)
     assert r["state"] == "CHOOSING" and len(backend.calls["search"]) == 2
+
+
+@pytest.mark.parametrize("query", ["farm", "for my farm", "something", "सामान", "कुछ", "ஏதாவது", "എന്തെങ്കിലും"])
+def test_a_word_that_names_no_product_shows_the_store_instead_of_not_found(sup, monkeypatch, query):
+    """Seen live: the Buy Supplies pill's "I want to buy something for my
+    farm" -> the LLM read product_query "farm" -> "I could not find 'farm'
+    in your store". Now the store's in-stock list is shown, as for a
+    starter with no product."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": query}])
+    r = sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
+    assert "could not find" not in r["response_text"]
+    assert backend.calls["search"][0]["args"][1] in ("", None), "the store list (empty search), not 'farm'"
+
+
+@pytest.mark.parametrize("query", ["farm fresh mineral mix", "calcium", "farm tonic"])
+def test_a_real_product_name_is_still_searched(sup, monkeypatch, query):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": query}])
+    sup.turn(FARMER, "s1", query, include_audio=False)
+    assert backend.calls["search"][0]["args"][1] == query
+

@@ -149,6 +149,26 @@ def _with_checked_image(product: dict[str, Any]) -> dict[str, Any]:
     return {**product, "image": image}
 
 
+# Words that name no product ("something", "for my farm", "सामान"): never
+# searched for. Whole query only, any case.
+_GENERIC_QUERIES = frozenset(w.lower() for w in (
+    "farm", "my farm", "for my farm", "for the farm", "farm supplies", "farm items", "farm things",
+    "something", "anything", "some thing", "any thing", "things", "thing", "stuff", "item", "items",
+    "product", "products", "supplies", "supply", "shop", "store", "goods",
+    "kuch", "kuchh", "kuch bhi", "saman", "samaan", "kuch saman", "cheez", "cheeze", "cheezein",
+    "कुछ", "कुछ भी", "सामान", "कुछ सामान", "चीज़", "चीज", "चीज़ें", "चीजें", "खेत", "फार्म",
+    "काहीतरी", "काही", "वस्तू", "सामान", "शेत",
+    "ஏதாவது", "பொருள்", "பொருட்கள்", "பண்ணை",
+    "ఏదైనా", "వస్తువులు", "సామాను", "పొలం",
+    "ಏನಾದರೂ", "ವಸ್ತು", "ವಸ್ತುಗಳು", "ಸಾಮಾನು", "ಜಮೀನು",
+    "എന്തെങ്കിലും", "സാധനം", "സാധനങ്ങൾ", "ഫാം",
+))
+
+
+def _is_generic_query(query: str) -> bool:
+    return " ".join(query.strip().lower().rstrip(".!?।").split()) in _GENERIC_QUERIES
+
+
 def _number_in_text(text: str) -> Optional[int]:
     """A quantity typed as digits next to the product ("2 calcium gel",
     "calcium gel chahiye 2"), for when the LLM returned none. Only exactly
@@ -972,6 +992,13 @@ class OrderSupervisor(DraftSupervisor):
         # 1) Product: a pick from the offered options, or a (new) product named.
         picked = self._pick_option(draft, text, entities) if state == CHOOSING else None
         query = str(entities.get("product_query") or "").strip()
+        if query and _is_generic_query(query):
+            # "I want to buy something for my farm" (the Buy Supplies pill):
+            # seen live, the model read "farm" as the product and the farmer
+            # got "I could not find 'farm' in your store". A word that names
+            # no product is no product: the store's list is shown instead.
+            _log.info("order generic product word ignored farmer=%s query=%r", farmer_id, query[:40])
+            query = ""
         if picked:
             values["product"] = picked
             values["options"] = []
