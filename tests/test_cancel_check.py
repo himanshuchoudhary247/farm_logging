@@ -163,15 +163,114 @@ def test_booking_other_reply_to_the_question_goes_through_the_flow(booking):
     assert "cancel_check" not in booking._load(SESSION, FARMER, "en-IN")
 
 
-def test_booking_no_at_the_readback_still_asks_what_to_correct(booking):
+@pytest.mark.parametrize("language", LANGS)
+def test_booking_no_at_the_readback_asks_cancel_or_continue(booking, language):
+    """Tapping the app's "No" at "Is this correct?": cancel, or carry on and
+    say what to correct -- the farmer chooses. No model call either way."""
     booking.replies.append({"entities": {"animal_identifier": "Lakshmi", "issue": "fever",
                                          "date": "2026-08-25", "time": "11:30"}})
-    first = booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", "en-IN")
+    first = booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", language)
     assert first["state"] == "CONFIRMING"
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
-    r = booking.turn(FARMER, SESSION, "no", "en-IN")
-    assert r["state"] == "CORRECTING"
-    assert r["response_text"] == appt_service._TEXT["en"]["no"]
+    calls = len(booking.calls)
+    ask = booking.turn(FARMER, SESSION, "no", language)
+    assert ask["response_text"] == cancel_check.ask_text("booking", language)
+    assert ask["options"] == cancel_check.chips(language)
+    assert ask["state"] == "CORRECTING", "the app's own Yes/No buttons are not drawn over the question"
+    back = booking.turn(FARMER, SESSION, cancel_check.chips(language)["choices"][1], language)
+    assert back["state"] == "CORRECTING"
+    assert back["response_text"] == appt_service._TEXT[language.split("-")[0]]["no"]
+    assert len(booking.calls) == calls, "no model call for the 'no' or the choice"
+
+
+def test_booking_yes_after_no_at_the_readback_cancels(booking):
+    booking.replies.append({"entities": {"animal_identifier": "Lakshmi", "issue": "fever",
+                                         "date": "2026-08-25", "time": "11:30"}})
+    booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", "en-IN")
+    booking.turn(FARMER, SESSION, "No", "en-IN")
+    assert booking.turn(FARMER, SESSION, "Yes, cancel", "en-IN")["state"] == "CANCELLED"
+
+
+def test_booking_no_with_a_change_at_the_readback_still_corrects_in_place(booking):
+    booking.replies.append({"entities": {"animal_identifier": "Lakshmi", "issue": "fever",
+                                         "date": "2026-08-25", "time": "11:30"}})
+    booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", "en-IN")
+    booking.replies.append({"entities": {"date": "2026-08-26"}, "confirmation_signal": "no"})
+    r = booking.turn(FARMER, SESSION, "no, make it 26 august", "en-IN")
+    assert r["draft"]["date"] == "2026-08-26"
+    assert r["response_text"] != cancel_check.ask_text("booking", "en-IN")
+
+
+def _to_correcting(booking, language="en-IN"):
+    booking.replies.append({"entities": {"animal_identifier": "Lakshmi", "issue": "fever",
+                                         "date": "2026-08-25", "time": "11:30"}})
+    assert booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", language)["state"] == "CONFIRMING"
+    # "What would you like to correct?" reached straight from the readback
+    # (the /appointments/confirm route; in chat the "cancel?" question comes first).
+    assert booking.confirm(FARMER, SESSION, "no", include_audio=False)["state"] == "CORRECTING"
+
+
+def test_booking_no_continue_then_no_at_what_to_correct_cancels(booking):
+    """The chat path: No -> "cancel?" -> No, continue -> "What would you like
+    to correct?" -> no again: the farmer said no twice, so it is cancelled."""
+    booking.replies.append({"entities": {"animal_identifier": "Lakshmi", "issue": "fever",
+                                         "date": "2026-08-25", "time": "11:30"}})
+    booking.turn(FARMER, SESSION, "Lakshmi fever 25 august 11:30", "en-IN")
+    booking.turn(FARMER, SESSION, "No", "en-IN")
+    assert booking.turn(FARMER, SESSION, "No, continue", "en-IN")["state"] == "CORRECTING"
+    assert booking.turn(FARMER, SESSION, "no", "en-IN")["state"] == "CANCELLED"
+
+
+@pytest.mark.parametrize("signal", [None, "no"])
+def test_booking_no_at_what_to_correct_asks_instead_of_looping(booking, signal):
+    """Seen live: "No" at the readback -> "What would you like to correct?"
+    -> "no" -> the same readback again (or, when the model read "no", the
+    animal dropped) -> "No" -> ... for ever. Now the second "no" asks."""
+    _to_correcting(booking)
+    calls = len(booking.calls)
+    booking.replies.append({"entities": {}, "confirmation_signal": signal})
+    ask = booking.turn(FARMER, SESSION, "no", "en-IN")
+    assert ask["response_text"] == cancel_check.ask_text("booking", "en-IN")
+    assert ask["options"] == cancel_check.chips("en-IN")
+    assert ask["state"] == "CORRECTING", "no Yes/No confirm buttons of the app over the question"
+    assert ask[cancel_check.CANCEL_QUESTION_KEY] is True
+    assert len(booking.calls) == calls, "decided without a model call"
+    saved = booking._load(SESSION, FARMER, "en-IN")
+    assert saved["draft"]["animal_identifier"] == "Lakshmi", "the animal is kept"
+
+    back = booking.turn(FARMER, SESSION, "No, continue", "en-IN")
+    assert back["state"] == "CORRECTING"
+    assert back["response_text"] == appt_service._TEXT["en"]["no"]
+
+    done = booking.turn(FARMER, SESSION, "no", "en-IN")
+    assert done["state"] == "CANCELLED"
+
+
+def test_booking_dont_want_at_what_to_correct_cancels(booking):
+    _to_correcting(booking, "hi-IN")
+    assert booking.turn(FARMER, SESSION, "नहीं चाहिए", "hi-IN")["state"] == "CANCELLED"
+
+
+def test_booking_a_real_correction_at_what_to_correct_still_works(booking):
+    _to_correcting(booking)
+    booking.replies.append({"entities": {"date": "2026-08-26"}})
+    r = booking.turn(FARMER, SESSION, "make it 26 august", "en-IN")
+    assert r["draft"]["date"] == "2026-08-26" and r["state"] == "CONFIRMING"
+
+
+def test_the_cancel_question_gets_no_form_and_what_to_correct_gets_a_filled_form(booking, monkeypatch):
+    from services.a2ui import booking_widget, widgets
+    monkeypatch.setattr(booking_widget, "widgets_enabled", lambda: True)
+    monkeypatch.setattr(booking_widget, "_symptom_options", lambda language: {"choices": ["Fever"]}, raising=False)
+    _to_correcting(booking)
+    correcting = booking._response(booking._load(SESSION, FARMER, "en-IN"), "What would you like to correct?",
+                                   include_audio=False)
+    form = widgets.widget_for("appointment_supervisor", FARMER, SESSION, correcting, "en-IN")
+    assert form, "the filled form comes with 'What would you like to correct?'"
+    assert "2026-08-25" in str(form) and "11:30" in str(form)
+
+    booking.replies.append({"entities": {}})
+    ask = booking.turn(FARMER, SESSION, "no", "en-IN")
+    assert widgets.widget_for("appointment_supervisor", FARMER, SESSION, ask, "en-IN") is None
 
 
 # ------------------------------------------------------------------ animal registration
@@ -203,6 +302,34 @@ def test_animal_bare_no_at_a_required_field_asks_and_chips_come_along(animal, la
     assert ask["options"] == cancel_check.chips(language)
     done = animal.turn(FARMER, SESSION, cancel_check.chips(language)["choices"][0], language, include_audio=False)
     assert done["state"] == "CANCELLED"
+
+
+def test_animal_no_at_what_to_correct_asks(animal):
+    animal.replies.extend([{"species": "goat"}, {"unique_animal_id": "REG-78"}, {"breed": "Jamunapari", "sex": "male"},
+                           {"confirmation_signal": "no"}])
+    animal.turn(FARMER, SESSION, "register a goat", include_audio=False)
+    animal.turn(FARMER, SESSION, "REG-78", include_audio=False)
+    animal.turn(FARMER, SESSION, "Jamunapari male", include_audio=False)
+    assert animal.turn(FARMER, SESSION, "no", include_audio=False)["state"] == "CONFIRMING"  # skip optional
+    assert animal.confirm(FARMER, SESSION, "no", include_audio=False)["state"] == "CORRECTING"
+    calls = len(animal.calls)
+    ask = animal.turn(FARMER, SESSION, "இல்லை", "ta-IN", include_audio=False)
+    assert ask["response_text"] == cancel_check.ask_text("animal", "ta-IN") and len(animal.calls) == calls
+    assert animal.turn(FARMER, SESSION, "ஆம்", "ta-IN", include_audio=False)["state"] == "CANCELLED"
+
+
+def test_animal_no_at_the_summary_asks_cancel_or_continue(animal):
+    animal.replies.extend([{"species": "goat"}, {"unique_animal_id": "REG-79"}, {"breed": "Jamunapari", "sex": "male"},
+                           {"confirmation_signal": "no"}])
+    animal.turn(FARMER, SESSION, "register a goat", "te-IN", include_audio=False)
+    animal.turn(FARMER, SESSION, "REG-79", "te-IN", include_audio=False)
+    animal.turn(FARMER, SESSION, "Jamunapari male", "te-IN", include_audio=False)
+    assert animal.turn(FARMER, SESSION, "no", "te-IN", include_audio=False)["state"] == "CONFIRMING"  # skip optional
+    calls = len(animal.calls)
+    ask = animal.turn(FARMER, SESSION, "లేదు", "te-IN", include_audio=False)
+    assert ask["response_text"] == cancel_check.ask_text("animal", "te-IN") and ask["options"]
+    back = animal.turn(FARMER, SESSION, cancel_check.chips("te-IN")["choices"][1], "te-IN", include_audio=False)
+    assert back["state"] == "CORRECTING" and len(animal.calls) == calls
 
 
 def test_animal_no_at_the_optional_details_still_skips(animal):

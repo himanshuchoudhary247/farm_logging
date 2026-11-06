@@ -711,6 +711,21 @@ class AppointmentSupervisor(CancelCheckMixin, DraftSupervisor):
     def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
         return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
+    def _cancel_hold_state(self, draft: dict[str, Any]) -> str:
+        # The app draws its own Yes/No buttons at CONFIRMING / READY_TO_SUBMIT
+        # (flokiquser confirmFor); while "Do you want to cancel?" is open the
+        # booking waits at CORRECTING so only the question's two buttons show.
+        if self._cancel_yes_no_question(draft):
+            return "CORRECTING"
+        return super()._cancel_hold_state(draft)
+
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "no")
+
     def _cancel_progress(self, draft: dict[str, Any]) -> dict[str, Any]:
         # CONFIRMING with expected_field set is still collecting (a readback
         # plus the next field's question, see turn()); the next turn often

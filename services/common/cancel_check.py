@@ -21,6 +21,11 @@ The rule, for every draft flow (see CancelCheckMixin.turn_with_cancel_check):
      again; anything else goes through the flow as a normal answer.
    - A bare "no" again right after the farmer chose to carry on cancels,
      so the farmer is never asked the same thing twice in a row.
+3. A plain "no" at a Yes/No question (the readback "is this correct?",
+   "submit?", the order quote) also asks "Do you want to cancel?" first.
+   "No, continue" then does what that "no" always did (asks what to
+   correct / change), with no model call; "Yes" cancels. A "no" that
+   carries a change ("no, make it tomorrow") still goes to the flow.
 
 No model call is added: the answer to "Do you want to cancel?" is matched
 here against fixed words, and that turn skips the flow's own extraction
@@ -33,7 +38,12 @@ import copy
 import logging
 from typing import Any, Callable, Optional
 
+from services.common.draft_supervisor import SUPPORTED_LANGUAGES
+
 _log = logging.getLogger("api.cancel_check")
+
+# Marks a reply that asks "Do you want to cancel?" (see CancelCheckMixin._cancel_ask).
+CANCEL_QUESTION_KEY = "cancel_question"
 
 # Draft keys that change on every turn whatever the farmer said; left out
 # when checking whether a turn changed anything.
@@ -189,17 +199,23 @@ def _snapshot(draft: dict[str, Any]) -> dict[str, Any]:
 
 class CancelCheckMixin:
     """For a DraftSupervisor subclass. It sets _CANCEL_KIND and implements
-    _cancel_now() (the flow's own cancel) and _cancel_reply() (a reply in
-    the flow's own response shape), then wraps its turn body with
+    _cancel_now() (the flow's own cancel), _cancel_reply() (a reply in the
+    flow's own response shape) and _cancel_correcting_text() (its "what would
+    you like to correct?" question), then wraps its turn body with
     turn_with_cancel_check() inside its session lock."""
 
     _CANCEL_KIND = "booking"
 
     def _cancel_progress(self, draft: dict[str, Any]) -> dict[str, Any]:
         """What counts as progress in this flow: the draft without the keys
-        that change on every turn. A flow overrides this when two of its
-        states mean the same step (see appointment_supervisor)."""
-        return _snapshot(draft)
+        that change on every turn. CORRECTING and CONFIRMING are one step
+        here: going from "what would you like to correct?" back to the same
+        readback with nothing changed is not progress. A flow overrides this
+        when more of its states mean the same step (see appointment_supervisor)."""
+        view = _snapshot(draft)
+        if view.get("state") == "CORRECTING":
+            view["state"] = "CONFIRMING"
+        return view
 
     def _cancel_yes_no_question(self, draft: dict[str, Any]) -> bool:
         """True when the flow's last question was a real yes/no question;
@@ -213,34 +229,114 @@ class CancelCheckMixin:
                       options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
         raise NotImplementedError
 
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        raise NotImplementedError
+
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        """What the flow's own "no" at its Yes/No question does (ask what to
+        correct / change) -- run when the farmer chose to carry on."""
+        raise NotImplementedError
+
+    def _cancel_hold_state(self, draft: dict[str, Any]) -> str:
+        """The state the draft waits in while "Do you want to cancel?" is
+        open. Same state by default; a flow whose state makes the app draw
+        its own Yes/No buttons overrides it (see appointment_supervisor)."""
+        return draft.get("state") or ""
+
+    def _cancel_ask(self, draft: dict[str, Any], session_id: str, text: str, include_audio: bool,
+                    show_again: dict[str, Any]) -> dict[str, Any]:
+        """Ask "Do you want to cancel?" and remember what to show again if
+        the farmer carries on (`show_again`: reply, prompt, options, state)."""
+        draft["cancel_check"] = {"asked": True, **show_again}
+        self._save(draft)
+        _log.info("cancel_check ask flow=%s session=%s state=%s", self._CANCEL_KIND, session_id, draft.get("state"))
+        question = ask_text(self._CANCEL_KIND, draft["language"])
+        resp = self._cancel_reply(draft, question, text, include_audio, options=chips(draft["language"]), prompt=question)
+        # Tells the chat router to send no form with this reply: the app
+        # hides choice buttons when a form is shown, and these two buttons
+        # are the whole point of the question (services/a2ui/widgets.py).
+        resp[CANCEL_QUESTION_KEY] = True
+        return resp
+
+    def _cancel_end(self, draft: dict[str, Any], farmer_id: str, session_id: str, text: str, include_audio: bool,
+                    reason: str) -> dict[str, Any]:
+        _log.info("cancel_check cancel flow=%s session=%s state=%s reason=%s", self._CANCEL_KIND, session_id,
+                  draft.get("state"), reason)
+        draft.pop("cancel_check", None)
+        self._save(draft)
+        return self._cancel_now(farmer_id, session_id, text, include_audio)
+
     def turn_with_cancel_check(self, farmer_id: str, session_id: str, text: str, language: str,
                                include_audio: bool, run: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         draft = self._load(session_id, farmer_id, language)
+        if language in SUPPORTED_LANGUAGES:
+            # The farmer's current language, as the flow itself does on every turn.
+            draft["language"] = language
         pending = draft.get("cancel_check") or {}
         active = not draft.get("submitted") and draft.get("state") not in _DONE_STATES
+        stop, bare_no = is_stop(text), is_bare_no(text)
 
+        # 1) The farmer is answering "Do you want to cancel?".
         if active and pending.get("asked"):
             choice = answer(text)
             draft.pop("cancel_check", None)
             if choice == "cancel":
-                self._save(draft)
-                _log.info("cancel_check answer=cancel flow=%s session=%s", self._CANCEL_KIND, session_id)
-                return self._cancel_now(farmer_id, session_id, text, include_audio)
+                return self._cancel_end(draft, farmer_id, session_id, text, include_audio, "answer_yes")
             if choice == "continue":
+                _log.info("cancel_check answer=continue flow=%s session=%s", self._CANCEL_KIND, session_id)
+                if pending.get("state"):
+                    draft["state"] = pending["state"]
+                if pending.get("after_no"):
+                    # Carry on after a "no" at a Yes/No question: what that
+                    # "no" always did -- ask what to correct / change.
+                    self._save(draft)
+                    result = self._cancel_continue_after_no(farmer_id, session_id, text, include_audio)
+                    after = self._load(session_id, farmer_id, language)
+                    after["cancel_check"] = {"continued": True}
+                    self._save(after)
+                    return result
                 draft["cancel_check"] = {"continued": True}
                 self._save(draft)
-                _log.info("cancel_check answer=continue flow=%s session=%s", self._CANCEL_KIND, session_id)
                 return self._cancel_reply(draft, pending.get("reply") or "", text, include_audio,
                                           options=pending.get("options"), prompt=pending.get("prompt"))
             # Anything else is a normal answer to the flow's question.
+            if pending.get("state"):
+                draft["state"] = pending["state"]
             self._save(draft)
             pending = {}
 
+        # 2a) A plain "no" at a Yes/No question: ask before treating it as
+        # "something is wrong". Decided here, before the flow and its model call.
+        if active and self._cancel_yes_no_question(draft) and (stop or bare_no):
+            if stop:
+                return self._cancel_end(draft, farmer_id, session_id, text, include_audio, "stop_words")
+            back_to = draft.get("state")
+            draft["state"] = self._cancel_hold_state(draft)
+            return self._cancel_ask(draft, session_id, text, include_audio, {"after_no": True, "state": back_to})
+
+        # 2) At "what would you like to correct?" a plain "no" corrects
+        # nothing; the flow would only show the same readback again (or
+        # treat it as "wrong animal" and drop the animal). Handled here,
+        # before the flow and its model call.
+        if active and draft.get("state") == "CORRECTING" and (stop or bare_no):
+            if stop or pending.get("continued"):
+                return self._cancel_end(draft, farmer_id, session_id, text, include_audio,
+                                        "stop_words" if stop else "no_again")
+            return self._cancel_ask(draft, session_id, text, include_audio, {
+                "reply": self._cancel_correcting_text(draft), "prompt": self._cancel_correcting_text(draft),
+                "options": None, "state": "CORRECTING",
+            })
+
+        # 3) Everything else runs through the flow as before.
+        asked_yes_no = active and self._cancel_yes_no_question(draft)
         before = self._cancel_progress(draft) if active else None
+        before_state = draft.get("state")
         result = run()
 
-        stop, bare_no = is_stop(text), is_bare_no(text)
-        if before is None or not (stop or bare_no) or result.get("released"):
+        if before is None or not (stop or bare_no) or result.get("released") or asked_yes_no:
+            # Not a plain "no", or a "no" to a real yes/no question: the
+            # flow's own handling stands.
             if pending.get("continued"):
                 # "Carry on" only counts for the very next reply.
                 after = self._load(session_id, farmer_id, language)
@@ -248,7 +344,7 @@ class CancelCheckMixin:
                     self._save(after)
             return result
         after = self._load(session_id, farmer_id, language)
-        if after.get("submitted") or after.get("state") in _DONE_STATES or self._cancel_yes_no_question(after):
+        if after.get("submitted") or after.get("state") in _DONE_STATES:
             return result
         if self._cancel_progress(after) != before:
             # The "no" meant something to the flow (a correction, a skip).
@@ -257,20 +353,13 @@ class CancelCheckMixin:
             return result
 
         if stop or pending.get("continued"):
-            _log.info("cancel_check cancel flow=%s session=%s state=%s reason=%s", self._CANCEL_KIND, session_id,
-                      after.get("state"), "stop_words" if stop else "no_again")
-            after.pop("cancel_check", None)
-            self._save(after)
-            return self._cancel_now(farmer_id, session_id, text, include_audio)
+            return self._cancel_end(after, farmer_id, session_id, text, include_audio,
+                                    "stop_words" if stop else "no_again")
 
-        after["cancel_check"] = {
-            "asked": True,
-            # What the flow just asked, to show again if the farmer carries on.
-            "reply": result.get("response_text") or "",
-            "prompt": result.get("prompt_text"),
-            "options": result.get("options"),
-        }
-        self._save(after)
-        _log.info("cancel_check ask flow=%s session=%s state=%s", self._CANCEL_KIND, session_id, after.get("state"))
-        question = ask_text(self._CANCEL_KIND, after["language"])
-        return self._cancel_reply(after, question, text, include_audio, options=chips(after["language"]), prompt=question)
+        # Nothing moved: ask. The booking stays at the step the farmer was
+        # on (so the app shows no Yes/No buttons of its own over the
+        # question); carrying on shows the flow's reply exactly as it was.
+        show_again = {"reply": result.get("response_text") or "", "prompt": result.get("prompt_text"),
+                      "options": result.get("options"), "state": after.get("state")}
+        after["state"] = before_state
+        return self._cancel_ask(after, session_id, text, include_audio, show_again)

@@ -954,6 +954,18 @@ class OrderSupervisor(CancelCheckMixin, DraftSupervisor):
         _log.info("order cancelled farmer=%s state=%s", farmer_id, draft["state"])
         return self._end(draft, CANCELLED, "cancelled", text, include_audio)
 
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        # Same as turn()'s own "no" at the quote: ask what to change.
+        draft = self._load(session_id, farmer_id, "en-IN")
+        draft["state"] = CORRECTING
+        self._save(draft)
+        return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
+                              include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "what_to_change")
+
     def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
                       options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
         resp = self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio,

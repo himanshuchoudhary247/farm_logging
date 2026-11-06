@@ -716,6 +716,13 @@ class AnimalRegistrationSupervisor(CancelCheckMixin, DraftSupervisor):
     def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
         return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "no")
+
     def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
                       options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
         resp = self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio)
