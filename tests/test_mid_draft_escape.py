@@ -91,3 +91,59 @@ def test_dispatch_failure_is_swallowed_not_raised(monkeypatch):
         raise RuntimeError("query_agent down")
     monkeypatch.setattr(mid_draft_escape, "process_query_adk", boom)
     assert mid_draft_escape.try_switch("how many animals do I have", "f-001", "s1", "en-IN") is None
+
+
+# The app sends a UUID session id; the probe must never run in it.
+_REAL_SESSION = "24666232-6a23-4471-9fef-0c89e366ddbe"
+
+
+@pytest.mark.parametrize("answer,sql,data", [
+    ("You have 12 animals registered.", "SELECT COUNT(*) ...", [{"count": 12}]),  # accepted
+    (None, None, None),                                                         # thrown away
+], ids=["accepted", "rejected"])
+def test_query_probe_never_runs_in_the_farmers_own_session(monkeypatch, answer, sql, data):
+    seen = []
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("query"))
+
+    def fake(text, farmer_id, session_id=None, app_language=None):
+        seen.append(session_id)
+        return {"answer": answer, "sql": sql, "data": data}
+    monkeypatch.setattr(mid_draft_escape, "process_query_adk", fake)
+    mid_draft_escape.try_switch("how many animals do I have", "f-001", _REAL_SESSION, "hi-IN")
+    assert seen == [f"{_REAL_SESSION}:probe"]
+
+
+@pytest.mark.parametrize("answer", ["Expect light rain tomorrow.", None], ids=["accepted", "rejected"])
+def test_weather_probe_never_runs_in_the_farmers_own_session(monkeypatch, answer):
+    seen = []
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("weather"))
+
+    def fake(text, farmer_id, session_id=None):
+        seen.append(session_id)
+        return {"answer": answer}
+    monkeypatch.setattr(mid_draft_escape, "process_weather_query_adk", fake)
+    mid_draft_escape.try_switch("will it rain tomorrow", "f-001", _REAL_SESSION, "en-IN")
+    assert seen == [f"{_REAL_SESSION}:probe"]
+
+
+def test_one_probe_session_per_chat_not_one_per_probe(monkeypatch):
+    """Repeated probes in one chat reuse one probe session, so they do not
+    pile up; two chats never share one."""
+    seen = []
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("weather"))
+    monkeypatch.setattr(mid_draft_escape, "process_weather_query_adk",
+                        lambda text, farmer_id, session_id=None: seen.append(session_id) or {"answer": None})
+    for _ in range(3):
+        mid_draft_escape.try_switch("umm", "f-001", "chat-a", "en-IN")
+    mid_draft_escape.try_switch("umm", "f-001", "chat-b", "en-IN")
+    assert seen == ["chat-a:probe"] * 3 + ["chat-b:probe"]
+
+
+@pytest.mark.parametrize("session_id", ["", "   ", None])
+def test_no_chat_session_keeps_the_one_off_session(monkeypatch, session_id):
+    seen = []
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("weather"))
+    monkeypatch.setattr(mid_draft_escape, "process_weather_query_adk",
+                        lambda text, farmer_id, session_id=None: seen.append(session_id) or {"answer": "ok"})
+    assert mid_draft_escape.try_switch("will it rain", "f-001", session_id, "en-IN") == {"intent": "weather", "answer": "ok"}
+    assert seen == [None]

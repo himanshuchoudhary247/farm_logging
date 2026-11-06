@@ -40,7 +40,30 @@ from typing import Any, Optional
 from services.query_agent.adk_agent import process_query_adk
 from services.weather_alert.adk_agent import process_weather_query_adk
 
-_log = logging.getLogger(__name__)
+# Same logger setup as adk_router, so these lines print in the server
+# terminal (a plain __name__ logger has no handler and stays silent).
+_log = logging.getLogger("chat_orchestrator.mid_draft_escape")
+if not _log.handlers:
+    _log.addHandler(logging.StreamHandler())
+    _log.setLevel(logging.INFO)
+
+# Suffix of the session a probe runs in. A probe only checks whether the
+# farmer's text is a real off-topic question; most probes are thrown away
+# (no real answer, so the caller carries on with its own flow). Running
+# them in the farmer's own chat session would write those unseen questions
+# and answers into the chat memory the agents read on later turns. One
+# probe session per chat (not a fresh one per probe) so probe sessions do
+# not pile up in memory or in the session database; the agents' own
+# session cap keeps it short.
+_PROBE_SESSION_SUFFIX = ":probe"
+
+
+def _probe_session_id(session_id: str) -> Optional[str]:
+    """The session a probe for this chat runs in -- never the chat's own.
+    No chat session (e.g. an empty id) keeps the agents' one-off session,
+    as before."""
+    session_id = (session_id or "").strip()
+    return f"{session_id}{_PROBE_SESSION_SUFFIX}" if session_id else None
 
 
 def try_switch(text: str, farmer_id: str, session_id: str, language: str = "en-IN") -> Optional[dict[str, Any]]:
@@ -52,28 +75,37 @@ def try_switch(text: str, farmer_id: str, session_id: str, language: str = "en-I
     most common "didn't understand" turn shape in both supervisors, so a
     transient classify/dispatch failure must degrade to a normal re-ask,
     not fail the whole turn.
+
+    The probe runs in a separate per-chat probe session, never in the
+    farmer's own session (see _PROBE_SESSION_SUFFIX). Same calls as before,
+    so no extra model cost. An accepted answer is shown to the farmer but
+    is not in the chat session's memory.
     """
+    probe_session = _probe_session_id(session_id)
     try:
         from services.chat_orchestrator.adk_router import _classify_intent_async
 
         intent = asyncio.run(_classify_intent_async(text))
 
         if intent == "query":
-            probe = process_query_adk(text, farmer_id, session_id=session_id, app_language=language)
+            probe = process_query_adk(text, farmer_id, session_id=probe_session, app_language=language)
             if probe.get("sql") and probe.get("data"):
-                _log.info("mid_draft_escape accepted query farmer=%s session=%s", farmer_id, session_id)
+                _log.info("mid_draft_escape accepted query farmer=%s session=%s probe_session=%s",
+                          farmer_id, session_id, probe_session)
                 return {"intent": "query", "answer": probe.get("answer") or ""}
             return None
 
         if intent == "weather":
-            weather = process_weather_query_adk(text, farmer_id, session_id=session_id)
+            weather = process_weather_query_adk(text, farmer_id, session_id=probe_session)
             answer = (weather or {}).get("answer")
             if answer:
-                _log.info("mid_draft_escape accepted weather farmer=%s session=%s", farmer_id, session_id)
+                _log.info("mid_draft_escape accepted weather farmer=%s session=%s probe_session=%s",
+                          farmer_id, session_id, probe_session)
                 return {"intent": "weather", "answer": answer}
             return None
 
         return None
     except Exception:
-        _log.warning("mid_draft_escape probe failed farmer=%s session=%s text=%r", farmer_id, session_id, text[:200], exc_info=True)
+        _log.warning("mid_draft_escape probe failed farmer=%s session=%s probe_session=%s text=%r",
+                     farmer_id, session_id, probe_session, text[:200], exc_info=True)
         return None
