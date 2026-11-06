@@ -51,6 +51,7 @@ from base64 import b64encode
 from typing import Any, Callable, Optional
 
 from services.common import reply_words
+from services.common.cancel_check import CancelCheckMixin, chips as cancel_chips
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -482,7 +483,7 @@ _TEXT: dict[str, dict[str, str]] = {
 }
 
 
-class OrderSupervisor(DraftSupervisor):
+class OrderSupervisor(CancelCheckMixin, DraftSupervisor):
     INTAKE_SUBDIR = "order_intakes"
     MESSAGES = _TEXT
     # Optional: text -> intent name, from the router's classifier (the chat
@@ -938,7 +939,31 @@ class OrderSupervisor(DraftSupervisor):
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
              include_audio: bool = True) -> dict[str, Any]:
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self.turn_with_cancel_check(
+                farmer_id, session_id, text, language, include_audio,
+                lambda: self._turn_locked(farmer_id, session_id, text, language, include_audio),
+            )
+
+    # A plain "no" that changes nothing asks whether to cancel (see
+    # services/common/cancel_check.py); these two hooks are this flow's own
+    # cancel and reply shape.
+    _CANCEL_KIND = "order"
+
+    def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
+        draft = self._load(session_id, farmer_id, "en-IN")
+        _log.info("order cancelled farmer=%s state=%s", farmer_id, draft["state"])
+        return self._end(draft, CANCELLED, "cancelled", text, include_audio)
+
+    def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
+                      options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
+        resp = self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio,
+                              options=options)
+        if options == cancel_chips(draft["language"]) and draft["state"] == CHOOSING and resp.get("draft", {}).get("options"):
+            # The app pairs each choice with a product card by position while
+            # CHOOSING; the two Yes/No chips must not be drawn as products.
+            # Only this reply's copy changes -- the saved draft keeps them.
+            resp["draft"] = {**resp["draft"], "options": []}
+        return resp
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str,
                      include_audio: bool) -> dict[str, Any]:
