@@ -483,6 +483,28 @@ _TEXT: dict[str, dict[str, str]] = {
 }
 
 
+# "What would you like to change: the product, the quantity or the address?"
+# answered with just the field's name. Seen live: "quantity" -> the same
+# question again, because a field name changes no value. Whole reply only.
+_FIELD_WORDS = {
+    "quantity": ("quantity", "qty", "number", "count", "how many", "the quantity", "matra", "maatra", "sankhya",
+                 "मात्रा", "संख्या", "कितने", "किती", "எண்ணிக்கை", "సంఖ్య", "ಸಂಖ್ಯೆ", "എണ്ണം"),
+    "product": ("product", "the product", "item", "saman", "samaan", "सामान", "उत्पाद", "वस्तू",
+                "பொருள்", "వస్తువు", "ವಸ್ತು", "സാധനം"),
+    "address": ("address", "the address", "delivery address", "pata", "पता", "पत्ता",
+                "முகவரி", "చిరునామా", "ವಿಳಾಸ", "വിലാസം"),
+}
+
+
+def _field_named(text: str) -> Optional[str]:
+    """'quantity' / 'product' / 'address' when the whole reply names that field."""
+    said = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    for field, words in _FIELD_WORDS.items():
+        if said in words:
+            return field
+    return None
+
+
 class OrderSupervisor(CancelCheckMixin, DraftSupervisor):
     INTAKE_SUBDIR = "order_intakes"
     MESSAGES = _TEXT
@@ -1120,6 +1142,21 @@ class OrderSupervisor(CancelCheckMixin, DraftSupervisor):
             return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
                                   include_audio=include_audio)
         if state == CORRECTING and not changed:
+            # Just the field's name ("quantity", "पता"): ask for that field.
+            field = _field_named(text)
+            if field == "quantity" and values.get("product"):
+                return self._ask_quantity(draft, text, include_audio)
+            if field == "address":
+                values["address"] = None
+                values["quote"] = None
+                draft["state"] = ADDRESS
+                self._save(draft)
+                return self._response(draft, self._message(draft["language"], "ask_address"), input_transcript=text,
+                                      include_audio=include_audio)
+            if field == "product":
+                values["quantity"] = None
+                values["quote"] = None
+                return self._browse(draft, farmer_id, text, include_audio)
             self._save(draft)
             return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
                                   include_audio=include_audio)

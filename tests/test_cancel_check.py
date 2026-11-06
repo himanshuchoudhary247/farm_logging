@@ -398,3 +398,45 @@ def test_order_clear_dont_want_cancels(order):
     order.replies.append({})
     done = order.turn(FARMER, SESSION, "nahi chahiye", include_audio=False)
     assert done["state"] == "CANCELLED"
+
+
+def _to_what_to_change(order, language="en-IN"):
+    order.replies.append({"product_query": "calcium"})
+    order.turn(FARMER, SESSION, "calcium", language=language, include_audio=False)
+    order.turn(FARMER, SESSION, "Calcium Gel", language=language,
+               include_audio=False)
+    order.replies.append({"quantity": 2})
+    quote = order.turn(FARMER, SESSION, "2", language=language, include_audio=False)
+    assert quote["state"] == "CONFIRMING", quote["response_text"]
+    order.turn(FARMER, SESSION, "no", language=language, include_audio=False)  # cancel?
+    back = order.turn(FARMER, SESSION, cancel_check.chips(language)["choices"][1], language=language, include_audio=False)
+    assert back["state"] == "CORRECTING"
+
+
+@pytest.mark.parametrize("word,language", [("quantity", "en-IN"), ("मात्रा", "hi-IN"), ("எண்ணிக்கை", "ta-IN")])
+def test_order_naming_the_quantity_asks_how_many(order, word, language):
+    """Seen live: "What would you like to change?" -> "quantity" -> the same
+    question again. Now it asks how many."""
+    _to_what_to_change(order, language)
+    r = order.turn(FARMER, SESSION, word, language=language, include_audio=False)
+    assert r["state"] == "QUANTITY" and r["options"], "how many, with the quantity pills"
+
+
+def test_order_naming_the_address_asks_for_it(order):
+    _to_what_to_change(order, "hi-IN")
+    r = order.turn(FARMER, SESSION, "पता", language="hi-IN", include_audio=False)
+    assert r["state"] == "ADDRESS"
+    assert r["response_text"] == order._message("hi-IN", "ask_address")
+
+
+def test_order_naming_the_product_shows_the_store(order):
+    _to_what_to_change(order)
+    r = order.turn(FARMER, SESSION, "product", include_audio=False)
+    assert r["state"] == "CHOOSING" and len(r["draft"]["options"]) == 2
+
+
+def test_order_a_real_change_at_what_to_change_still_works(order):
+    _to_what_to_change(order)
+    order.replies.append({"quantity": 4})
+    r = order.turn(FARMER, SESSION, "make it 4", include_audio=False)
+    assert r["state"] == "CONFIRMING" and r["draft"]["quantity"] == 4
