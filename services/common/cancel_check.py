@@ -241,8 +241,14 @@ class CancelCheckMixin:
 
     def _cancel_flow_reads_no(self, draft: dict[str, Any]) -> bool:
         """True at a step where this flow itself gives a plain "no" a meaning
-        (e.g. add-animal's optional details: "no" = skip); the flow handles it."""
+        (e.g. add-animal's optional details: "no" = skip); see _cancel_flow_no."""
         return False
+
+    def _cancel_flow_no(self, farmer_id: str, session_id: str, draft: dict[str, Any], text: str,
+                        include_audio: bool) -> dict[str, Any]:
+        """What a plain "no" means at a _cancel_flow_reads_no step, done
+        without the model (the question itself offers "say 'no' to ...")."""
+        raise NotImplementedError
 
     def _remember_reply(self, session_id: str, farmer_id: str, language: str, result: dict[str, Any],
                         clear_continued: bool) -> None:
@@ -360,6 +366,16 @@ class CancelCheckMixin:
                 return self._cancel_end(draft, farmer_id, session_id, text, include_audio,
                                         "stop_words" if stop else "no_again")
             return self._cancel_ask(draft, session_id, text, include_audio, {**last, "state": draft.get("state")})
+
+        # 2c) A step that itself offers "no" as an answer ("say 'no' to
+        # submit now"): a plain "no" there is that answer, never "cancel?".
+        # Done without the model -- seen live, the model did not read
+        # "no" as "skip" and the question came back.
+        if active and (stop or bare_no) and self._cancel_flow_reads_no(draft):
+            _log.info("cancel_check flow_no flow=%s session=%s state=%s", self._CANCEL_KIND, session_id,
+                      draft.get("state"))
+            draft.pop("cancel_check", None)
+            return self._cancel_flow_no(farmer_id, session_id, draft, text, include_audio)
 
         # 3) Everything else runs through the flow as before.
         asked_yes_no = active and self._cancel_yes_no_question(draft)

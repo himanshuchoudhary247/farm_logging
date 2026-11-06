@@ -720,6 +720,15 @@ class AnimalRegistrationSupervisor(CancelCheckMixin, DraftSupervisor):
         # "Anything else to add?" -- a plain "no" there means "skip, go to the summary".
         return draft.get("state") == "COLLECTING_OPTIONAL"
 
+    def _cancel_flow_no(self, farmer_id: str, session_id: str, draft: dict[str, Any], text: str,
+                        include_audio: bool) -> dict[str, Any]:
+        # "Say 'no' to submit now": no more optional details -> the summary,
+        # exactly as turn() does when it reads a skip.
+        draft["state"] = "CONFIRMING"
+        self._save(draft)
+        message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
+
     def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
                                   include_audio: bool) -> dict[str, Any]:
         return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)

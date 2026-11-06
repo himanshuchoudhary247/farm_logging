@@ -324,6 +324,21 @@ def test_animal_no_at_the_summary_asks_cancel_or_continue(animal):
     assert back["state"] == "CORRECTING" and len(animal.calls) == calls
 
 
+@pytest.mark.parametrize("word,language", [("no", "en-IN"), ("नहीं", "hi-IN"), ("ഇല്ല", "ml-IN"), ("வேண்டாம்", "ta-IN")])
+def test_animal_no_at_the_optional_details_skips_even_when_the_model_reads_nothing(animal, word, language):
+    """Seen live: "say 'no' to submit now" -> "no" -> the model gave no skip
+    signal -> "Do you want to stop adding this animal?". Now a plain "no"
+    (or "don't want") there is the skip, without a model call."""
+    animal.replies.extend([{"species": "goat"}, {"unique_animal_id": "REG-80"}, {"breed": "Jamunapari", "sex": "male"}])
+    animal.turn(FARMER, SESSION, "register a goat", language, include_audio=False)
+    animal.turn(FARMER, SESSION, "REG-80", language, include_audio=False)
+    assert animal.turn(FARMER, SESSION, "Jamunapari male", language, include_audio=False)["state"] == "COLLECTING_OPTIONAL"
+    calls = len(animal.calls)
+    r = animal.turn(FARMER, SESSION, word, language, include_audio=False)
+    assert r["state"] == "CONFIRMING" and len(animal.calls) == calls
+    assert r["response_text"] != cancel_check.ask_text("animal", language)
+
+
 def test_animal_no_at_the_optional_details_still_skips(animal):
     animal.replies.extend([{"species": "goat"}, {"unique_animal_id": "REG-77"}, {"breed": "Jamunapari", "sex": "male"},
                            {"confirmation_signal": "no"}])
