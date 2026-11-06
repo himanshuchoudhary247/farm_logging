@@ -446,6 +446,66 @@ def _symptom_options(language: str) -> dict:
     return {"choices": choices, "other_label": _OTHER_LABEL.get(lang, "Other"), "other_allowed": True}
 
 
+# The booking form's Book button (services/a2ui/booking_widget.py) and the
+# symptom pills send text this app wrote itself, in a fixed shape. Read it
+# directly instead of asking the model to: seen live, the model dropped the
+# date and (in Hindi) the problem from "animal: demo tanay; problem: बुखार;
+# date: 2026-11-07; time: 12:12" and from a tapped "बुखार" pill, so the
+# farmer was asked again for what they had just given. No model call.
+_FORM_KEYS = {"animal": "animal_name", "problem": "problem", "other problem": "other_problem",
+              "date": "date", "time": "time"}
+
+
+def _symptom_key(label: str) -> str:
+    """A symptom pill's label in any language ("बुखार", "Fever") as the
+    key the booking stores ("fever"), the same value the model gives;
+    anything else (a typed problem) as it was written."""
+    wanted = label.strip().lower()
+    for values in [{k: k for k in _SYMPTOM_KEYS}] + list(_VALUES.values()):
+        for key in _SYMPTOM_KEYS:
+            if str(values.get(key, "")).strip().lower() == wanted:
+                return key
+    return label.strip()
+
+
+def _form_entities(text: str) -> Optional[dict]:
+    """The booking form's "key: value; key: value" message as extraction
+    entities, or None when the text is not exactly that shape (anything a
+    farmer typed goes to the model as before)."""
+    parts = [p.strip() for p in (text or "").split(";") if p.strip()]
+    if len(parts) < 2:
+        # One "key: value" could just as well be typed by hand; the model
+        # reads it as before. The form always sends two or more.
+        return None
+    values: dict[str, str] = {}
+    for part in parts:
+        key, sep, value = part.partition(":")
+        key = key.strip().lower()
+        if not sep or key not in _FORM_KEYS or not value.strip():
+            return None
+        values[_FORM_KEYS[key]] = value.strip()
+    symptoms = [_symptom_key(s) for s in values.pop("problem", "").split(",") if s.strip()]
+    other = values.pop("other_problem", "")
+    if other:
+        symptoms.append(other)
+    entities: dict[str, Any] = dict(values)
+    if symptoms:
+        entities["issue"] = ", ".join(symptoms)
+        entities["symptoms"] = symptoms
+    return entities
+
+
+def _symptom_pill_entities(text: str, language: str) -> Optional[dict]:
+    """A reply that is exactly one or more of the offered symptom pills
+    ("Fever", "बुखार", "बुखार, लंगड़ाना") as extraction entities, else None."""
+    choices = {c.strip().lower(): c for c in (_symptom_options(language).get("choices") or []) if c}
+    picked = [p.strip() for p in (text or "").split(",") if p.strip()]
+    if not picked or any(p.lower() not in choices for p in picked):
+        return None
+    symptoms = [_symptom_key(choices[p.lower()]) for p in picked]
+    return {"issue": ", ".join(symptoms), "symptoms": symptoms}
+
+
 def _animal_options(language: str, animals: list) -> dict:
     lang = _lang(language)
     return {
@@ -766,7 +826,15 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             pending = None
 
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        read_directly = _form_entities(text)
+        if read_directly is None and draft.get("expected_field") == "issue":
+            read_directly = _symptom_pill_entities(text, draft["language"])
+        if read_directly is not None:
+            _log.info("appointment form/pill read without the model session=%s fields=%s",
+                      session_id, ",".join(sorted(read_directly)))
+            result = {"entities": read_directly, "confirmation_signal": None}
+        else:
+            result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
