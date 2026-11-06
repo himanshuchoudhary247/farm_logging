@@ -484,10 +484,14 @@ def _form_entities(text: str) -> Optional[dict]:
         if not sep or key not in _FORM_KEYS or not value.strip():
             return None
         values[_FORM_KEYS[key]] = value.strip()
-    symptoms = [_symptom_key(s) for s in values.pop("problem", "").split(",") if s.strip()]
-    other = values.pop("other_problem", "")
-    if other:
-        symptoms.append(other)
+    said = values.pop("problem", "").split(",") + values.pop("other_problem", "").split(",")
+    symptoms: list[str] = []
+    for part in said:
+        key = _symptom_key(part) if part.strip() else ""
+        # The same problem picked and also already in the "other" box
+        # (seen live: "not drinking, not drinking") is kept once.
+        if key and key.lower() not in {s.lower() for s in symptoms}:
+            symptoms.append(key)
     entities: dict[str, Any] = dict(values)
     if symptoms:
         entities["issue"] = ", ".join(symptoms)

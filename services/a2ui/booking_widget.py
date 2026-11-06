@@ -88,6 +88,16 @@ def _animal_choices(animals: Iterable[Any], offered: Iterable[str], current: str
     return names[:MAX_ANIMAL_CHOICES]
 
 
+def _symptom_labels(symptom_choices: list[str]) -> dict[str, str]:
+    """{stored problem key: pill label} for the pills on this form; the
+    pills come in the booking flow's own key order (_symptom_options)."""
+    from services.appointment_supervisor.service import _SYMPTOM_KEYS
+
+    if len(symptom_choices) != len(_SYMPTOM_KEYS):
+        return {}
+    return {key: label for key, label in zip(_SYMPTOM_KEYS, symptom_choices)}
+
+
 def build_booking_widget(result: dict[str, Any], language: str, animals: Iterable[Any] = (),
                          symptom_choices: Iterable[str] = (), surface_id: str = "booking") -> Optional[list[dict]]:
     """A2UI v0.9 messages for the booking form, or None when no form should
@@ -117,10 +127,24 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
     issue = _clean(draft.get("issue"))
     date = _clean(draft.get("date"))
     time = _clean(draft.get("time"))
+    # The booking stores a problem as its key ("not drinking"); the pills
+    # show it in the farmer's language ("पानी नहीं पी रहा"). Shown as the pill
+    # it is -- before, a Hindi form put "not drinking" in the "other
+    # problem" box, the farmer also tapped the pill, and the booking got
+    # the problem twice.
+    labels = _symptom_labels(symptoms)
+    known, other = [], []
+    for part in [p.strip() for p in issue.split(",") if p.strip()]:
+        label = part if part in symptoms else labels.get(part.lower())
+        if label and label not in known:
+            known.append(label)
+        elif not label and part not in other:
+            other.append(part)
     data = {
         "animal": [current_animal] if current_animal else [],
-        "problem": [issue] if issue and issue in symptoms else [],
-        "other_problem": issue if issue and issue not in symptoms else "",
+        # One pill can be selected; any further known problem goes in the box.
+        "problem": known[:1],
+        "other_problem": ", ".join(known[1:] + other),
         "date": date if _DATE_RE.match(date) else "",
         "time": time if _TIME_RE.match(time) else "",
     }

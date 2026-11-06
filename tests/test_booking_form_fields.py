@@ -75,3 +75,34 @@ def test_a_tapped_symptom_pill_answers_the_problem_question_without_the_model(bo
 def test_anything_else_goes_to_the_model_as_before(booking, text):
     booking.turn(FARMER, SESSION, text, "hi-IN")
     assert booking.calls == [text]
+
+
+def test_the_same_problem_from_the_pill_and_the_box_is_kept_once(booking):
+    # Seen live: "demo-1233 · पानी नहीं पी रहा · not drinking" -> "not drinking, not drinking".
+    r = booking.turn(FARMER, SESSION, "animal: demo tanay; problem: पानी नहीं पी रहा; other problem: not drinking; "
+                                      "date: 2026-11-07; time: 12:12", "hi-IN")
+    assert r["draft"]["symptoms"] == ["not drinking"] and r["draft"]["issue"] == "not drinking"
+
+
+@pytest.mark.parametrize("language", ["hi-IN", "ta-IN", "en-IN"])
+def test_the_form_shows_a_stored_problem_as_its_pill_not_in_the_other_box(language):
+    from services.a2ui.booking_widget import build_booking_widget
+
+    choices = service._symptom_options(language)["choices"]
+    result = {"state": "COLLECTING", "missing_fields": ["date"],
+              "draft": {"animal_identifier": "demo tanay", "issue": "not drinking", "symptoms": ["not drinking"]}}
+    messages = build_booking_widget(result, language, [], choices)
+    data = next(m["updateDataModel"]["value"] for m in messages if "updateDataModel" in m)
+    assert data["problem"] == [choices[service._SYMPTOM_KEYS.index("not drinking")]]
+    assert data["other_problem"] == ""
+
+
+def test_the_form_keeps_a_typed_problem_in_the_box():
+    from services.a2ui.booking_widget import build_booking_widget
+
+    choices = service._symptom_options("hi-IN")["choices"]
+    result = {"state": "COLLECTING", "missing_fields": ["date"],
+              "draft": {"animal_identifier": "demo tanay", "issue": "fever, cough"}}
+    data = next(m["updateDataModel"]["value"] for m in build_booking_widget(result, "hi-IN", [], choices)
+                if "updateDataModel" in m)
+    assert data["problem"] == [choices[service._SYMPTOM_KEYS.index("fever")]] and data["other_problem"] == "cough"
