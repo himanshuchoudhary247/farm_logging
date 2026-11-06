@@ -86,55 +86,42 @@ def _start_booking(sup, language="en-IN"):
 
 @pytest.mark.parametrize("language", LANGS)
 def test_booking_bare_no_asks_once_then_yes_cancels_without_a_model_call(booking, language):
+    """Seen live: a plain "no" at the date question dropped the animal
+    ("wrong animal?") and asked for it again. Now it asks to cancel, keeps
+    the animal, and needs no model call for the "no" or the answer."""
     _start_booking(booking, language)
-    # Already-verified animal + a bare "no": the flow's own "wrong animal?"
-    # step runs first (it changes the draft), exactly as before.
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
-    wrong_animal = booking.turn(FARMER, SESSION, "no", language)
-    assert wrong_animal["response_text"] != cancel_check.ask_text("booking", language)
-
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
+    calls = len(booking.calls)
     ask = booking.turn(FARMER, SESSION, "no", language)
     assert ask["response_text"] == cancel_check.ask_text("booking", language)
     assert ask["prompt_text"] == ask["response_text"]
     assert ask["options"] == cancel_check.chips(language)
-    assert ask["state"] == wrong_animal["state"], "asking does not move the booking"
-
-    calls = len(booking.calls)
+    assert ask["draft"]["animal_identifier"] == "Lakshmi", "the animal is kept"
     done = booking.turn(FARMER, SESSION, cancel_check.chips(language)["choices"][0], language)
     assert done["state"] == "CANCELLED"
-    assert len(booking.calls) == calls, "the chip answer needs no model call"
+    assert len(booking.calls) == calls, "no model call for the 'no' or the chip"
 
 
 def test_booking_carry_on_shows_the_same_question_and_a_second_no_cancels(booking):
-    _start_booking(booking)
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
-    asks_animal = booking.turn(FARMER, SESSION, "no", "en-IN")  # wrong animal -> asks the animal
-    booking.replies.append({"entities": {}})
+    first = _start_booking(booking)
     pending = booking.turn(FARMER, SESSION, "nahi", "en-IN")
     assert pending["response_text"] == cancel_check.ask_text("booking", "en-IN")
 
     calls = len(booking.calls)
     again = booking.turn(FARMER, SESSION, "No, continue", "en-IN")
-    assert again["state"] == asks_animal["state"]
-    assert again["response_text"] == asks_animal["response_text"], "the same question, shown again"
+    assert again["state"] == first["state"]
+    assert again["response_text"] == first["response_text"], "the same question, shown again"
     assert len(booking.calls) == calls, "carrying on needs no model call"
 
-    booking.replies.append({"entities": {}})
     done = booking.turn(FARMER, SESSION, "no", "en-IN")
     assert done["state"] == "CANCELLED", "never the same question twice in a row"
 
 
 def test_booking_carry_on_counts_only_for_the_next_reply(booking):
     _start_booking(booking)
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
-    booking.turn(FARMER, SESSION, "no", "en-IN")
-    booking.replies.append({"entities": {}})
     booking.turn(FARMER, SESSION, "no", "en-IN")  # asks
     booking.turn(FARMER, SESSION, "continue", "en-IN")
     booking.replies.append({"entities": {}})
     booking.turn(FARMER, SESSION, "umm let me see", "en-IN")  # something else, nothing changed
-    booking.replies.append({"entities": {}})
     asked = booking.turn(FARMER, SESSION, "no", "en-IN")
     assert asked["response_text"] == cancel_check.ask_text("booking", "en-IN")
 
@@ -151,16 +138,21 @@ def test_booking_clear_dont_want_cancels_at_once(booking, text, language):
 
 def test_booking_other_reply_to_the_question_goes_through_the_flow(booking):
     _start_booking(booking)
-    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
-    booking.turn(FARMER, SESSION, "no", "en-IN")
-    booking.replies.append({"entities": {}})
     booking.turn(FARMER, SESSION, "no", "en-IN")  # asks
     calls = len(booking.calls)
-    booking.replies.append({"entities": {"animal_identifier": "Lakshmi"}})
-    r = booking.turn(FARMER, SESSION, "Lakshmi", "en-IN")
+    booking.replies.append({"entities": {"date": "2026-08-25"}})
+    r = booking.turn(FARMER, SESSION, "25 august", "en-IN")
     assert len(booking.calls) == calls + 1, "a normal answer is read by the flow as usual"
-    assert r["state"] != "CANCELLED" and r["draft"].get("animal_identifier") == "Lakshmi"
+    assert r["state"] != "CANCELLED" and r["draft"].get("date") == "2026-08-25"
     assert "cancel_check" not in booking._load(SESSION, FARMER, "en-IN")
+
+
+def test_booking_wrong_animal_words_still_reach_the_flow(booking):
+    _start_booking(booking)
+    booking.replies.append({"entities": {}, "confirmation_signal": "no"})
+    r = booking.turn(FARMER, SESSION, "wrong tag", "en-IN")
+    assert r["response_text"] != cancel_check.ask_text("booking", "en-IN")
+    assert r["draft"].get("animal_identifier") is None, "'wrong tag' still asks for the animal again"
 
 
 @pytest.mark.parametrize("language", LANGS)

@@ -716,6 +716,10 @@ class AnimalRegistrationSupervisor(CancelCheckMixin, DraftSupervisor):
     def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
         return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
 
+    def _cancel_flow_reads_no(self, draft: dict[str, Any]) -> bool:
+        # "Anything else to add?" -- a plain "no" there means "skip, go to the summary".
+        return draft.get("state") == "COLLECTING_OPTIONAL"
+
     def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
                                   include_audio: bool) -> dict[str, Any]:
         return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)

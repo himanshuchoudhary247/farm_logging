@@ -49,6 +49,7 @@ CANCEL_QUESTION_KEY = "cancel_question"
 # when checking whether a turn changed anything.
 _EVERY_TURN_KEYS = frozenset({
     "transcript_history", "confirmation_history", "updated_at", "created_at", "language", "cancel_check",
+    "last_reply",
 })
 
 # States where the app shows its own Yes/No buttons; never ask on top of them.
@@ -238,6 +239,24 @@ class CancelCheckMixin:
         correct / change) -- run when the farmer chose to carry on."""
         raise NotImplementedError
 
+    def _cancel_flow_reads_no(self, draft: dict[str, Any]) -> bool:
+        """True at a step where this flow itself gives a plain "no" a meaning
+        (e.g. add-animal's optional details: "no" = skip); the flow handles it."""
+        return False
+
+    def _remember_reply(self, session_id: str, farmer_id: str, language: str, result: dict[str, Any],
+                        clear_continued: bool) -> None:
+        """Keep the flow's last question, to show it again when the farmer
+        says "No, continue" to "Do you want to cancel?"."""
+        after = self._load(session_id, farmer_id, language)
+        if after.get("submitted") or after.get("state") in _DONE_STATES or result.get("released"):
+            return
+        after["last_reply"] = {"reply": result.get("response_text") or "", "prompt": result.get("prompt_text"),
+                               "options": result.get("options")}
+        if clear_continued:
+            after.pop("cancel_check", None)
+        self._save(after)
+
     def _cancel_hold_state(self, draft: dict[str, Any]) -> str:
         """The state the draft waits in while "Do you want to cancel?" is
         open. Same state by default; a flow whose state makes the app draw
@@ -328,6 +347,20 @@ class CancelCheckMixin:
                 "options": None, "state": "CORRECTING",
             })
 
+        # 2b) A plain "no" at any other question (the date, the tag, the
+        # quantity ...): it gives no value for that question. Before, the
+        # flow asked the same thing again -- or, right after the animal was
+        # matched, took it as "wrong animal" and dropped the animal. Asked
+        # here instead, before the flow and its model call. ("wrong tag",
+        # "not that animal", "no fever" are not a plain "no" and still go
+        # to the flow.)
+        last = draft.get("last_reply")
+        if active and (stop or bare_no) and last and not self._cancel_flow_reads_no(draft):
+            if stop or pending.get("continued"):
+                return self._cancel_end(draft, farmer_id, session_id, text, include_audio,
+                                        "stop_words" if stop else "no_again")
+            return self._cancel_ask(draft, session_id, text, include_audio, {**last, "state": draft.get("state")})
+
         # 3) Everything else runs through the flow as before.
         asked_yes_no = active and self._cancel_yes_no_question(draft)
         before = self._cancel_progress(draft) if active else None
@@ -336,20 +369,17 @@ class CancelCheckMixin:
 
         if before is None or not (stop or bare_no) or result.get("released") or asked_yes_no:
             # Not a plain "no", or a "no" to a real yes/no question: the
-            # flow's own handling stands.
-            if pending.get("continued"):
-                # "Carry on" only counts for the very next reply.
-                after = self._load(session_id, farmer_id, language)
-                if after.pop("cancel_check", None) is not None:
-                    self._save(after)
+            # flow's own handling stands. ("Carry on" only counts for the
+            # very next reply.)
+            if before is not None:
+                self._remember_reply(session_id, farmer_id, language, result, bool(pending.get("continued")))
             return result
         after = self._load(session_id, farmer_id, language)
         if after.get("submitted") or after.get("state") in _DONE_STATES:
             return result
         if self._cancel_progress(after) != before:
             # The "no" meant something to the flow (a correction, a skip).
-            if after.pop("cancel_check", None) is not None:
-                self._save(after)
+            self._remember_reply(session_id, farmer_id, language, result, True)
             return result
 
         if stop or pending.get("continued"):
