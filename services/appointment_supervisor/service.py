@@ -14,6 +14,7 @@ from services.common.draft_supervisor import (
     _UNSET,
     _lang,
 )
+from services.common.form_reply import parse_form_reply
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
@@ -472,18 +473,9 @@ def _form_entities(text: str) -> Optional[dict]:
     """The booking form's "key: value; key: value" message as extraction
     entities, or None when the text is not exactly that shape (anything a
     farmer typed goes to the model as before)."""
-    parts = [p.strip() for p in (text or "").split(";") if p.strip()]
-    if len(parts) < 2:
-        # One "key: value" could just as well be typed by hand; the model
-        # reads it as before. The form always sends two or more.
+    values = parse_form_reply(text, _FORM_KEYS)
+    if values is None:
         return None
-    values: dict[str, str] = {}
-    for part in parts:
-        key, sep, value = part.partition(":")
-        key = key.strip().lower()
-        if not sep or key not in _FORM_KEYS or not value.strip():
-            return None
-        values[_FORM_KEYS[key]] = value.strip()
     said = values.pop("problem", "").split(",") + values.pop("other_problem", "").split(",")
     symptoms: list[str] = []
     for part in said:

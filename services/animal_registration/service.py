@@ -46,6 +46,7 @@ from services.common.draft_supervisor import (
     _UNSET,
     _lang,
 )
+from services.common.form_reply import parse_form_reply
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.voice_agent.session_store import clear_session
@@ -445,6 +446,10 @@ def _try_mid_draft_escape(text: str, farmer_id: str, session_id: str, language: 
     return try_switch(text, farmer_id, session_id, language)
 
 
+# The add-animal form's submit keys (services/a2ui/registration_widget.py).
+_FORM_KEYS = {"animal ID": "unique_animal_id", "species": "species", "breed": "breed", "sex": "sex"}
+
+
 def _match_breed(breed_text: str, species: str) -> Optional[str]:
     """Deterministic validation, not an LLM call -- the model already
     extracted the farmer's free-text breed guess (_ANIMAL_REGISTRATION_TOOL_SPEC's
@@ -711,7 +716,17 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             draft = self._fresh(session_id, farmer_id, language)
 
         draft["transcript_history"].append(text)
-        entities = self._extract(draft, text)
+        # The add-animal form's Register button (services/a2ui/registration_widget.py)
+        # sends "animal ID: ...; species: goat; breed: ...; sex: female";
+        # read it directly (services/common/form_reply.py). Values still go
+        # through _copy_entities' species/breed/sex checks.
+        form = parse_form_reply(text, _FORM_KEYS)
+        if form is not None:
+            _log.info("animal registration form read without the model session=%s fields=%s",
+                      session_id, ",".join(sorted(form)))
+            entities = dict(form)
+        else:
+            entities = self._extract(draft, text)
 
         # LLM first; the whole-reply word list in services/common/reply_words.py
         # is only a fallback when the LLM returns no signal.
