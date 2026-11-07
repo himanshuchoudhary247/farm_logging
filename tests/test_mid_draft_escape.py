@@ -5,6 +5,8 @@ convention and LLM-boundary mocking style as test_chat_orchestrator_adk.py.
 """
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 pytest.importorskip("google.adk")
@@ -110,7 +112,8 @@ def test_query_probe_never_runs_in_the_farmers_own_session(monkeypatch, answer, 
         return {"answer": answer, "sql": sql, "data": data}
     monkeypatch.setattr(mid_draft_escape, "process_query_adk", fake)
     mid_draft_escape.try_switch("how many animals do I have", "f-001", _REAL_SESSION, "hi-IN")
-    assert seen == [f"{_REAL_SESSION}:probe"]
+    assert seen == [mid_draft_escape._probe_session_id(_REAL_SESSION)]
+    assert seen[0] != _REAL_SESSION
 
 
 @pytest.mark.parametrize("answer", ["Expect light rain tomorrow.", None], ids=["accepted", "rejected"])
@@ -123,7 +126,8 @@ def test_weather_probe_never_runs_in_the_farmers_own_session(monkeypatch, answer
         return {"answer": answer}
     monkeypatch.setattr(mid_draft_escape, "process_weather_query_adk", fake)
     mid_draft_escape.try_switch("will it rain tomorrow", "f-001", _REAL_SESSION, "en-IN")
-    assert seen == [f"{_REAL_SESSION}:probe"]
+    assert seen == [mid_draft_escape._probe_session_id(_REAL_SESSION)]
+    assert seen[0] != _REAL_SESSION
 
 
 def test_one_probe_session_per_chat_not_one_per_probe(monkeypatch):
@@ -136,7 +140,9 @@ def test_one_probe_session_per_chat_not_one_per_probe(monkeypatch):
     for _ in range(3):
         mid_draft_escape.try_switch("umm", "f-001", "chat-a", "en-IN")
     mid_draft_escape.try_switch("umm", "f-001", "chat-b", "en-IN")
-    assert seen == ["chat-a:probe"] * 3 + ["chat-b:probe"]
+    probe_a, probe_b = (mid_draft_escape._probe_session_id(s) for s in ("chat-a", "chat-b"))
+    assert seen == [probe_a] * 3 + [probe_b]
+    assert probe_a != probe_b
 
 
 @pytest.mark.parametrize("session_id", ["", "   ", None])
@@ -147,3 +153,25 @@ def test_no_chat_session_keeps_the_one_off_session(monkeypatch, session_id):
                         lambda text, farmer_id, session_id=None: seen.append(session_id) or {"answer": "ok"})
     assert mid_draft_escape.try_switch("will it rain", "f-001", session_id, "en-IN") == {"intent": "weather", "answer": "ok"}
     assert seen == [None]
+
+
+def test_probe_session_cannot_be_another_real_chat():
+    """A real chat id can be any text from the app, even one that looks
+    like a probe id; the probe of one chat must never be another chat."""
+    probe = mid_draft_escape._probe_session_id
+    for real in ("abc", "abc:probe", _REAL_SESSION, probe("abc")):
+        assert probe(real) != real
+    assert probe("abc") != "abc:probe"
+    assert probe("abc") != probe("abc:probe")
+    assert probe("abc") == probe(" abc "), "same chat, same probe session"
+
+
+@pytest.mark.parametrize("session_id", [12345, uuid.UUID(_REAL_SESSION), {"id": "s1"}], ids=["int", "uuid", "dict"])
+def test_a_non_text_session_id_still_probes(monkeypatch, session_id):
+    seen = []
+    monkeypatch.setattr(adk_router, "_classify_intent_async", _classify_as("weather"))
+    monkeypatch.setattr(mid_draft_escape, "process_weather_query_adk",
+                        lambda text, farmer_id, session_id=None: seen.append(session_id) or {"answer": "ok"})
+    assert mid_draft_escape.try_switch("will it rain", "f-001", session_id, "en-IN") == {"intent": "weather", "answer": "ok"}
+    assert seen == [mid_draft_escape._probe_session_id(str(session_id))]
+
