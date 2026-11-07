@@ -149,6 +149,76 @@ def _with_checked_image(product: dict[str, Any]) -> dict[str, Any]:
     return {**product, "image": image}
 
 
+# Edges of a word that are not part of it ("farm," "farm;" "(farm)").
+_EDGE_PUNCTUATION = ".,;:!?।॥'\"“”‘’()[]{}<>-–—…"
+# English words that only frame a product word ("the farm", "for a farm",
+# "some stuff"); dropped from the front before matching. The other
+# languages' framing is part of the listed phrases below.
+_FRAME_WORDS = frozenset(("for", "the", "a", "an", "my", "our", "some", "any", "of", "to", "buy"))
+
+
+def _norm_query(query: str) -> str:
+    """Lower case, edge punctuation off every word, one space between words.
+    The zero-width non-joiner some keyboards put inside Kannada/Malayalam
+    words ("ಫಾರ್ಮ್‌ಗೆ") is dropped, so both spellings match."""
+    words = (w.strip(_EDGE_PUNCTUATION) for w in query.replace("\u200c", "").lower().split())
+    return " ".join(w for w in words if w)
+
+
+# Words that name no product ("something", "for my farm", "सामान"): never
+# searched for. Whole query only, after _norm_query. Each language has its
+# single words and its phrases -- the Buy Supplies pill's own words in that
+# language (flokiquser i18n pillStarterTranslations) and their parts.
+_GENERIC_QUERIES = frozenset(_norm_query(w) for w in (
+    # English
+    "farm", "my farm", "for my farm", "for the farm", "farm supplies", "farm items", "farm things",
+    "something", "anything", "some thing", "any thing", "things", "thing", "stuff", "item", "items",
+    "product", "products", "supplies", "supply", "shop", "store", "goods",
+    "something for my farm", "things for my farm", "supplies for my farm",
+    # Hindi / Hinglish
+    "kuch", "kuchh", "kuch bhi", "saman", "samaan", "kuch saman", "cheez", "cheeze", "cheezein",
+    "कुछ", "कुछ भी", "सामान", "कुछ सामान", "चीज़", "चीज", "चीज़ें", "चीजें", "खेत", "फार्म",
+    "मेरे खेत", "खेत के लिए", "अपने खेत के लिए", "खेत के लिए सामान", "खेत के लिए कुछ सामान",
+    "अपने खेत के लिए कुछ सामान",
+    # Marathi
+    "काहीतरी", "काही", "वस्तू", "सामान", "शेत", "साहित्य", "काही साहित्य", "काही वस्तू",
+    "शेतासाठी", "माझे शेत", "माझ्या शेतासाठी", "शेतासाठी साहित्य", "शेतासाठी काही साहित्य",
+    "माझ्या शेतासाठी काही साहित्य",
+    # Tamil
+    "ஏதாவது", "பொருள்", "பொருட்கள்", "பண்ணை", "சில பொருட்கள்", "ஏதாவது பொருள்",
+    "பண்ணைக்கு", "என் பண்ணை", "என் பண்ணைக்கு", "பண்ணைக்கு பொருட்கள்", "பண்ணைக்கு சில பொருட்கள்",
+    "என் பண்ணைக்கு சில பொருட்கள்",
+    # Telugu
+    "ఏదైనా", "వస్తువులు", "సామాను", "పొలం", "వస్తువు", "కొన్ని వస్తువులు", "ఫారం", "నా ఫారం",
+    "ఫారం కోసం", "నా ఫారం కోసం", "ఫారం కోసం వస్తువులు", "ఫారం కోసం కొన్ని వస్తువులు",
+    "నా ఫారం కోసం కొన్ని వస్తువులు",
+    # Kannada
+    "ಏನಾದರೂ", "ವಸ್ತು", "ವಸ್ತುಗಳು", "ಸಾಮಾನು", "ಜಮೀನು", "ಕೆಲವು ವಸ್ತುಗಳು", "ಫಾರ್ಮ್", "ನನ್ನ ಫಾರ್ಮ್",
+    "ಫಾರ್ಮ್‌ಗೆ", "ನನ್ನ ಫಾರ್ಮ್‌ಗೆ", "ಫಾರ್ಮ್‌ಗೆ ವಸ್ತುಗಳು", "ಫಾರ್ಮ್‌ಗೆ ಕೆಲವು ವಸ್ತುಗಳು",
+    "ನನ್ನ ಫಾರ್ಮ್‌ಗೆ ಕೆಲವು ವಸ್ತುಗಳು",
+    # Malayalam
+    "എന്തെങ്കിലും", "സാധനം", "സാധനങ്ങൾ", "ഫാം", "കുറച്ച് സാധനങ്ങൾ", "എന്റെ ഫാം", "ഫാമിനായി",
+    "എന്റെ ഫാമിനായി", "ഫാമിനായി സാധനങ്ങൾ", "ഫാമിനായി കുറച്ച് സാധനങ്ങൾ",
+    "എന്റെ ഫാമിനായി കുറച്ച് സാധനങ്ങൾ",
+))
+# Single generic words, for the log when one sits inside a real query.
+_GENERIC_WORDS = frozenset(w for w in _GENERIC_QUERIES if " " not in w)
+
+
+def _is_generic_query(query: str) -> bool:
+    said = _norm_query(query)
+    if said in _GENERIC_QUERIES:
+        return True
+    words = said.split()
+    while words and words[0] in _FRAME_WORDS:
+        words = words[1:]
+    return bool(words) and " ".join(words) in _GENERIC_QUERIES
+
+
+def _has_generic_word(query: str) -> bool:
+    return any(w in _GENERIC_WORDS for w in _norm_query(query).split())
+
+
 def _number_in_text(text: str) -> Optional[int]:
     """A quantity typed as digits next to the product ("2 calcium gel",
     "calcium gel chahiye 2"), for when the LLM returned none. Only exactly
@@ -972,6 +1042,19 @@ class OrderSupervisor(DraftSupervisor):
         # 1) Product: a pick from the offered options, or a (new) product named.
         picked = self._pick_option(draft, text, entities) if state == CHOOSING else None
         query = str(entities.get("product_query") or "").strip()
+        generic_product = bool(query) and _is_generic_query(query)
+        if not generic_product and query and _has_generic_word(query):
+            # Not ignored -- it may be a real name ("farm fresh mineral
+            # mix") -- but logged, in case a phrasing is missing above.
+            _log.info("order product query searched as given (has a generic word) farmer=%s query=%r",
+                      farmer_id, query[:40])
+        if generic_product:
+            # "I want to buy something for my farm" (the Buy Supplies pill):
+            # seen live, the model read "farm" as the product and the farmer
+            # got "I could not find 'farm' in your store". A word that names
+            # no product is no product: the store's list is shown instead.
+            _log.info("order generic product word ignored farmer=%s query=%r", farmer_id, query[:40])
+            query = ""
         if picked:
             values["product"] = picked
             values["options"] = []
@@ -1014,7 +1097,10 @@ class OrderSupervisor(DraftSupervisor):
         # router sends the message to the right agent. Never for a message
         # that also carried anything for the order (a product, a pick, a
         # number, an address or a yes/no).
-        nothing_for_order = not signal and not changed and quantity is None and not query and not picked and not address
+        # A generic product word ("farm", "something") is still a message
+        # about buying, even though it names no product: never released.
+        nothing_for_order = (not signal and not changed and quantity is None and not query and not picked
+                             and not address and not generic_product)
         topic = None
         if nothing_for_order and not off_topic:
             # The LLM does not always flag it, so ask the router's

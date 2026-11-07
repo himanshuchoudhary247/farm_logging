@@ -1469,3 +1469,100 @@ def test_a_product_out_of_stock_after_browsing_goes_back_to_the_store(sup, monke
     assert r["state"] == "SEARCHING" and "Liver Tonic" in r["response_text"]
     r = sup.turn(FARMER, "s1", "ok", include_audio=False)
     assert r["state"] == "CHOOSING" and len(backend.calls["search"]) == 2
+
+
+@pytest.mark.parametrize("query", ["farm", "for my farm", "something", "सामान", "कुछ", "ஏதாவது", "എന്തെങ്കിലും"])
+def test_a_word_that_names_no_product_shows_the_store_instead_of_not_found(sup, monkeypatch, query):
+    """Seen live: the Buy Supplies pill's "I want to buy something for my
+    farm" -> the LLM read product_query "farm" -> "I could not find 'farm'
+    in your store". Now the store's in-stock list is shown, as for a
+    starter with no product."""
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": query}])
+    r = sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert r["options"]["choices"] == ["Calcium Gel (1 L)", "Calcium Plus (500 ml)"]
+    assert "could not find" not in r["response_text"]
+    assert backend.calls["search"][0]["args"][1] in ("", None), "the store list (empty search), not 'farm'"
+
+
+@pytest.mark.parametrize("query", ["farm fresh mineral mix", "calcium", "farm tonic"])
+def test_a_real_product_name_is_still_searched(sup, monkeypatch, query):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": query}])
+    sup.turn(FARMER, "s1", query, include_audio=False)
+    assert backend.calls["search"][0]["args"][1] == query
+
+
+# ------------------------------------------------------------------ review fixes
+
+def test_a_generic_word_is_never_released_to_another_agent(sup, monkeypatch):
+    """Deep review repro: with the router's classifier saying "weather",
+    a generic word ("farm") used to reach the release check and the whole
+    order was cancelled. It is a message about buying: the store list."""
+    Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    asked = []
+    sup.topic_check = lambda text: asked.append(text) or "weather"
+    _say(sup, [{"product_query": "farm"}])
+    r = sup.turn(FARMER, "s1", "I want to buy something for my farm", include_audio=False)
+    assert not r.get("released") and r["state"] == "CHOOSING"
+    assert asked == [], "the classifier is not asked for a message about buying"
+
+
+def test_a_message_with_nothing_for_the_order_is_still_released(sup, monkeypatch):
+    Backend(monkeypatch)
+    sup.topic_check = lambda text: "weather"
+    _say(sup, [{"product_query": "calcium gel"}, {}])
+    sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
+    r = sup.turn(FARMER, "s1", "will it rain today", include_audio=False)
+    assert r.get("released") and r["topic"] == "weather"
+
+
+# What the model may read as the product from the Buy Supplies pill in
+# each language (flokiquser i18n pillStarterTranslations), whole and in parts.
+_PILL_QUERIES = {
+    "en": ["farm", "something for my farm", "for my farm"],
+    "hi": ["अपने खेत के लिए कुछ सामान", "कुछ सामान", "खेत के लिए"],
+    "mr": ["माझ्या शेतासाठी काही साहित्य", "काही साहित्य", "शेतासाठी"],
+    "ta": ["என் பண்ணைக்கு சில பொருட்கள்", "சில பொருட்கள்", "பண்ணைக்கு"],
+    "te": ["నా ఫారం కోసం కొన్ని వస్తువులు", "కొన్ని వస్తువులు", "ఫారం కోసం"],
+    "kn": ["ನನ್ನ ಫಾರ್ಮ್‌ಗೆ ಕೆಲವು ವಸ್ತುಗಳು", "ಕೆಲವು ವಸ್ತುಗಳು", "ಫಾರ್ಮ್‌ಗೆ", "ಫಾರ್ಮ್ಗೆ"],
+    "ml": ["എന്റെ ഫാമിനായി കുറച്ച് സാധനങ്ങൾ", "കുറച്ച് സാധനങ്ങൾ", "ഫാമിനായി"],
+}
+
+
+@pytest.mark.parametrize("query", [q for qs in _PILL_QUERIES.values() for q in qs])
+def test_the_pill_words_in_every_language_name_no_product(query):
+    assert service._is_generic_query(query)
+
+
+@pytest.mark.parametrize("lang,query", [("te-IN", "కొన్ని వస్తువులు"), ("kn-IN", "ಕೆಲವು ವಸ್ತುಗಳು"),
+                                        ("mr-IN", "काही साहित्य"), ("ml-IN", "ഫാമിനായി")])
+def test_the_pill_words_show_the_store_in_that_language(sup, monkeypatch, lang, query):
+    backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM, CALCIUM_PLUS]}])
+    _say(sup, [{"product_query": query}])
+    r = sup.turn(FARMER, "s1", query, language=lang, include_audio=False)
+    assert r["state"] == "CHOOSING"
+    assert backend.calls["search"][0]["args"][1] in ("", None)
+
+
+@pytest.mark.parametrize("query", ["farm,", "farm;", "(farm)", "Farm!", "the farm", "a farm", "for a farm",
+                                   "some stuff", "the product", "  farm  .", "buy something"])
+def test_punctuation_and_little_framing_words_do_not_hide_a_generic_word(query):
+    assert service._is_generic_query(query)
+
+
+@pytest.mark.parametrize("query", ["the calcium gel", "farm fresh mineral mix", "calcium", "some calcium",
+                                   "a", "the", "farm tonic"])
+def test_real_product_names_are_not_generic(query):
+    assert not service._is_generic_query(query)
+
+
+def test_a_real_name_with_a_generic_word_is_searched_and_logged(sup, monkeypatch, caplog):
+    backend = Backend(monkeypatch)
+    _say(sup, [{"product_query": "farm fresh mineral mix"}])
+    with caplog.at_level("INFO"):
+        sup.turn(FARMER, "s1", "farm fresh mineral mix", include_audio=False)
+    assert backend.calls["search"][0]["args"][1] == "farm fresh mineral mix"
+    assert "searched as given (has a generic word)" in caplog.text
+
