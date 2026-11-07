@@ -383,6 +383,23 @@ def _generate_followups(intent: Optional[str], entities: Dict[str, Any]) -> List
     return questions
 
 
+def remember_entities(session_id: str, entities: Dict[str, Any]) -> None:
+    """Values a caller read itself, without the model (a form the app
+    wrote, a tapped pill), merged into this session's entity cache the same
+    way process_text_input merges a model turn's own. Without this the
+    cache keeps the older value, and the next model turn's merge
+    (entities.update(llm_entities)) brings it back into the caller's
+    draft -- undoing what the farmer just changed in the form. No model
+    call. The caller holds its own per-session lock, as for
+    process_text_input."""
+    if not entities:
+        return
+    session = get_session(session_id)
+    cached = _forget_replaced_animal(dict(session.get("entities") or {}), entities)
+    cached.update(entities)
+    update_session(session_id, {"entities": normalize_entities(cached)})
+
+
 def process_text_input(
     text: str, session_id: str = "default", pending_questions_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:

@@ -14,6 +14,8 @@ from services.common.draft_supervisor import (
     _UNSET,
     _lang,
 )
+from services.common.form_reply import form_shape, parse_form_reply
+from services.voice_agent.orchestrator import remember_entities
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier, generate_health_recommendation
 from services.voice_agent.orchestrator import APPOINTMENT_FIELD_LABELS, process_text_input
@@ -446,6 +448,61 @@ def _symptom_options(language: str) -> dict:
     return {"choices": choices, "other_label": _OTHER_LABEL.get(lang, "Other"), "other_allowed": True}
 
 
+# The booking form's Book button (services/a2ui/booking_widget.py) and the
+# symptom pills send text this app wrote itself, in a fixed shape. Read it
+# directly instead of asking the model to: seen live, the model dropped the
+# date and (in Hindi) the problem from "animal: demo tanay; problem: बुखार;
+# date: 2026-11-07; time: 12:12" and from a tapped "बुखार" pill, so the
+# farmer was asked again for what they had just given. No model call.
+_FORM_KEYS = {"animal": "animal_name", "problem": "problem", "other problem": "other_problem",
+              "date": "date", "time": "time"}
+
+
+def _symptom_key(label: str) -> str:
+    """A symptom pill's label in any language ("बुखार", "Fever") as the
+    key the booking stores ("fever"), the same value the model gives;
+    anything else (a typed problem) as it was written."""
+    wanted = label.strip().lower()
+    for values in [{k: k for k in _SYMPTOM_KEYS}] + list(_VALUES.values()):
+        for key in _SYMPTOM_KEYS:
+            if str(values.get(key, "")).strip().lower() == wanted:
+                return key
+    return label.strip()
+
+
+def _form_entities(text: str) -> Optional[dict]:
+    """The booking form's "key: value; key: value" message as extraction
+    entities, or None when the text is not exactly that shape (anything a
+    farmer typed goes to the model as before)."""
+    values = parse_form_reply(text, _FORM_KEYS, free_text=("other_problem",))
+    if values is None:
+        return None
+    said = values.pop("problem", "").split(",") + values.pop("other_problem", "").split(",")
+    symptoms: list[str] = []
+    for part in said:
+        key = _symptom_key(part) if part.strip() else ""
+        # The same problem picked and also already in the "other" box
+        # (seen live: "not drinking, not drinking") is kept once.
+        if key and key.lower() not in {s.lower() for s in symptoms}:
+            symptoms.append(key)
+    entities: dict[str, Any] = dict(values)
+    if symptoms:
+        entities["issue"] = ", ".join(symptoms)
+        entities["symptoms"] = symptoms
+    return entities
+
+
+def _symptom_pill_entities(text: str, language: str) -> Optional[dict]:
+    """A reply that is exactly one or more of the offered symptom pills
+    ("Fever", "बुखार", "बुखार, लंगड़ाना") as extraction entities, else None."""
+    choices = {c.strip().lower(): c for c in (_symptom_options(language).get("choices") or []) if c}
+    picked = [p.strip() for p in (text or "").split(",") if p.strip()]
+    if not picked or any(p.lower() not in choices for p in picked):
+        return None
+    symptoms = [_symptom_key(choices[p.lower()]) for p in picked]
+    return {"issue": ", ".join(symptoms), "symptoms": symptoms}
+
+
 def _animal_options(language: str, animals: list) -> dict:
     lang = _lang(language)
     return {
@@ -487,8 +544,12 @@ class AppointmentSupervisor(DraftSupervisor):
             # storage, no matter what the extraction call returned --
             # treated as "not provided" so the missing-field flow re-asks.
             if key == "date" and not _valid_appointment_date(value):
+                if _appointment_day(value) is None:
+                    # (A real date outside the allowed days logs itself.)
+                    _log.warning("appointment date rejected (not a date): %r", value)
                 continue
             if key == "time" and not _valid_appointment_time(value):
+                _log.warning("appointment time rejected (not HH:MM): %r", value)
                 continue
             # Real bug, found in code review: this loop was writing
             # animal_id/animal_tag/animal_name here too, unconditionally,
@@ -564,6 +625,21 @@ class AppointmentSupervisor(DraftSupervisor):
                 target["animal_identifier"] = raw_animal_ref
         if target.get("issue") and not target.get("symptoms"):
                 target["symptoms"] = [target["issue"]]
+
+    @staticmethod
+    def _log_form_applied(draft: dict[str, Any], session_id: str, given: dict[str, Any]) -> None:
+        """Which of the values read from a form/pill the booking kept, and
+        which _copy_entities refused (e.g. a date it could not read)."""
+        target = draft["draft"]
+        kept, dropped = [], []
+        for key, value in given.items():
+            if key == "symptoms":
+                continue  # the same value as "issue"
+            have = target.get("animal_identifier") if key == "animal_name" else target.get(key)
+            (kept if str(have or "").strip().casefold() == str(value).strip().casefold() else dropped).append(key)
+        log = _log.warning if dropped else _log.info
+        log("appointment form/pill applied session=%s kept=%s dropped=%s",
+            session_id, ",".join(sorted(kept)), ",".join(sorted(dropped)))
 
     @staticmethod
     def _names_new_animal(draft: dict[str, Any], entities: dict[str, Any]) -> bool:
@@ -766,7 +842,25 @@ class AppointmentSupervisor(DraftSupervisor):
         else:
             pending = None
 
-        result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
+        read_directly = _form_entities(text)
+        if read_directly is None and draft.get("expected_field") == "issue":
+            read_directly = _symptom_pill_entities(text, draft["language"])
+        if read_directly is not None:
+            # "parsed": what the text holds; the "applied" line after
+            # _copy_entities says what the booking actually kept.
+            _log.info("appointment form/pill parsed without the model session=%s source=%s fields=%s",
+                      session_id, form_shape(text, _FORM_KEYS) if ";" in text else "pill",
+                      ",".join(sorted(read_directly)))
+            result = {"entities": read_directly, "confirmation_signal": None}
+            try:
+                # Keep the model's own memory of this booking in step, so a
+                # later model turn does not bring back the old value.
+                remember_entities(f"{farmer_id}:{session_id}", read_directly)
+            except Exception:
+                _log.warning("appointment form values not saved to the extraction cache session=%s",
+                             session_id, exc_info=True)
+        else:
+            result = process_text_input(text, session_id=f"{farmer_id}:{session_id}", pending_questions_override=pending)
         confirmation_signal = result.get("confirmation_signal") or reply_words.confirmation_signal(text, draft["language"])
         turn_entities = result.get("entities") or {}
 
@@ -960,6 +1054,8 @@ class AppointmentSupervisor(DraftSupervisor):
 
         before = dict(draft["draft"])
         self._copy_entities(draft, result.get("entities") or {})
+        if read_directly is not None:
+            self._log_form_applied(draft, session_id, read_directly)
 
         # Verify the animal the moment it's given, not deferred to submit()
         # at the very end -- catching a wrong/ambiguous animal right after
