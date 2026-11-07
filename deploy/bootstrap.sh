@@ -30,7 +30,8 @@ if [ ! -d "$DATA_DIR" ]; then
   if [ -d "$REPO_DIR/data" ]; then
     # First-ever run on this box: carry over the repo's checked-in seed/example
     # data once. After this, $DATA_DIR is authoritative and the repo's own
-    # data/ is never read again (see FARMER_CHAT_DATA_DIR in runtime.env).
+    # data/ is never read again (FARMER_CHAT_DATA_DIR is set in the systemd
+    # unit below).
     cp -r "$REPO_DIR/data/." "$DATA_DIR/"
   fi
 fi
@@ -42,6 +43,11 @@ if [ -d "$REPO_DIR/.git" ]; then
   git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
 else
   git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$REPO_DIR"
+fi
+# Fresh box: the repo was not cloned yet when $DATA_DIR was created above,
+# so seed it now -- only while it is still empty.
+if [ -d "$REPO_DIR/data" ] && [ -z "$(ls -A "$DATA_DIR")" ]; then
+  cp -r "$REPO_DIR/data/." "$DATA_DIR/"
 fi
 cd "$REPO_DIR"
 

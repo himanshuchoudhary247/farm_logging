@@ -12,11 +12,15 @@ import yaml
 
 from services.weather_alert import service as weather_service
 from services.market_prices.mandi import get_feed_price_snapshot
+from storage import get_data_dir
 
 
 PIN_PROFILE_PATH = Path("config/pincode_profiles.yaml")
 CACHE_SETTINGS_PATH = Path("config/cache_settings.yaml")
-CACHE_ROOT = Path("data/cache")
+# Under the same data folder as everything else (FARMER_CHAT_DATA_DIR when
+# set, else <repo>/data), so a server redeploy (git reset --hard) does not
+# wipe it.
+CACHE_ROOT = get_data_dir() / "cache"
 
 
 @dataclass
