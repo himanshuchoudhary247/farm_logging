@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common import reply_words
+from services.common.cancel_check import CancelCheckMixin
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -462,7 +463,7 @@ def _match_breed(breed_text: str, species: str) -> Optional[str]:
     return None
 
 
-class AnimalRegistrationSupervisor(DraftSupervisor):
+class AnimalRegistrationSupervisor(CancelCheckMixin, DraftSupervisor):
     INTAKE_SUBDIR = "animal_registration_intakes"
     MESSAGES = _TEXT
 
@@ -702,7 +703,45 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
               include_audio: bool = True) -> dict[str, Any]:
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self.turn_with_cancel_check(
+                farmer_id, session_id, text, language, include_audio,
+                lambda: self._turn_locked(farmer_id, session_id, text, language, include_audio),
+            )
+
+    # A plain "no" that changes nothing asks whether to cancel (see
+    # services/common/cancel_check.py); these two hooks are this flow's own
+    # cancel and reply shape.
+    _CANCEL_KIND = "animal"
+
+    def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+
+    def _cancel_flow_reads_no(self, draft: dict[str, Any]) -> bool:
+        # "Anything else to add?" -- a plain "no" there means "skip, go to the summary".
+        return draft.get("state") == "COLLECTING_OPTIONAL"
+
+    def _cancel_flow_no(self, farmer_id: str, session_id: str, draft: dict[str, Any], text: str,
+                        include_audio: bool) -> dict[str, Any]:
+        # "Say 'no' to submit now": no more optional details -> the summary,
+        # exactly as turn() does when it reads a skip.
+        draft["state"] = "CONFIRMING"
+        self._save(draft)
+        message = self._message(draft["language"], "correct", summary=self._summary(draft, localize_values=True))
+        return self._response(draft, message, input_transcript=text, include_audio=include_audio, speech=message)
+
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "no")
+
+    def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
+                      options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
+        resp = self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio)
+        if options:
+            resp["options"] = options
+        return resp
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str,
                       include_audio: bool) -> dict[str, Any]:

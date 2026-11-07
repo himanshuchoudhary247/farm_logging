@@ -98,7 +98,11 @@ def build_booking_widget(result: dict[str, Any], language: str, animals: Iterabl
     farmer only completes what is missing."""
     if not isinstance(result, dict) or result.get("state") not in _FORM_STATES:
         return None
-    if not result.get("missing_fields"):
+    # Nothing left to fill in: no form -- except when the farmer said the
+    # readback was wrong ("What would you like to correct?"). The form, with
+    # every value filled in, lets them change just the wrong one; without it
+    # the question came with nothing to tap.
+    if not result.get("missing_fields") and result.get("state") != "CORRECTING":
         return None
     draft = result.get("draft") if isinstance(result.get("draft"), dict) else {}
     text = _TEXT[lang_code(language, _TEXT)]

@@ -13,6 +13,7 @@ from services.a2ui.booking_widget import booking_widget_for
 from services.a2ui.query_widget import query_widget_for
 from services.a2ui.registration_widget import registration_widget_for
 from services.a2ui.weather_widget import weather_widget_for
+from services.common.cancel_check import CANCEL_QUESTION_KEY
 
 _log = logging.getLogger("a2ui_widgets")
 
@@ -28,6 +29,10 @@ def widget_for(agent: str, farmer_id: str, session_id: str, result: Any, languag
     """A2UI messages to send next to this reply, or None. Never raises."""
     build = _BUILDERS.get(agent)
     if build is None or not isinstance(result, dict):
+        return None
+    if result.get(CANCEL_QUESTION_KEY):
+        # "Do you want to cancel?" comes with its own two buttons, which the
+        # app does not show next to a form (services/common/cancel_check.py).
         return None
     try:
         return build(farmer_id, session_id, result, result.get("language") or language)

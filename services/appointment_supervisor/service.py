@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from services.common import reply_words
+from services.common.cancel_check import CancelCheckMixin
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -455,7 +456,7 @@ def _animal_options(language: str, animals: list) -> dict:
     }
 
 
-class AppointmentSupervisor(DraftSupervisor):
+class AppointmentSupervisor(CancelCheckMixin, DraftSupervisor):
     INTAKE_SUBDIR = "appointment_intakes"
     MESSAGES = _TEXT
 
@@ -697,7 +698,51 @@ class AppointmentSupervisor(DraftSupervisor):
         names no animal and the booking has none yet; the readback shows
         it, so the farmer can still correct it. The router decides it."""
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio, recent_animal)
+            return self.turn_with_cancel_check(
+                farmer_id, session_id, text, language, include_audio,
+                lambda: self._turn_locked(farmer_id, session_id, text, language, include_audio, recent_animal),
+            )
+
+    # A plain "no" that changes nothing asks whether to cancel (see
+    # services/common/cancel_check.py); these two hooks are this flow's own
+    # cancel and reply shape.
+    _CANCEL_KIND = "booking"
+
+    def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "cancel", include_audio=include_audio)
+
+    def _cancel_hold_state(self, draft: dict[str, Any]) -> str:
+        # The app draws its own Yes/No buttons at CONFIRMING / READY_TO_SUBMIT
+        # (flokiquser confirmFor); while "Do you want to cancel?" is open the
+        # booking waits at CORRECTING so only the question's two buttons show.
+        if self._cancel_yes_no_question(draft):
+            return "CORRECTING"
+        return super()._cancel_hold_state(draft)
+
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        return self.confirm(farmer_id, session_id, "no", include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "no")
+
+    def _cancel_progress(self, draft: dict[str, Any]) -> dict[str, Any]:
+        # CONFIRMING with expected_field set is still collecting (a readback
+        # plus the next field's question, see turn()); the next turn often
+        # moves it to COLLECTING with the same question -- not progress.
+        view = super()._cancel_progress(draft)
+        if view.get("state") == "CONFIRMING" and view.get("expected_field"):
+            view["state"] = "COLLECTING"
+        return view
+
+    def _cancel_yes_no_question(self, draft: dict[str, Any]) -> bool:
+        state = draft.get("state")
+        return state == "READY_TO_SUBMIT" or (state == "CONFIRMING" and not draft.get("expected_field"))
+
+    def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
+                      options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
+        return self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio,
+                              options=options, prompt=prompt)
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN", include_audio: bool = True,
                      recent_animal: Optional[str] = None) -> dict[str, Any]:

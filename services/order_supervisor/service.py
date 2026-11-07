@@ -51,6 +51,7 @@ from base64 import b64encode
 from typing import Any, Callable, Optional
 
 from services.common import reply_words
+from services.common.cancel_check import CancelCheckMixin, chips as cancel_chips
 from services.common.draft_supervisor import (
     DraftSupervisor,
     SUPPORTED_LANGUAGES,
@@ -335,6 +336,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "This product needs a vet's prescription.",
         "batch_price": "Some of these come from stock with a different price, so the total is not exactly {quantity} x ₹{price}.",
         "what_to_change": "What would you like to change: the product, the quantity or the address?",
+        "change_not_understood": "Sorry, I didn't catch what to change. Please say the product, the quantity or the address.",
         "stock_changed": "The stock or price of {product} changed just now. How many would you like?",
         "placed": "Your order {code} is placed: {quantity} x {product}, ₹{total}. Tap Pay to complete the payment.",
         "payment_retry": "Your order is saved, but the payment could not be started. Say yes to try again.",
@@ -358,6 +360,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "इस सामान के लिए पशु डॉक्टर का पर्चा ज़रूरी है।",
         "batch_price": "इनमें से कुछ अलग दाम वाले स्टॉक से हैं, इसलिए कुल रकम ठीक {quantity} x ₹{price} नहीं है।",
         "what_to_change": "आप क्या बदलना चाहते हैं: सामान, मात्रा या पता?",
+        "change_not_understood": "माफ़ कीजिए, समझ नहीं आया कि क्या बदलना है। कृपया बताइए: सामान, मात्रा या पता?",
         "stock_changed": "{product} का स्टॉक या दाम अभी बदल गया है। आपको कितने चाहिए?",
         "placed": "आपका ऑर्डर {code} हो गया: {quantity} x {product}, ₹{total}। भुगतान पूरा करने के लिए Pay दबाइए।",
         "payment_retry": "आपका ऑर्डर सेव हो गया है, लेकिन भुगतान शुरू नहीं हो पाया। फिर से कोशिश के लिए हाँ कहिए।",
@@ -381,6 +384,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "या वस्तूसाठी पशुवैद्यकाची चिठ्ठी आवश्यक आहे.",
         "batch_price": "यातील काही वेगळ्या किमतीच्या स्टॉकमधून आहेत, त्यामुळे एकूण रक्कम नेमकी {quantity} x ₹{price} नाही.",
         "what_to_change": "तुम्हाला काय बदलायचे आहे: वस्तू, संख्या की पत्ता?",
+        "change_not_understood": "माफ करा, काय बदलायचे ते समजले नाही. कृपया सांगा: वस्तू, संख्या की पत्ता?",
         "stock_changed": "{product} चा स्टॉक किंवा किंमत आत्ताच बदलली आहे. तुम्हाला किती हवे आहेत?",
         "placed": "तुमची ऑर्डर {code} झाली: {quantity} x {product}, ₹{total}. पेमेंट पूर्ण करण्यासाठी Pay दाबा.",
         "payment_retry": "तुमची ऑर्डर सेव्ह झाली आहे, पण पेमेंट सुरू होऊ शकले नाही. पुन्हा प्रयत्नासाठी हो म्हणा.",
@@ -404,6 +408,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "இந்தப் பொருளுக்கு கால்நடை மருத்துவரின் பரிந்துரைச் சீட்டு தேவை.",
         "batch_price": "இவற்றில் சில வேறு விலையுள்ள கையிருப்பிலிருந்து வருகின்றன, அதனால் மொத்தத் தொகை சரியாக {quantity} x ₹{price} அல்ல.",
         "what_to_change": "எதை மாற்ற விரும்புகிறீர்கள்: பொருள், எண்ணிக்கை அல்லது முகவரி?",
+        "change_not_understood": "மன்னிக்கவும், எதை மாற்ற வேண்டும் என்று புரியவில்லை. பொருள், எண்ணிக்கை அல்லது முகவரி என்று சொல்லுங்கள்.",
         "stock_changed": "{product} இன் கையிருப்பு அல்லது விலை இப்போது மாறிவிட்டது. உங்களுக்கு எத்தனை வேண்டும்?",
         "placed": "உங்கள் ஆர்டர் {code} செய்யப்பட்டது: {quantity} x {product}, ₹{total}. பணம் செலுத்த Pay அழுத்தவும்.",
         "payment_retry": "உங்கள் ஆர்டர் சேமிக்கப்பட்டது, ஆனால் பணம் செலுத்துதல் தொடங்கவில்லை. மீண்டும் முயற்சிக்க ஆம் என்று சொல்லுங்கள்.",
@@ -427,6 +432,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "ఈ వస్తువుకు పశువైద్యుని ప్రిస్క్రిప్షన్ అవసరం.",
         "batch_price": "వీటిలో కొన్ని వేరే ధర ఉన్న స్టాక్ నుండి వస్తాయి, కాబట్టి మొత్తం సరిగ్గా {quantity} x ₹{price} కాదు.",
         "what_to_change": "మీరు ఏమి మార్చాలనుకుంటున్నారు: వస్తువు, సంఖ్య లేదా చిరునామా?",
+        "change_not_understood": "క్షమించండి, ఏమి మార్చాలో అర్థం కాలేదు. దయచేసి చెప్పండి: వస్తువు, సంఖ్య లేదా చిరునామా?",
         "stock_changed": "{product} స్టాక్ లేదా ధర ఇప్పుడే మారింది. మీకు ఎన్ని కావాలి?",
         "placed": "మీ ఆర్డర్ {code} పూర్తయింది: {quantity} x {product}, ₹{total}. చెల్లింపు పూర్తి చేయడానికి Pay నొక్కండి.",
         "payment_retry": "మీ ఆర్డర్ సేవ్ అయింది, కానీ చెల్లింపు ప్రారంభం కాలేదు. మళ్ళీ ప్రయత్నించడానికి అవును అని చెప్పండి.",
@@ -450,6 +456,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "ಈ ವಸ್ತುವಿಗೆ ಪಶುವೈದ್ಯರ ಚೀಟಿ ಅಗತ್ಯ.",
         "batch_price": "ಇವುಗಳಲ್ಲಿ ಕೆಲವು ಬೇರೆ ಬೆಲೆಯ ಸ್ಟಾಕ್‌ನಿಂದ ಬರುತ್ತವೆ, ಆದ್ದರಿಂದ ಒಟ್ಟು ಮೊತ್ತ ನಿಖರವಾಗಿ {quantity} x ₹{price} ಅಲ್ಲ.",
         "what_to_change": "ನೀವು ಏನನ್ನು ಬದಲಾಯಿಸಲು ಬಯಸುತ್ತೀರಿ: ವಸ್ತು, ಸಂಖ್ಯೆ ಅಥವಾ ವಿಳಾಸ?",
+        "change_not_understood": "ಕ್ಷಮಿಸಿ, ಏನನ್ನು ಬದಲಾಯಿಸಬೇಕು ಎಂದು ಅರ್ಥವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಹೇಳಿ: ವಸ್ತು, ಸಂಖ್ಯೆ ಅಥವಾ ವಿಳಾಸ?",
         "stock_changed": "{product} ಸ್ಟಾಕ್ ಅಥವಾ ಬೆಲೆ ಈಗಷ್ಟೇ ಬದಲಾಗಿದೆ. ನಿಮಗೆ ಎಷ್ಟು ಬೇಕು?",
         "placed": "ನಿಮ್ಮ ಆರ್ಡರ್ {code} ಆಗಿದೆ: {quantity} x {product}, ₹{total}. ಪಾವತಿ ಪೂರ್ಣಗೊಳಿಸಲು Pay ಒತ್ತಿ.",
         "payment_retry": "ನಿಮ್ಮ ಆರ್ಡರ್ ಉಳಿಸಲಾಗಿದೆ, ಆದರೆ ಪಾವತಿ ಪ್ರಾರಂಭವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲು ಹೌದು ಎನ್ನಿ.",
@@ -473,6 +480,7 @@ _TEXT: dict[str, dict[str, str]] = {
         "prescription": "ഈ സാധനത്തിന് മൃഗഡോക്ടറുടെ കുറിപ്പടി ആവശ്യമാണ്.",
         "batch_price": "ഇവയിൽ ചിലത് വേറെ വിലയുള്ള സ്റ്റോക്കിൽ നിന്നാണ്, അതിനാൽ ആകെ തുക കൃത്യമായി {quantity} x ₹{price} അല്ല.",
         "what_to_change": "എന്താണ് മാറ്റേണ്ടത്: സാധനം, എണ്ണം അല്ലെങ്കിൽ വിലാസം?",
+        "change_not_understood": "ക്ഷമിക്കണം, എന്താണ് മാറ്റേണ്ടതെന്ന് മനസ്സിലായില്ല. ദയവായി പറയൂ: സാധനം, എണ്ണം അല്ലെങ്കിൽ വിലാസം?",
         "stock_changed": "{product} ന്റെ സ്റ്റോക്കോ വിലയോ ഇപ്പോൾ മാറി. എത്ര എണ്ണം വേണം?",
         "placed": "നിങ്ങളുടെ ഓർഡർ {code} ചെയ്തു: {quantity} x {product}, ₹{total}. പണമടയ്ക്കൽ പൂർത്തിയാക്കാൻ Pay അമർത്തുക.",
         "payment_retry": "നിങ്ങളുടെ ഓർഡർ സേവ് ചെയ്തു, പക്ഷേ പണമടയ്ക്കൽ ആരംഭിക്കാനായില്ല. വീണ്ടും ശ്രമിക്കാൻ അതെ എന്ന് പറയൂ.",
@@ -482,7 +490,29 @@ _TEXT: dict[str, dict[str, str]] = {
 }
 
 
-class OrderSupervisor(DraftSupervisor):
+# "What would you like to change: the product, the quantity or the address?"
+# answered with just the field's name. Seen live: "quantity" -> the same
+# question again, because a field name changes no value. Whole reply only.
+_FIELD_WORDS = {
+    "quantity": ("quantity", "qty", "number", "count", "how many", "the quantity", "matra", "maatra", "sankhya",
+                 "मात्रा", "संख्या", "कितने", "किती", "எண்ணிக்கை", "సంఖ్య", "ಸಂಖ್ಯೆ", "എണ്ണം"),
+    "product": ("product", "the product", "item", "saman", "samaan", "सामान", "उत्पाद", "वस्तू",
+                "பொருள்", "వస్తువు", "ವಸ್ತು", "സാധനം"),
+    "address": ("address", "the address", "delivery address", "pata", "पता", "पत्ता",
+                "முகவரி", "చిరునామా", "ವಿಳಾಸ", "വിലാസം"),
+}
+
+
+def _field_named(text: str) -> Optional[str]:
+    """'quantity' / 'product' / 'address' when the whole reply names that field."""
+    said = " ".join((text or "").strip().lower().rstrip(".!?।").split())
+    for field, words in _FIELD_WORDS.items():
+        if said in words:
+            return field
+    return None
+
+
+class OrderSupervisor(CancelCheckMixin, DraftSupervisor):
     INTAKE_SUBDIR = "order_intakes"
     MESSAGES = _TEXT
     # Optional: text -> intent name, from the router's classifier (the chat
@@ -938,7 +968,43 @@ class OrderSupervisor(DraftSupervisor):
     def turn(self, farmer_id: str, session_id: str, text: str, language: str = "en-IN",
              include_audio: bool = True) -> dict[str, Any]:
         with self._session_lock(farmer_id, session_id):
-            return self._turn_locked(farmer_id, session_id, text, language, include_audio)
+            return self.turn_with_cancel_check(
+                farmer_id, session_id, text, language, include_audio,
+                lambda: self._turn_locked(farmer_id, session_id, text, language, include_audio),
+            )
+
+    # A plain "no" that changes nothing asks whether to cancel (see
+    # services/common/cancel_check.py); these two hooks are this flow's own
+    # cancel and reply shape.
+    _CANCEL_KIND = "order"
+
+    def _cancel_now(self, farmer_id: str, session_id: str, text: str, include_audio: bool) -> dict[str, Any]:
+        draft = self._load(session_id, farmer_id, "en-IN")
+        _log.info("order cancelled farmer=%s state=%s", farmer_id, draft["state"])
+        return self._end(draft, CANCELLED, "cancelled", text, include_audio)
+
+    def _cancel_continue_after_no(self, farmer_id: str, session_id: str, text: str,
+                                  include_audio: bool) -> dict[str, Any]:
+        # Same as turn()'s own "no" at the quote: ask what to change.
+        draft = self._load(session_id, farmer_id, "en-IN")
+        draft["state"] = CORRECTING
+        self._save(draft)
+        return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
+                              include_audio=include_audio)
+
+    def _cancel_correcting_text(self, draft: dict[str, Any]) -> str:
+        return self._message(draft["language"], "what_to_change")
+
+    def _cancel_reply(self, draft: dict[str, Any], text: str, input_transcript: str, include_audio: bool,
+                      options: Optional[dict] = None, prompt: Optional[str] = None) -> dict[str, Any]:
+        resp = self._response(draft, text, input_transcript=input_transcript, include_audio=include_audio,
+                              options=options)
+        if options == cancel_chips(draft["language"]) and draft["state"] == CHOOSING and resp.get("draft", {}).get("options"):
+            # The app pairs each choice with a product card by position while
+            # CHOOSING; the two Yes/No chips must not be drawn as products.
+            # Only this reply's copy changes -- the saved draft keeps them.
+            resp["draft"] = {**resp["draft"], "options": []}
+        return resp
 
     def _turn_locked(self, farmer_id: str, session_id: str, text: str, language: str,
                      include_audio: bool) -> dict[str, Any]:
@@ -1083,9 +1149,37 @@ class OrderSupervisor(DraftSupervisor):
             return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
                                   include_audio=include_audio)
         if state == CORRECTING and not changed:
+            # Just the field's name ("quantity", "पता"): ask for that field.
+            field = _field_named(text)
+            if field == "quantity" and values.get("product"):
+                return self._ask_quantity(draft, text, include_audio)
+            if field == "address":
+                values["address"] = None
+                values["quote"] = None
+                draft["state"] = ADDRESS
+                self._save(draft)
+                return self._response(draft, self._message(draft["language"], "ask_address"), input_transcript=text,
+                                      include_audio=include_audio)
+            if field == "product":
+                values["quantity"] = None
+                values["quote"] = None
+                if chat_order_browse_enabled():
+                    return self._browse(draft, farmer_id, text, include_audio)
+                # Store list switched off (CHAT_ORDER_BROWSE_ENABLED): ask
+                # which product, as an order with no product does.
+                values["product"] = None
+                values["options"] = []
+                draft["state"] = SEARCHING
+                self._save(draft)
+                return self._response(draft, self._message(draft["language"], "welcome"), input_transcript=text,
+                                      include_audio=include_audio)
+            # Nothing here reads as a change (a misspelt field name, an
+            # unknown word): say so, instead of the same question again
+            # with no sign it was not understood.
+            _log.info("order correction not understood farmer=%s field=%s", farmer_id, field)
             self._save(draft)
-            return self._response(draft, self._message(draft["language"], "what_to_change"), input_transcript=text,
-                                  include_audio=include_audio)
+            return self._response(draft, self._message(draft["language"], "change_not_understood"),
+                                  input_transcript=text, include_audio=include_audio)
         if state == ADDRESS and not values.get("address"):
             self._save(draft)
             return self._response(draft, self._message(draft["language"], "ask_address"), input_transcript=text,

@@ -85,6 +85,17 @@ def _say(sup, entities_by_turn):
     sup._extract = lambda draft, text: dict(next(turns, {}))
 
 
+def _no_at_the_quote(sup, no="no", language="en-IN"):
+    """A plain "no" at the quote first asks "Do you want to cancel this
+    order?" (services/common/cancel_check.py) -- decided without the LLM, so
+    no _say() entry is used -- and "No, continue" asks what to change."""
+    from services.common import cancel_check
+    asked = sup.turn(FARMER, "s1", no, language=language, include_audio=False)
+    assert asked["response_text"] == cancel_check.ask_text("order", language)
+    carry_on = cancel_check.chips(language)["choices"][1]
+    return sup.turn(FARMER, "s1", carry_on, language=language, include_audio=False)
+
+
 def test_full_order_one_product_then_pay_details(sup, monkeypatch):
     backend = Backend(monkeypatch)
     _say(sup, [{"product_query": "calcium gel"}, {"quantity": 2}, {"confirmation_signal": "yes"}])
@@ -247,9 +258,9 @@ def test_the_llm_repeating_the_product_at_confirm_does_not_undo_yes(sup, monkeyp
 
 def test_no_at_confirm_asks_what_to_change_then_a_new_quantity_requotes(sup, monkeypatch):
     backend = Backend(monkeypatch, quote=[_quote(240), _quote(480)])
-    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "no"}, {"quantity": 4}])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"quantity": 4}])
     sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
-    r2 = sup.turn(FARMER, "s1", "no", include_audio=False)
+    r2 = _no_at_the_quote(sup)
     assert r2["state"] == "CORRECTING"
     r3 = sup.turn(FARMER, "s1", "4", include_audio=False)
     assert r3["state"] == "CONFIRMING" and "₹480" in r3["response_text"]
@@ -258,7 +269,8 @@ def test_no_at_confirm_asks_what_to_change_then_a_new_quantity_requotes(sup, mon
 
 def test_cancel_at_any_step_ends_and_the_next_message_starts_fresh(sup, monkeypatch):
     backend = Backend(monkeypatch)
-    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "cancel"}, {}])
+    # "rehne do" cancels before the LLM is asked, so no _say() entry for it.
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {}])
     sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
     r2 = sup.turn(FARMER, "s1", "rehne do", include_audio=False)
     assert r2["state"] == "CANCELLED"
@@ -530,10 +542,10 @@ def test_topic_is_not_checked_for_a_message_that_answers_the_order(sup, monkeypa
     Backend(monkeypatch)
     asked = []
     sup.topic_check = lambda text: asked.append(text) or "weather"
-    _say(sup, [{"product_query": "calcium gel"}, {"quantity": 2}, {"confirmation_signal": "no"}])
+    _say(sup, [{"product_query": "calcium gel"}, {"quantity": 2}])
     sup.turn(FARMER, "s1", "calcium gel", include_audio=False)
     sup.turn(FARMER, "s1", "2", include_audio=False)
-    r = sup.turn(FARMER, "s1", "no", include_audio=False)
+    r = _no_at_the_quote(sup)
     assert r["state"] == "CORRECTING"
     assert asked == []
 
@@ -685,7 +697,7 @@ def test_tapping_the_no_pill_asks_what_to_change_in_every_language(sup, monkeypa
     _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {}])
     r1 = sup.turn(FARMER, "s1", "2 calcium gel", language=lang, include_audio=False)
     no = r1["options"]["choices"][1]
-    r2 = sup.turn(FARMER, "s1", no, language=lang, include_audio=False)
+    r2 = _no_at_the_quote(sup, no, lang)
     assert r2["state"] == "CORRECTING"
     assert r2["response_text"] == service._TEXT[service._lang(lang)]["what_to_change"]
     assert backend.calls["create"] == []
@@ -760,10 +772,9 @@ def test_changing_the_product_after_no_searches_and_quotes_the_new_one(sup, monk
     backend = Backend(monkeypatch, search=[{"storeAssigned": True, "products": [CALCIUM]},
                                            {"storeAssigned": True, "products": [CALCIUM_PLUS]}],
                       quote=[_quote(240), _quote(190)])
-    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "no"},
-               {"product_query": "calcium plus"}])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"product_query": "calcium plus"}])
     sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
-    sup.turn(FARMER, "s1", "no", include_audio=False)
+    _no_at_the_quote(sup)
     r = sup.turn(FARMER, "s1", "calcium plus instead", include_audio=False)
     assert r["state"] == "CONFIRMING" and "₹190" in r["response_text"]
     assert backend.calls["quote"][1]["args"][1] == [{"productId": CALCIUM_PLUS["productId"], "quantity": 2}]
@@ -772,10 +783,9 @@ def test_changing_the_product_after_no_searches_and_quotes_the_new_one(sup, monk
 
 def test_a_new_address_after_no_is_used_for_the_new_quote(sup, monkeypatch):
     backend = Backend(monkeypatch, quote=[_quote(240), _quote(240, address="Shop 4, Hinjewadi, Pune")])
-    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "no"},
-               {"delivery_address": "Shop 4, Hinjewadi, Pune"}])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"delivery_address": "Shop 4, Hinjewadi, Pune"}])
     sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
-    sup.turn(FARMER, "s1", "no", include_audio=False)
+    _no_at_the_quote(sup)
     r = sup.turn(FARMER, "s1", "deliver to Shop 4, Hinjewadi, Pune", include_audio=False)
     assert r["state"] == "CONFIRMING" and "Shop 4, Hinjewadi, Pune" in r["response_text"]
     assert backend.calls["quote"][1]["args"][2] == "Shop 4, Hinjewadi, Pune"
@@ -972,7 +982,12 @@ def test_fallback_words_work_at_confirm_when_the_llm_reads_nothing(sup, monkeypa
     backend = Backend(monkeypatch)
     _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {}])
     sup.turn(FARMER, "s1", "2 calcium gel", language=f"{lang}-IN", include_audio=False)
-    r = sup.turn(FARMER, "s1", word, language=f"{lang}-IN", include_audio=False)
+    from services.common import cancel_check
+    if kind == "no" and cancel_check.is_bare_no(word):
+        # A plain "no" asks "cancel?" first; "wrong" / "change it" go straight on.
+        r = _no_at_the_quote(sup, word, f"{lang}-IN")
+    else:
+        r = sup.turn(FARMER, "s1", word, language=f"{lang}-IN", include_audio=False)
     assert r["state"] == {"cancel": "CANCELLED", "yes": "ORDERED", "no": "CORRECTING"}[kind]
     assert len(backend.calls["create"]) == (1 if kind == "yes" else 0)
 
@@ -1306,10 +1321,10 @@ def test_the_note_comes_first_and_the_prescription_last(sup, monkeypatch):
 
 def test_a_new_quote_after_a_change_rechecks_the_price(sup, monkeypatch):
     Backend(monkeypatch, quote=[_quote(total=250), _quote(total=360)])
-    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"confirmation_signal": "no"}, {"quantity": 3}])
+    _say(sup, [{"product_query": "calcium gel", "quantity": 2}, {"quantity": 3}])
     r1 = sup.turn(FARMER, "s1", "2 calcium gel", include_audio=False)
     assert r1["response_text"].startswith("Some of these come from stock")
-    sup.turn(FARMER, "s1", "no", include_audio=False)
+    _no_at_the_quote(sup)
     r3 = sup.turn(FARMER, "s1", "3", include_audio=False)
     assert not r3["response_text"].startswith("Some of these come from stock")
     assert "₹360" in r3["response_text"]
