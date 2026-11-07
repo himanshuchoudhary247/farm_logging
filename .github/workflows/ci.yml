@@ -16,8 +16,18 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install dependencies (from lockfile)
+        run: pip install -r requirements.lock.txt
+
+      - name: Check lockfile matches requirements.txt
+        run: |
+          python -m venv /tmp/lockcheck-venv
+          /tmp/lockcheck-venv/bin/pip install -q -r requirements.txt
+          /tmp/lockcheck-venv/bin/pip freeze > /tmp/fresh.lock
+          diff requirements.lock.txt /tmp/fresh.lock || {
+            echo "::error::requirements.lock.txt is stale -- a requirements.txt floor resolves to different versions now. Regenerate the lockfile (see docs/06-configuration-reference.md) and commit it."
+            exit 1
+          }
 
       - name: Run tests
         run: python -m pytest tests/ -q
