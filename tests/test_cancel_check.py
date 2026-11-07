@@ -440,3 +440,78 @@ def test_order_a_real_change_at_what_to_change_still_works(order):
     order.replies.append({"quantity": 4})
     r = order.turn(FARMER, SESSION, "make it 4", include_audio=False)
     assert r["state"] == "CONFIRMING" and r["draft"]["quantity"] == 4
+
+
+# ------------------------------------------------------------------ review fixes
+
+def test_order_naming_the_product_respects_the_store_list_kill_switch(order, monkeypatch):
+    """CHAT_ORDER_BROWSE_ENABLED=false: like every other place, no store
+    list -- the farmer is asked which product instead."""
+    _to_what_to_change(order)
+    monkeypatch.setenv("CHAT_ORDER_BROWSE_ENABLED", "false")
+    searched = []
+    monkeypatch.setattr(order_service.flokiq_sync, "search_products",
+                        lambda *a, **k: searched.append(a) or {"storeAssigned": True, "products": [CALCIUM]})
+    r = order.turn(FARMER, SESSION, "product", include_audio=False)
+    assert r["state"] == "SEARCHING"
+    assert r["response_text"] == order._message("en-IN", "welcome")
+    assert searched == [], "no store list while it is switched off"
+    saved = order._load(SESSION, FARMER, "en-IN")["draft"]
+    assert not saved.get("product") and not saved.get("quantity") and not saved.get("quote")
+
+
+@pytest.mark.parametrize("language", LANGS)
+def test_order_an_unknown_reply_at_what_to_change_says_it_was_not_understood(order, language, caplog):
+    _to_what_to_change(order, language)
+    with caplog.at_level("INFO"):
+        r = order.turn(FARMER, SESSION, "quantty", language=language, include_audio=False)
+    assert r["state"] == "CORRECTING"
+    assert r["response_text"] == order._message(language, "change_not_understood")
+    assert r["response_text"] != order._message(language, "what_to_change")
+    assert "order correction not understood" in caplog.text
+
+
+def _ask_cancel_in_booking(booking):
+    _start_booking(booking)
+    asked = booking.turn(FARMER, SESSION, "no", include_audio=False)
+    assert asked["response_text"] == cancel_check.ask_text("booking", "en-IN")
+    return asked
+
+
+def test_a_failed_cancel_keeps_the_question_open(booking, monkeypatch):
+    """The farmer taps "Yes, cancel" and the cancel itself fails: the error
+    goes up as before, and the open question is kept, so the next "yes"
+    is read as the answer again (not as a booking answer)."""
+    _ask_cancel_in_booking(booking)
+    real = type(booking)._cancel_now
+
+    def broken(self, *a, **k):
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(type(booking), "_cancel_now", broken)
+    with pytest.raises(RuntimeError):
+        booking.turn(FARMER, SESSION, "yes", include_audio=False)
+    assert booking._load(SESSION, FARMER, "en-IN")["cancel_check"].get("asked")
+
+    monkeypatch.setattr(type(booking), "_cancel_now", real)
+    done = booking.turn(FARMER, SESSION, "yes", include_audio=False)
+    assert done["state"] == "CANCELLED"
+
+
+def test_the_question_is_not_saved_when_its_reply_fails(booking, monkeypatch):
+    """Nothing is saved as "asked" for a question the farmer never saw."""
+    _start_booking(booking)
+
+    def broken(self, *a, **k):
+        raise RuntimeError("tts down")
+    monkeypatch.setattr(type(booking), "_cancel_reply", broken)
+    with pytest.raises(RuntimeError):
+        booking.turn(FARMER, SESSION, "no", include_audio=False)
+    assert not (booking._load(SESSION, FARMER, "en-IN").get("cancel_check") or {}).get("asked")
+
+
+def test_any_other_reply_to_the_question_is_logged(booking, caplog):
+    _ask_cancel_in_booking(booking)
+    with caplog.at_level("INFO"):
+        booking.turn(FARMER, SESSION, "tomorrow", include_audio=False)
+    assert "cancel_check answer=other" in caplog.text
+

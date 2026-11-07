@@ -15,7 +15,10 @@ The rule, for every draft flow (see CancelCheckMixin.turn_with_cancel_check):
    optional field skipped, a wrong animal) always changes the draft, so those
    are left exactly as they were.
    - A clear "I don't want it" ("nahi chahiye", "don't want", "rehne do",
-     "वேண்டாம்", ...) cancels straight away.
+     "वேண்டாம்", ...) cancels straight away -- except at a step where the
+     flow itself offers "no" as an answer (add-animal's optional details:
+     "say 'no' to submit now"); there it is that answer, a skip, never a
+     cancel (see _cancel_flow_reads_no).
    - A bare "no" ("no", "nahi", "नहीं", ...) asks once: "Do you want to
      cancel?" with two chips. "Yes" cancels; "No" shows the same question
      again; anything else goes through the flow as a normal answer.
@@ -274,23 +277,55 @@ class CancelCheckMixin:
         """Ask "Do you want to cancel?" and remember what to show again if
         the farmer carries on (`show_again`: reply, prompt, options, state)."""
         draft["cancel_check"] = {"asked": True, **show_again}
-        self._save(draft)
-        _log.info("cancel_check ask flow=%s session=%s state=%s", self._CANCEL_KIND, session_id, draft.get("state"))
         question = ask_text(self._CANCEL_KIND, draft["language"])
         resp = self._cancel_reply(draft, question, text, include_audio, options=chips(draft["language"]), prompt=question)
         # Tells the chat router to send no form with this reply: the app
         # hides choice buttons when a form is shown, and these two buttons
         # are the whole point of the question (services/a2ui/widgets.py).
         resp[CANCEL_QUESTION_KEY] = True
+        # Saved only once the reply is ready: if building it fails, the
+        # draft is not left waiting for an answer to a question the farmer
+        # never saw.
+        self._save(draft)
+        _log.info("cancel_check ask flow=%s session=%s state=%s", self._CANCEL_KIND, session_id, draft.get("state"))
         return resp
 
     def _cancel_end(self, draft: dict[str, Any], farmer_id: str, session_id: str, text: str, include_audio: bool,
-                    reason: str) -> dict[str, Any]:
+                    reason: str, restore: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        """Cancel the flow. `restore` is the open "Do you want to cancel?"
+        the farmer just answered, when there is one (it is already off
+        `draft`); otherwise whatever `draft` holds is what to put back."""
+        previous = restore if restore is not None else copy.deepcopy(draft.get("cancel_check"))
         _log.info("cancel_check cancel flow=%s session=%s state=%s reason=%s", self._CANCEL_KIND, session_id,
                   draft.get("state"), reason)
         draft.pop("cancel_check", None)
         self._save(draft)
-        return self._cancel_now(farmer_id, session_id, text, include_audio)
+        try:
+            return self._cancel_now(farmer_id, session_id, text, include_audio)
+        except Exception:
+            # The cancel did not go through: put back what the farmer last
+            # saw, so the same reply is read the same way next time, and
+            # say so in the log. The error itself still goes up as before.
+            _log.exception("cancel_check cancel failed flow=%s session=%s reason=%s", self._CANCEL_KIND,
+                           session_id, reason)
+            self._cancel_restore(session_id, farmer_id, draft.get("language") or "en-IN", previous)
+            raise
+
+    def _cancel_restore(self, session_id: str, farmer_id: str, language: str,
+                        previous: Optional[dict[str, Any]]) -> None:
+        """After a failed cancel: the cancel-check state as it was before
+        this turn. Left alone when the flow did end after all."""
+        try:
+            after = self._load(session_id, farmer_id, language)
+            if after.get("submitted") or after.get("state") in _DONE_STATES:
+                return
+            if previous:
+                after["cancel_check"] = previous
+            else:
+                after.pop("cancel_check", None)
+            self._save(after)
+        except Exception:
+            _log.exception("cancel_check restore failed flow=%s session=%s", self._CANCEL_KIND, session_id)
 
     def turn_with_cancel_check(self, farmer_id: str, session_id: str, text: str, language: str,
                                include_audio: bool, run: Callable[[], dict[str, Any]]) -> dict[str, Any]:
@@ -307,7 +342,8 @@ class CancelCheckMixin:
             choice = answer(text)
             draft.pop("cancel_check", None)
             if choice == "cancel":
-                return self._cancel_end(draft, farmer_id, session_id, text, include_audio, "answer_yes")
+                return self._cancel_end(draft, farmer_id, session_id, text, include_audio, "answer_yes",
+                                        restore=pending)
             if choice == "continue":
                 _log.info("cancel_check answer=continue flow=%s session=%s", self._CANCEL_KIND, session_id)
                 if pending.get("state"):
@@ -322,10 +358,14 @@ class CancelCheckMixin:
                     self._save(after)
                     return result
                 draft["cancel_check"] = {"continued": True}
-                self._save(draft)
-                return self._cancel_reply(draft, pending.get("reply") or "", text, include_audio,
+                resp = self._cancel_reply(draft, pending.get("reply") or "", text, include_audio,
                                           options=pending.get("options"), prompt=pending.get("prompt"))
+                # Saved once the reply is ready (see _cancel_ask).
+                self._save(draft)
+                return resp
             # Anything else is a normal answer to the flow's question.
+            _log.info("cancel_check answer=other flow=%s session=%s state=%s (read as an answer to the question)",
+                      self._CANCEL_KIND, session_id, pending.get("state") or draft.get("state"))
             if pending.get("state"):
                 draft["state"] = pending["state"]
             self._save(draft)
