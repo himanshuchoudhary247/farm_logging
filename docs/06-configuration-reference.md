@@ -74,9 +74,13 @@ export LLM_CONFIG_PATH=/path/to/farmer_chat/config/llm.bedrock.example.yaml
 `requirements.txt` declares floors (`>=`) only, for readability -- the
 actual pinned versions used in CI and production live in
 `requirements.lock.txt` (plain `pip freeze` output, exact versions
-including transitives). CI fails if the two drift apart (a floor resolves
-to a different version now than the lockfile has) via the "Check lockfile
-matches requirements.txt" step in `.github/workflows/ci.yml`.
+including transitives). The "Check lockfile matches requirements.txt" step
+in `.github/workflows/ci.yml` installs `requirements.txt` in a fresh venv
+with the lockfile as constraints (`-c requirements.lock.txt`) and then runs
+`scripts/check_lockfile.py`: every installed package must be pinned in the
+lockfile at that version. So CI fails when `requirements.txt` gains or bumps
+a dependency without the lockfile being regenerated -- but a new upstream
+release alone never fails it.
 
 To regenerate after deliberately bumping a dependency in `requirements.txt`:
 

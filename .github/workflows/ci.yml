@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   test:
@@ -20,14 +20,19 @@ jobs:
         run: pip install -r requirements.lock.txt
 
       - name: Check lockfile matches requirements.txt
+        # Installs requirements.txt in a fresh venv with the lockfile as
+        # constraints, then checks every installed package is pinned in the
+        # lockfile at that version. Fails when requirements.txt needs
+        # something the lockfile does not pin (a new or bumped dependency);
+        # a new upstream release alone never fails it.
         run: |
           python -m venv /tmp/lockcheck-venv
-          /tmp/lockcheck-venv/bin/pip install -q -r requirements.txt
-          /tmp/lockcheck-venv/bin/pip freeze > /tmp/fresh.lock
-          diff requirements.lock.txt /tmp/fresh.lock || {
-            echo "::error::requirements.lock.txt is stale -- a requirements.txt floor resolves to different versions now. Regenerate the lockfile (see docs/06-configuration-reference.md) and commit it."
+          /tmp/lockcheck-venv/bin/pip install -q -r requirements.txt -c requirements.lock.txt || {
+            echo "::error::requirements.txt cannot be installed with the versions pinned in requirements.lock.txt. Regenerate the lockfile (see docs/06-configuration-reference.md) and commit it."
             exit 1
           }
+          /tmp/lockcheck-venv/bin/pip freeze > /tmp/fresh.lock
+          python scripts/check_lockfile.py requirements.lock.txt /tmp/fresh.lock
 
       - name: Run tests
         run: python -m pytest tests/ -q

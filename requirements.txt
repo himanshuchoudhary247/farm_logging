@@ -27,3 +27,10 @@ gtts>=2.5.0
 # against bedrock/deepseek.v3-v1:0 with this project's existing AWS
 # credentials, 2026-09-20.
 google-adk[extensions]>=2.9.2
+# Imported at runtime by litellm (pulled in by google-adk[extensions]) but not
+# declared by it -- seen on the pilot box: every Bedrock call failed with a
+# 500 until it was installed. Declared here so a fresh install always has it.
+mcp>=2.3.0
+# ffmpeg for voice audio on the server (deploy/bootstrap.sh links its binary;
+# Amazon Linux 2023's repos do not ship ffmpeg).
+imageio-ffmpeg>=0.8.1

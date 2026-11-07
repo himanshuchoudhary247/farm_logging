@@ -265,7 +265,9 @@ Example cron entry (from the repository root):
 */30 * * * * cd /path/to/farmer_chat && /path/to/.venv/bin/python scripts/refresh_caches.py >> data/cache-refresh.log 2>&1
 ```
 
-Cached files are written under `data/cache/<pin>/`. The API serves
+Cached files are written under `data/cache/<pin>/` (`$FARMER_CHAT_DATA_DIR/cache/<pin>/`
+when `FARMER_CHAT_DATA_DIR` is set -- the cron job and the API must use the
+same value). The API serves
 `GET /alerts/general/{pin}` and `POST /farmers/{farmer_id}/advisory/personalized`.
 The per-service cron template is in `deploy/cache-refresh.cron`; it schedules
 forecast/THI, seasonal advisory, and feed-price refreshes independently.

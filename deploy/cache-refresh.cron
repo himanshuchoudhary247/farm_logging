@@ -1,8 +1,11 @@
 # Install with: crontab deploy/cache-refresh.cron
-# Replace both paths with the deployed repository and virtualenv paths.
+# Replace the paths with the deployed repository, virtualenv and data paths.
 SHELL=/bin/sh
 FARMER_CHAT_ROOT=/path/to/farmer_chat
 FARMER_CHAT_PYTHON=/path/to/farmer_chat/.venv/bin/python
+# The same data folder the API uses (FARMER_CHAT_DATA_DIR in its systemd
+# unit, see deploy/bootstrap.sh), so the API reads the cache this writes.
+FARMER_CHAT_DATA_DIR=/path/to/farmer_chat_data
 
 # Open-Meteo forecast and THI cache. Matches cache_settings.yaml weather TTL.
 0 */3 * * * cd $FARMER_CHAT_ROOT && $FARMER_CHAT_PYTHON scripts/refresh_caches.py --service weather_alert >> data/cache-refresh.log 2>&1
