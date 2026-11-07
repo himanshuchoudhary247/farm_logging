@@ -20,39 +20,21 @@ PYTHON_PKG="python3.13"
 PYTHON_BIN="/usr/bin/python3.13"
 
 echo "== system packages =="
-# (No virtualenv package: the venv below is made with python3.13 -m venv,
-# which is part of Python itself.)
-sudo dnf install -y git nginx python3-pip "$PYTHON_PKG" "${PYTHON_PKG}-pip"
+sudo dnf install -y git nginx python3-pip python3-virtualenv "$PYTHON_PKG" "${PYTHON_PKG}-pip"
 
 echo "== runtime data dir (OUTSIDE the repo clone -- storage.py writes real farmer
      data here at runtime; a repo path means every 'git reset --hard' on a
      redeploy destroys live data, which almost happened writing this script) =="
-# Copies the repo clone's data/ into $DATA_DIR, once: only while $DATA_DIR
-# is missing or empty. Copied to a temporary folder first and moved into
-# place at the end, so a copy that fails halfway never leaves a half-filled
-# $DATA_DIR that later runs would take as done. After this, $DATA_DIR is
-# authoritative and the repo's own data/ is never read again
-# (FARMER_CHAT_DATA_DIR is set in the systemd unit below).
-seed_data_dir() {
-  if [ ! -d "$REPO_DIR/data" ]; then
-    return 0
+if [ ! -d "$DATA_DIR" ]; then
+  mkdir -p "$DATA_DIR"
+  if [ -d "$REPO_DIR/data" ]; then
+    # First-ever run on this box: carry over the repo's checked-in seed/example
+    # data once. After this, $DATA_DIR is authoritative and the repo's own
+    # data/ is never read again (FARMER_CHAT_DATA_DIR is set in the systemd
+    # unit below).
+    cp -r "$REPO_DIR/data/." "$DATA_DIR/"
   fi
-  if [ -d "$DATA_DIR" ] && [ -n "$(ls -A "$DATA_DIR")" ]; then
-    return 0
-  fi
-  local tmp="${DATA_DIR}.seeding"
-  rm -rf "$tmp"
-  mkdir -p "$tmp"
-  cp -a "$REPO_DIR/data/." "$tmp/"
-  rm -rf "$DATA_DIR"
-  mv "$tmp" "$DATA_DIR"
-  echo "seeded $DATA_DIR from $REPO_DIR/data"
-}
-
-# Before the repo update: a box that ran without FARMER_CHAT_DATA_DIR has its
-# real farmer data inside the clone -- it is moved out before the
-# 'git reset --hard' below can overwrite it.
-seed_data_dir
+fi
 
 echo "== repo =="
 if [ -d "$REPO_DIR/.git" ]; then
@@ -62,11 +44,11 @@ if [ -d "$REPO_DIR/.git" ]; then
 else
   git clone --branch "$BRANCH" --depth 1 "$REPO_URL" "$REPO_DIR"
 fi
-# After the clone: on a fresh box there was no clone yet above, so the
-# checked-in seed data is copied now. Does nothing when $DATA_DIR already
-# has data.
-seed_data_dir
-mkdir -p "$DATA_DIR"
+# Fresh box: the repo was not cloned yet when $DATA_DIR was created above,
+# so seed it now -- only while it is still empty.
+if [ -d "$REPO_DIR/data" ] && [ -z "$(ls -A "$DATA_DIR")" ]; then
+  cp -r "$REPO_DIR/data/." "$DATA_DIR/"
+fi
 cd "$REPO_DIR"
 
 echo "== venv (from the lockfile, not requirements.txt's floors -- see docs/06-configuration-reference.md) =="
