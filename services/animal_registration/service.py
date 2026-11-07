@@ -46,7 +46,7 @@ from services.common.draft_supervisor import (
     _UNSET,
     _lang,
 )
-from services.common.form_reply import parse_form_reply
+from services.common.form_reply import form_shape, parse_form_reply
 from services.flokiq_sync import client as flokiq_sync
 from services.llm_service.bedrock_adapter import BedrockTextAdapter, TaskTier
 from services.voice_agent.session_store import clear_session
@@ -634,6 +634,8 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         breed_error: Optional[str] = None
 
         species = entities.get("species")
+        if species and species not in _VALID_SPECIES:
+            _log.warning("animal registration species rejected (not a known species): %r", species)
         if species and species in _VALID_SPECIES:
             if target.get("species") != species:
                 changed["species"] = species
@@ -659,12 +661,16 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
                 target["breed"] = breed_raw
 
         sex = entities.get("sex")
+        if sex and sex not in _VALID_SEX:
+            _log.warning("animal registration sex rejected (not a known value): %r", sex)
         if sex and sex in _VALID_SEX:
             if target.get("sex") != sex:
                 changed["sex"] = sex
             target["sex"] = sex
 
         status = entities.get("status")
+        if status and status not in _VALID_STATUS:
+            _log.warning("animal registration status rejected (not a known value): %r", status)
         if status and status in _VALID_STATUS:
             if target.get("status") != status:
                 changed["status"] = status
@@ -722,8 +728,10 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
         # through _copy_entities' species/breed/sex checks.
         form = parse_form_reply(text, _FORM_KEYS)
         if form is not None:
-            _log.info("animal registration form read without the model session=%s fields=%s",
-                      session_id, ",".join(sorted(form)))
+            # "parsed": what the text holds; the "applied" line after
+            # _copy_entities says what the draft actually kept.
+            _log.info("animal registration form parsed without the model session=%s source=%s fields=%s",
+                      session_id, form_shape(text, _FORM_KEYS), ",".join(sorted(form)))
             entities = dict(form)
         else:
             entities = self._extract(draft, text)
@@ -777,6 +785,14 @@ class AnimalRegistrationSupervisor(DraftSupervisor):
             return self.confirm(farmer_id, session_id, conf_sig, include_audio=include_audio)
 
         changed, error = self._copy_entities(draft, entities)
+        if form is not None:
+            target = draft["draft"]
+            dropped = sorted(k for k, v in form.items()
+                             if k not in changed and str(target.get(k) or "").strip().casefold() != v.strip().casefold())
+            kept = sorted(k for k in form if k not in dropped)
+            (_log.warning if dropped else _log.info)(
+                "animal registration form applied session=%s kept=%s dropped=%s",
+                session_id, ",".join(kept), ",".join(dropped))
 
         # Duplicate-tag check as soon as the ID is given, not deferred to
         # submit() -- same "catch it right after they say it" principle

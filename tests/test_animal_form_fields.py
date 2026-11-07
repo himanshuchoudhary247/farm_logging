@@ -59,5 +59,24 @@ def test_parse_form_reply_shape():
     keys = {"animal ID": "unique_animal_id", "breed": "breed"}
     assert parse_form_reply("Animal ID: 7; BREED: Sirohi", keys) == {"unique_animal_id": "7", "breed": "Sirohi"}
     assert parse_form_reply("animal ID: 7", keys) is None
-    assert parse_form_reply("animal ID: 7; breed:", keys) is None
+    # An empty field is skipped, the rest is still read (deep review).
+    assert parse_form_reply("animal ID: 7; breed:", keys) == {"unique_animal_id": "7"}
+    assert parse_form_reply("animal ID: ; breed:", keys) is None
     assert parse_form_reply("", keys) is None
+
+
+def test_a_value_that_is_not_allowed_is_logged(sup, caplog):
+    with caplog.at_level("INFO"):
+        sup.turn(FARMER, SESSION, "animal ID: ee-9; species: dragon; sex: robot", include_audio=False)
+    assert "animal registration species rejected (not a known species): 'dragon'" in caplog.text
+    assert "animal registration sex rejected (not a known value): 'robot'" in caplog.text
+    assert "dropped=sex,species" in caplog.text and "source=app" in caplog.text
+
+
+def test_form_shape_tells_the_app_from_a_typed_look_alike():
+    from services.common.form_reply import form_shape
+
+    keys = service._FORM_KEYS
+    assert form_shape("animal ID: 7; species: goat; sex: female", keys) == "app"
+    assert form_shape("sex: female; animal ID: 7", keys) == "typed"
+    assert form_shape("Animal id: 7; species: goat", keys) == "typed"

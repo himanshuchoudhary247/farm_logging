@@ -16,6 +16,9 @@ SESSION = "24666232-6a23-4471-9fef-0c89e366ddbe"
 
 @pytest.fixture
 def booking(tmp_path, monkeypatch):
+    # Form turns now also write the extraction cache (remember_entities):
+    # keep it in this test's own folder.
+    monkeypatch.setenv("VOICE_SESSIONS_DIR", str(tmp_path / "voice_sessions"))
     monkeypatch.setattr(service, "_try_mid_draft_escape", lambda text, farmer_id, session_id, language: None)
     monkeypatch.setattr(service, "_today_ist", lambda: _dt.date(2026, 11, 6))
     monkeypatch.setattr(service, "_now_ist", lambda: _dt.datetime(2026, 11, 6, 9, 0))
@@ -106,3 +109,76 @@ def test_the_form_keeps_a_typed_problem_in_the_box():
     data = next(m["updateDataModel"]["value"] for m in build_booking_widget(result, "hi-IN", [], choices)
                 if "updateDataModel" in m)
     assert data["problem"] == [choices[service._SYMPTOM_KEYS.index("fever")]] and data["other_problem"] == "cough"
+
+
+# ------------------------------------------------------------------ review fixes
+
+@pytest.fixture
+def booking_with_cache(tmp_path, monkeypatch):
+    """The real extraction step (process_text_input and its per-session
+    entity cache); only the model call itself is stubbed."""
+    from services.voice_agent import orchestrator
+
+    monkeypatch.setenv("VOICE_SESSIONS_DIR", str(tmp_path / "voice_sessions"))
+    monkeypatch.setattr(service, "_try_mid_draft_escape", lambda text, farmer_id, session_id, language: None)
+    monkeypatch.setattr(service, "_today_ist", lambda: _dt.date(2026, 11, 6))
+    monkeypatch.setattr(service, "_now_ist", lambda: _dt.datetime(2026, 11, 6, 9, 0))
+    monkeypatch.setattr(service, "synthesize_speech", lambda text, target_lang=None: (None, None))
+    monkeypatch.setattr(service, "animals_for_farmer",
+                        lambda farmer_id: [type("Animal", (), {"id": "a-9", "tag_or_name": "demo tanay"})()])
+    replies = []
+    monkeypatch.setattr(orchestrator, "call_bedrock", lambda text, context=None: replies.pop(0) if replies else {})
+    sup = service.AppointmentSupervisor(tmp_path)
+    sup.replies = replies
+    return sup
+
+
+def test_a_date_changed_in_the_form_is_not_brought_back_by_a_later_model_turn(booking_with_cache):
+    """Deep review repro: model turn sets the date -> the form changes it
+    (no model) -> a later model turn must not bring the old date back."""
+    sup = booking_with_cache
+    sup.replies.append({"intent": "CREATE_APPOINTMENT", "confidence": 0.9,
+                        "entities": {"animal_name": "demo tanay", "issue": "fever", "date": "2026-11-07"}})
+    sup.turn(FARMER, SESSION, "demo tanay has fever, tomorrow", "en-IN")
+    r = sup.turn(FARMER, SESSION, "animal: demo tanay; problem: Fever; date: 2026-11-09", "en-IN")
+    assert r["draft"]["date"] == "2026-11-09"
+    sup.replies.append({"intent": "CREATE_APPOINTMENT", "confidence": 0.9, "entities": {"time": "11:00"}})
+    r = sup.turn(FARMER, SESSION, "at 11", "en-IN")
+    assert r["draft"]["time"] == "11:00"
+    assert r["draft"]["date"] == "2026-11-09", "the form's date stays"
+
+
+def test_an_empty_field_does_not_send_the_whole_form_to_the_model(booking):
+    r = booking.turn(FARMER, SESSION, "animal: demo tanay; problem: Fever; other problem: ; date: 2026-11-07; "
+                                      "time: 12:12", "en-IN")
+    assert booking.calls == []
+    assert r["draft"]["date"] == "2026-11-07" and r["draft"]["symptoms"] == ["fever"]
+
+
+def test_a_semicolon_typed_in_the_other_problem_box_keeps_the_form(booking):
+    r = booking.turn(FARMER, SESSION, "animal: demo tanay; problem: Fever; other problem: limping; not eating; "
+                                      "date: 2026-11-07; time: 12:12", "en-IN")
+    assert booking.calls == []
+    assert r["draft"]["symptoms"] == ["fever", "limping; not eating"]
+    assert r["draft"]["date"] == "2026-11-07" and r["draft"]["time"] == "12:12"
+
+
+def test_the_log_says_which_form_values_were_kept_and_which_were_refused(booking, caplog):
+    with caplog.at_level("INFO"):
+        booking.turn(FARMER, SESSION, "animal: demo tanay; problem: Fever; date: 07/11/2026; time: 12:12", "en-IN")
+    assert "appointment form/pill parsed without the model" in caplog.text and "source=app" in caplog.text
+    assert "dropped=date" in caplog.text
+    assert "appointment date rejected (not a date): '07/11/2026'" in caplog.text
+
+
+def test_a_typed_look_alike_is_read_but_logged_as_typed(booking, caplog):
+    with caplog.at_level("INFO"):
+        booking.turn(FARMER, SESSION, "Date: 2026-11-07;animal: demo tanay", "en-IN")
+    assert booking.calls == []
+    assert "source=typed" in caplog.text
+
+
+def test_a_time_that_is_not_hh_mm_is_logged(booking, caplog):
+    with caplog.at_level("INFO"):
+        booking.turn(FARMER, SESSION, "animal: demo tanay; problem: Fever; date: 2026-11-07; time: 10 baje", "en-IN")
+    assert "appointment time rejected (not HH:MM): '10 baje'" in caplog.text
