@@ -69,6 +69,32 @@ export LLM_CONFIG_PATH=/path/to/farmer_chat/config/llm.bedrock.example.yaml
 
 ---
 
+## Dependency lockfile
+
+`requirements.txt` declares floors (`>=`) only, for readability -- the
+actual pinned versions used in CI and production live in
+`requirements.lock.txt` (plain `pip freeze` output, exact versions
+including transitives). CI fails if the two drift apart (a floor resolves
+to a different version now than the lockfile has) via the "Check lockfile
+matches requirements.txt" step in `.github/workflows/ci.yml`.
+
+To regenerate after deliberately bumping a dependency in `requirements.txt`:
+
+```bash
+python -m venv /tmp/relock-venv
+/tmp/relock-venv/bin/pip install -r requirements.txt
+/tmp/relock-venv/bin/pip freeze > requirements.lock.txt
+```
+
+Commit the updated `requirements.lock.txt` alongside the `requirements.txt`
+change. Production installs from the lockfile (see
+`deploy/bootstrap.sh`), never from the floors directly -- this is what
+would have caught the `litellm`/`mcp` incident (a newer `litellm`, pulled
+in transitively by `google-adk[extensions]`, hard-imported a package
+nothing declared) before it reached a running server.
+
+---
+
 ## Validation errors
 
 - **Missing API key:** `get_api_key` raises if `api_key_env` is empty (for key-based providers) or the env var is unset/empty.
